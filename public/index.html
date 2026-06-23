@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>SkinGuard · AI Skin Scanner</title>
+  <link rel="icon" type="image/x-icon" href="/favicon1.png">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#1a2e3f">
+</head>
+<body>
+<div id="app">
+
+  <!-- ── CAMERA SCREEN ── -->
+  <div id="camera-screen" class="screen active">
+    <div class="crest-wrap">
+      <svg class="crest" viewBox="0 0 120 138" xmlns="http://www.w3.org/2000/svg">
+        <path d="M60 4 L110 18 L110 64 C110 100 88 122 60 134 C32 122 10 100 10 64 L10 18 Z"
+              fill="#170509" stroke="#C41230" stroke-width="2"/>
+        <path d="M60 11 L101 24 L101 64 C101 94 83 113 60 124 C37 113 19 94 19 64 L19 24 Z"
+              fill="none" stroke="#F5C400" stroke-width="1" opacity="0.55"/>
+        <g stroke="#C41230" stroke-width="1.3" fill="none" stroke-linecap="round">
+          <path d="M25 44 H42 V34"/>
+          <path d="M95 44 H78 V34"/>
+          <path d="M25 100 H42 V110"/>
+          <path d="M95 100 H78 V110"/>
+        </g>
+        <g fill="#C41230">
+          <circle cx="25" cy="44" r="2"/>
+          <circle cx="95" cy="44" r="2"/>
+          <circle cx="25" cy="100" r="2"/>
+          <circle cx="95" cy="100" r="2"/>
+          <circle cx="42" cy="34" r="2"/>
+          <circle cx="78" cy="34" r="2"/>
+          <circle cx="42" cy="110" r="2"/>
+          <circle cx="78" cy="110" r="2"/>
+        </g>
+        <text x="60" y="66" text-anchor="middle" font-family="'Bebas Neue', sans-serif" font-size="28" fill="#F5C400" letter-spacing="1.5">AMA</text>
+        <line x1="34" y1="80" x2="86" y2="80" stroke="#F5C400" stroke-width="1" opacity="0.6"/>
+        <text x="60" y="97" text-anchor="middle" font-family="'Share Tech Mono', monospace" font-size="8.5" fill="#F5EEE8" letter-spacing="2.5">GUARD</text>
+      </svg>
+      <div class="crest-text">
+        <h1>SKINGUARD</h1>
+        <span class="subtitle">&nbsp; AI Skin Assessment &nbsp;</span>
+      </div>
+    </div>
+
+    <div class="camera-container">
+      <span class="corner tl"></span>
+      <span class="corner tr"></span>
+      <span class="corner bl"></span>
+      <span class="corner br"></span>
+      <span class="crosshair"></span>
+      <video id="video" autoplay playsinline></video>
+      <canvas id="canvas"></canvas>
+      <div id="camera-placeholder">
+        waiting for skin
+      </div>
+    </div>
+
+    <div class="button-row">
+      <button class="btn" id="capture-btn">
+        <span class="btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.6-2.4A2 2 0 0 1 10.2 4.6h3.6a2 2 0 0 1 1.6 1L17 8h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z"/><circle cx="12" cy="14" r="3.5"/></svg></span>
+        CAPTURE
+      </button>
+      <button class="btn-outline" id="upload-btn">
+        <span class="btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4 8 8M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg></span>
+        UPLOAD
+      </button>
+      <button class="btn-outline" id="switch-camera-btn">
+        <span class="btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.1 21 6l-4 3.9"/><path d="M3 12.5a9 9 0 0 1 15-6.7l3 .2"/><path d="M7 21.9 3 18l4-3.9"/><path d="M21 11.5a9 9 0 0 1-15 6.7l-3-.2"/></svg></span>
+        SWITCH
+      </button>
+      <button class="btn-outline" id="flash-btn">
+        <span class="btn-icon"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/></svg></span>
+        FLASH
+      </button>
+    </div>
+
+    <div id="loading-overlay" class="loading-overlay" style="display:none;">
+      <div class="spinner"></div>
+      <p>analyzing target . . .</p>
+    </div>
+  </div>
+
+  <!-- ── RESULTS SCREEN ── -->
+  <div id="results-screen" class="screen">
+    <h2>ASSESSMENT</h2>
+
+    <div class="image-preview">
+      <img id="result-image" src="" alt="Scan">
+    </div>
+
+    <div id="condition-name"></div>
+    <div id="confidence-text"></div>
+    <div id="severity-badge" class="badge"></div>
+
+    <div id="advice-box" class="advice-box"></div>
+    <div id="firstaid-box" class="firstaid-box">
+      <strong>
+        <span class="btn-icon" style="width:15px;height:15px;display:inline-flex;vertical-align:-2px;margin-right:5px;"><svg viewBox="0 0 24 24" fill="none" stroke="#FF6B6B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M9 6V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1"/><path d="M12 11v4M10 13h4"/></svg></span>
+        FIRST AID PROTOCOL
+      </strong>
+      <span id="firstaid-text"></span>
+    </div>
+
+    <div class="rule"></div>
+
+    <button class="btn" id="notify-parent-btn">
+      <span class="btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5a2 2 0 0 1 2-2h2.2a1 1 0 0 1 1 .8l1 4a1 1 0 0 1-.5 1.1L7 9.8a12 12 0 0 0 6.2 6.2l.9-1.7a1 1 0 0 1 1.1-.5l4 1a1 1 0 0 1 .8 1V19a2 2 0 0 1-2 2h-1C9.6 21 3 14.4 3 6Z"/></svg></span>
+      NOTIFY PARENT
+    </button>
+    <button class="btn-outline" id="save-history-btn">
+      <span class="btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11l3 3v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"/><path d="M8 4v6h8V4M8 21v-7h8v7"/></svg></span>
+      LOG TO RECORDS
+    </button>
+    <button class="btn-outline" id="find-hospital-btn">
+      <span class="btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M12 8v6M9 11h6"/><path d="M9 21v-3.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V21"/></svg></span>
+      NEARBY HOSPITALS
+    </button>
+    <button class="btn-outline" id="scan-again-btn">
+      <span class="btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></span>
+      NEW SCAN
+    </button>
+  </div>
+
+  <!-- ── SAVE SCREEN ── -->
+  <div id="save-screen" class="screen">
+    <h2>LOG SUBJECT</h2>
+    <p>Record this incident to the database.</p>
+
+    <div class="section-label">Subject Name</div>
+    <input type="text" id="person-name" placeholder="Full name">
+
+    <div class="section-label">Parent Contact</div>
+    <input type="tel" id="save-parent-phone" placeholder="e.g. 09171234567 (optional)">
+
+    <div class="rule"></div>
+    <button class="btn" id="confirm-save-btn">
+      <span class="btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+      CONFIRM &amp; SAVE
+    </button>
+    <button class="btn-outline" id="cancel-save-btn">
+      <span class="btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></span>
+      BACK
+    </button>
+  </div>
+
+  <!-- ── SMS SCREEN ── -->
+  <div id="sms-screen" class="screen">
+    <h2>SEND DISPATCH</h2>
+    <p>Transmit an SMS to the parent contact.</p>
+
+    <div class="section-label">Subject Name</div>
+    <input type="text" id="sms-student-name" placeholder="Student name">
+
+    <div class="section-label">Receiving Number</div>
+    <input type="tel" id="sms-parent-phone" placeholder="+639…">
+
+    <div class="rule"></div>
+    <button class="btn" id="send-sms-btn">
+      <span class="btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5a2 2 0 0 1 2-2h2.2a1 1 0 0 1 1 .8l1 4a1 1 0 0 1-.5 1.1L7 9.8a12 12 0 0 0 6.2 6.2l.9-1.7a1 1 0 0 1 1.1-.5l4 1a1 1 0 0 1 .8 1V19a2 2 0 0 1-2 2h-1C9.6 21 3 14.4 3 6Z"/></svg></span>
+      TRANSMIT
+    </button>
+    <button class="btn-outline" id="cancel-sms-btn">
+      <span class="btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></span>
+      BACK
+    </button>
+  </div>
+
+  <!-- ── STUDENT SELECT SCREEN ── -->
+  <div id="student-select-screen" class="screen">
+    <h2>SELECT SUBJECT</h2>
+
+    <input type="search" id="student-search" placeholder="Search by name…">
+    <div id="student-list-container"></div>
+
+    <div class="rule"></div>
+    <button class="btn-outline" id="add-new-student-btn">
+      <span class="btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>
+      REGISTER NEW
+    </button>
+    <button class="btn-outline" id="cancel-student-select-btn">
+      <span class="btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></span>
+      BACK
+    </button>
+  </div>
+
+  <!-- ── ADD STUDENT SCREEN ── -->
+  <div id="add-student-screen" class="screen">
+    <h2>REGISTER SUBJECT</h2>
+    <p>Add a new student to the roster.</p>
+
+    <div class="section-label">Name</div>
+    <input type="text" id="new-student-name" placeholder="Full name">
+
+    <div class="section-label">Parent Contact</div>
+    <input type="tel" id="new-student-phone" placeholder="Optional">
+
+    <div class="rule"></div>
+    <button class="btn" id="confirm-add-student-btn">
+      <span class="btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+      REGISTER
+    </button>
+    <button class="btn-outline" id="cancel-add-student-btn">
+      <span class="btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></span>
+      BACK
+    </button>
+  </div>
+
+  <!-- ── HOSPITAL SCREEN ── -->
+  <div id="hospital-screen" class="screen">
+    <h2>EXTRACTION POINTS</h2>
+
+    <div id="hospital-map"></div>
+    <div id="hospital-list"><p>Scanning vicinity…</p></div>
+
+    <button class="btn-outline" id="refresh-hospitals-btn">
+      <span class="btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.1 21 6l-4 3.9"/><path d="M3 12.5a9 9 0 0 1 15-6.7l3 .2"/><path d="M7 21.9 3 18l4-3.9"/><path d="M21 11.5a9 9 0 0 1-15 6.7l-3-.2"/></svg></span>
+      REFRESH SCAN
+    </button>
+    <button class="btn-outline" id="back-from-hospital-btn">
+      <span class="btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></span>
+      BACK
+    </button>
+  </div>
+
+</div>
+<script src="script.js"></script>
+</body>
+</html>

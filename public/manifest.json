@@ -1,0 +1,11 @@
+{
+  "name": "SkinGuard",
+  "short_name": "SkinGuard",
+  "description": "AI-powered skin scanner for schools",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5f7fb",
+  "theme_color": "#1a2e3f",
+  "icons": []
+}
