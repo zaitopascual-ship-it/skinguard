@@ -4,12 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>SkinGuard · AI Skin Scanner</title>
-  <link rel="icon" type="image/x-icon" href="/favicon1.png">
+  <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="assets/icon-512.png">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
   <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.10.0/mapbox-gl.css" rel="stylesheet" />
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.10.0/mapbox-gl.js"></script>
   <link rel="manifest" href="/manifest.json">
-  <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#1a2e3f">
@@ -20,31 +22,7 @@
   <!-- ── CAMERA SCREEN ── -->
   <div id="camera-screen" class="screen active">
     <div class="crest-wrap">
-      <svg class="crest" viewBox="0 0 120 138" xmlns="http://www.w3.org/2000/svg">
-        <path d="M60 4 L110 18 L110 64 C110 100 88 122 60 134 C32 122 10 100 10 64 L10 18 Z"
-              fill="#170509" stroke="#C41230" stroke-width="2"/>
-        <path d="M60 11 L101 24 L101 64 C101 94 83 113 60 124 C37 113 19 94 19 64 L19 24 Z"
-              fill="none" stroke="#F5C400" stroke-width="1" opacity="0.55"/>
-        <g stroke="#C41230" stroke-width="1.3" fill="none" stroke-linecap="round">
-          <path d="M25 44 H42 V34"/>
-          <path d="M95 44 H78 V34"/>
-          <path d="M25 100 H42 V110"/>
-          <path d="M95 100 H78 V110"/>
-        </g>
-        <g fill="#C41230">
-          <circle cx="25" cy="44" r="2"/>
-          <circle cx="95" cy="44" r="2"/>
-          <circle cx="25" cy="100" r="2"/>
-          <circle cx="95" cy="100" r="2"/>
-          <circle cx="42" cy="34" r="2"/>
-          <circle cx="78" cy="34" r="2"/>
-          <circle cx="42" cy="110" r="2"/>
-          <circle cx="78" cy="110" r="2"/>
-        </g>
-        <text x="60" y="66" text-anchor="middle" font-family="'Bebas Neue', sans-serif" font-size="28" fill="#F5C400" letter-spacing="1.5">AMA</text>
-        <line x1="34" y1="80" x2="86" y2="80" stroke="#F5C400" stroke-width="1" opacity="0.6"/>
-        <text x="60" y="97" text-anchor="middle" font-family="'Share Tech Mono', monospace" font-size="8.5" fill="#F5EEE8" letter-spacing="2.5">GUARD</text>
-      </svg>
+      <img class="crest" src="assets/skinguard-logo.png" alt="SkinGuard Logo">
       <div class="crest-text">
         <h1>SKINGUARD</h1>
         <span class="subtitle">&nbsp; AI Skin Assessment &nbsp;</span>

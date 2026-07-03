@@ -3,50 +3,67 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" type="image/x-icon" href="/favicon1.png">
-  <title>SkinGuard · Continental</title>
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="assets/icon-512.png">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <title>SkinGuard · Admin Records</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <style>
     :root {
-      --void:       #060607;
-      --obsidian:   #0D0D0F;
-      --charcoal:   #111113;
-      --iron:       #1A1A1D;
-      --steel:      #252528;
-      --mist:       #363639;
-      --gold:       #C9A844;
-      --gold-dim:   #8A7230;
-      --gold-glow:  rgba(201,168,68,.12);
-      --gold-line:  rgba(201,168,68,.2);
-      --crimson:    #9B1C2E;
-      --blood:      #C0392B;
-      --text:       #E8E0CE;
-      --text-dim:   #7A7060;
-      --text-faint: #3D3930;
-      --radius:     3px;
-      --radius-lg:  6px;
+      /* AMA Core Palette */
+      --void:       #0A0205;
+      --obsidian:   #120408;
+      --charcoal:   #1A060C;
+      --iron:       #220A12;
+      --steel:      #2E1018;
+      --mist:       #3E1820;
+
+      /* AMA Crimson Red — primary brand */
+      --gold:       #C41230;
+      --gold-dim:   #8B0D22;
+      --gold-glow:  rgba(196,18,48,.15);
+      --gold-line:  rgba(196,18,48,.30);
+
+      /* AMA Gold/Yellow — accent */
+      --accent:        #F5C400;
+      --accent-dim:    #B89200;
+      --accent-glow:   rgba(245,196,0,.15);
+      --accent-line:   rgba(245,196,0,.30);
+
+      /* AMA Navy — secondary */
+      --navy:          #0E2060;
+      --navy-mid:      #1A3080;
+      --navy-line:     rgba(14,32,96,.5);
+
+      --crimson:    #8B0D22;
+      --blood:      #C41230;
+      --text:       #F5EEE8;
+      --text-dim:   #A0888A;
+      --text-faint: #4A2830;
+      --radius:     4px;
+      --radius-lg:  8px;
     }
 
-    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
     html { -webkit-font-smoothing: antialiased; }
 
     body {
-      font-family: 'Cormorant Garamond', serif;
+      font-family: 'Rajdhani', sans-serif;
       background: var(--void);
       min-height: 100vh;
       color: var(--text);
       padding: 28px 20px;
       background-image:
-        radial-gradient(ellipse 80% 40% at 50% -5%, #1c1810 0%, transparent 55%),
-        radial-gradient(ellipse 50% 30% at 50% 105%, #150508 0%, transparent 55%);
+        radial-gradient(ellipse 80% 50% at 50% -10%, #2a0610 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 50% 110%, #0a0218 0%, transparent 60%);
     }
 
-    /* grain */
     body::after {
       content: '';
       position: fixed; inset: 0;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
-      opacity: .45;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+      opacity: .6;
       pointer-events: none;
       z-index: 9999;
     }
@@ -57,7 +74,6 @@
       margin: 0 auto;
     }
 
-    /* ── Header ── */
     .header {
       display: flex;
       align-items: flex-end;
@@ -75,16 +91,20 @@
       position: absolute;
       bottom: -1px; left: 0; right: 0;
       height: 1px;
-      background: linear-gradient(90deg, var(--gold), transparent);
-      opacity: .4;
+      background: linear-gradient(90deg, var(--gold), var(--accent), transparent);
+      opacity: .5;
     }
+
+    .wordmark-wrap { display: flex; align-items: center; gap: 12px; }
+
+    .wordmark-crest { width: 32px; height: 41px; object-fit: contain; flex-shrink: 0; filter: drop-shadow(0 4px 14px rgba(196,18,48,.35)); }
 
     .wordmark {
       font-family: 'Bebas Neue', sans-serif;
       font-size: 36px;
-      letter-spacing: .1em;
+      letter-spacing: .08em;
       color: var(--gold);
-      text-shadow: 0 0 40px rgba(201,168,68,.2);
+      text-shadow: 0 0 40px rgba(196,18,48,.35);
       line-height: 1;
     }
 
@@ -114,14 +134,13 @@
     }
     .back-link:hover { border-color: var(--gold-dim); color: var(--gold); background: var(--gold-glow); }
 
-    /* ── Panel ── */
     .panel {
       background: var(--obsidian);
       border: 1px solid var(--gold-line);
       border-radius: var(--radius-lg);
       padding: 24px;
       margin-bottom: 16px;
-      box-shadow: 0 4px 30px rgba(0,0,0,.5), inset 0 1px 0 rgba(201,168,68,.06);
+      box-shadow: 0 4px 30px rgba(0,0,0,.5), inset 0 1px 0 rgba(196,18,48,.12);
       position: relative;
       overflow: hidden;
     }
@@ -131,8 +150,8 @@
       position: absolute;
       top: 0; left: 5%; right: 5%;
       height: 1px;
-      background: linear-gradient(90deg, transparent, var(--gold-dim), transparent);
-      opacity: .5;
+      background: linear-gradient(90deg, transparent, var(--gold), var(--accent), var(--gold), transparent);
+      opacity: .6;
     }
 
     .panel-title {
@@ -140,11 +159,10 @@
       font-size: 10px;
       letter-spacing: .28em;
       text-transform: uppercase;
-      color: var(--gold-dim);
+      color: var(--accent-dim);
       margin-bottom: 18px;
     }
 
-    /* ── Form ── */
     .form-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
@@ -154,7 +172,8 @@
     .form-grid input,
     .form-grid select,
     .form-grid textarea {
-      font-family: 'Cormorant Garamond', serif;
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 500;
       font-size: 15px;
       padding: 11px 13px;
       background: var(--iron);
@@ -170,7 +189,6 @@
     .form-grid textarea { min-height: 70px; resize: vertical; }
     .form-grid input::placeholder, .form-grid textarea::placeholder {
       color: var(--text-faint);
-      font-style: italic;
     }
     .form-grid input:focus, .form-grid select:focus, .form-grid textarea:focus {
       border-color: var(--gold-dim);
@@ -184,17 +202,16 @@
       font-size: 16px;
       letter-spacing: .14em;
       background: var(--gold);
-      color: var(--void);
-      border: none;
+      color: #FFFFFF;
+      border: 1px solid rgba(196,18,48,.5);
       padding: 12px 20px;
       border-radius: var(--radius);
       cursor: pointer;
       transition: background .15s, box-shadow .15s, transform .1s;
-      box-shadow: 0 2px 16px rgba(201,168,68,.15);
+      box-shadow: 0 2px 20px rgba(196,18,48,.25), inset 0 1px 0 rgba(255,255,255,.08);
     }
-    .btn-add:hover { background: #D4B54E; box-shadow: 0 4px 24px rgba(201,168,68,.28); transform: translateY(-1px); }
+    .btn-add:hover { background: #D91535; box-shadow: 0 4px 30px rgba(196,18,48,.4); transform: translateY(-1px); }
 
-    /* ── Filter panel ── */
     .filter-panel {
       background: var(--obsidian);
       border: 1px solid var(--gold-line);
@@ -219,13 +236,13 @@
       border: 1px solid var(--steel);
       border-radius: var(--radius);
       padding: 8px 15px;
-      font-family: 'Cormorant Garamond', serif;
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 500;
       color: var(--text);
       min-width: 180px;
       cursor: pointer;
     }
 
-    /* ── Table Panel ── */
     .table-panel {
       background: var(--obsidian);
       border: 1px solid var(--gold-line);
@@ -289,8 +306,8 @@
       font-size: 6px;
     }
     .severity-pill.green  { background: rgba(5,150,105,.1);  color: #4ADE80; border-color: rgba(74,222,128,.2);  }
-    .severity-pill.yellow { background: rgba(201,168,68,.1);  color: #F59E0B; border-color: rgba(245,158,11,.2); }
-    .severity-pill.red    { background: rgba(155,28,46,.15);  color: #F87171; border-color: rgba(248,113,113,.2); }
+    .severity-pill.yellow { background: rgba(245,196,0,.1);  color: #F5C400; border-color: rgba(245,196,0,.25); }
+    .severity-pill.red    { background: rgba(196,18,48,.15);  color: #FF6B6B; border-color: rgba(255,107,107,.25); }
 
     .img-preview {
       max-width: 80px;
@@ -321,7 +338,8 @@
 
     .edit-row td { background: rgba(201,168,68,.03); }
     .edit-row input, .edit-row select, .edit-row textarea {
-      font-family: 'Cormorant Garamond', serif;
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 500;
       width: 100%;
       padding: 7px 9px;
       background: var(--iron);
@@ -347,22 +365,27 @@
       color: var(--text-faint);
     }
 
-    /* ══════════════════════════════════════
-       RESPONSIVE
-       ══════════════════════════════════════ */
+    .status-banner {
+      background: var(--iron);
+      border: 1px solid var(--gold-line);
+      border-radius: var(--radius);
+      padding: 10px 15px;
+      margin-bottom: 15px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+    .status-banner strong { color: var(--gold); }
 
     @media (max-width: 760px) {
       body { padding: 18px 12px; }
-
       .header { align-items: flex-start; gap: 14px; }
       .wordmark { font-size: 28px; }
-
+      .wordmark-crest { width: 26px; height: 33px; }
       .panel { padding: 16px; }
       .form-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
-
       .filter-panel { flex-direction: column; align-items: stretch; }
       #filter-condition { min-width: 0; width: 100%; }
-
       table { font-size: 12px; }
       thead th, td { padding: 9px 10px; }
       .img-preview { max-width: 56px; max-height: 56px; }
@@ -373,12 +396,9 @@
     @media (max-width: 480px) {
       .header { flex-direction: column; align-items: stretch; }
       .back-link { justify-content: center; }
-
       .form-grid { grid-template-columns: 1fr; }
-
       .wordmark { font-size: 25px; }
       .panel-title { font-size: 9px; }
-
       table { font-size: 11px; }
       .advice-box, td[style*="max-width:160px"], td[style*="max-width:140px"] { max-width: 110px !important; }
     }
@@ -392,11 +412,19 @@
 <div class="container">
 
   <div class="header">
-    <div>
-      <div class="wordmark">SKINGUARD</div>
-      <div class="wordmark-sub">◆ &nbsp; Continental Records &nbsp; ◆</div>
+    <div class="wordmark-wrap">
+      <img class="wordmark-crest" src="assets/skinguard-logo.png" alt="SkinGuard Logo">
+      <div>
+        <div class="wordmark">SKINGUARD</div>
+        <div class="wordmark-sub">◆ &nbsp; Admin Records &nbsp; ◆</div>
+      </div>
     </div>
     <a href="/" class="back-link">← SCANNER</a>
+  </div>
+
+  <!-- Status banner -->
+  <div class="status-banner" id="status-banner">
+    <strong>📊 Database Status:</strong> <span id="db-status">Loading...</span>
   </div>
 
   <!-- Add form -->
@@ -423,6 +451,9 @@
     <select id="filter-condition">
       <option value="all">All conditions</option>
     </select>
+    <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-faint);">
+      Total: <span id="total-count">0</span> records
+    </span>
   </div>
 
   <!-- Table -->
@@ -453,22 +484,42 @@
 </div>
 
 <script>
-  let scansData = []; // store all scans for filtering
+  let scansData = [];
 
   async function loadScans() {
+    const statusEl = document.getElementById('db-status');
+    const tbody = document.getElementById('scans-body');
+    
     try {
+      statusEl.textContent = 'Fetching...';
       const r = await fetch('/api/get-scans');
-      if (!r.ok) throw new Error();
+      
+      if (!r.ok) {
+        throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+      }
+      
       scansData = await r.json();
-      // populate filter dropdown with unique conditions
+      console.log('✅ Loaded scans:', scansData.length, 'records');
+      console.log('📋 Sample:', scansData[0] || 'No data');
+      
+      statusEl.textContent = `✅ ${scansData.length} records found`;
+      document.getElementById('total-count').textContent = scansData.length;
+      
+      // Populate filter dropdown
       const filterSelect = document.getElementById('filter-condition');
-      const conditions = [...new Set(scansData.map(s => s.condition))];
+      const conditions = [...new Set(scansData.map(s => s.condition).filter(Boolean))];
       filterSelect.innerHTML = '<option value="all">All conditions</option>' +
         conditions.map(c => `<option value="${c}">${c}</option>`).join('');
+      
       renderTable();
-    } catch {
-      document.getElementById('scans-body').innerHTML =
-        '<tr><td colspan="10" class="empty-state" style="color:#F87171;">connection failure.</td></tr>';
+    } catch (error) {
+      console.error('❌ Load scans error:', error);
+      statusEl.textContent = '❌ Connection error: ' + error.message;
+      tbody.innerHTML = `
+        <tr><td colspan="10" class="empty-state" style="color:#F87171;">
+          ⚠️ Failed to load records: ${error.message}
+        </td></tr>
+      `;
     }
   }
 
@@ -484,24 +535,33 @@
     const filtered = filterValue === 'all' ? scansData : scansData.filter(s => s.condition === filterValue);
 
     const tbody = document.getElementById('scans-body');
+    document.getElementById('total-count').textContent = scansData.length;
+
     if (filtered.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="10" class="empty-state">no records found.</td></tr>';
+      tbody.innerHTML = `
+        <tr><td colspan="10" class="empty-state">
+          ${scansData.length === 0 ? '📭 No records found. Save your first scan from the scanner app!' : '🔍 No records match this filter.'}
+        </td></tr>
+      `;
       return;
     }
 
     let html = '';
     filtered.forEach(s => {
+      const phoneDisplay = s.phone && s.phone.trim() !== '' ? esc(s.phone) : '—';
+      const imageSrc = s.image || '';
+      
       html += `
         <tr id="row-${s.id}" class="view-row">
           <td class="id-cell">${s.id}</td>
           <td style="font-weight:600;">${esc(s.name)}</td>
-          <td style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);">${esc(s.phone||'—')}</td>
+          <td style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);">${phoneDisplay}</td>
           <td>${esc(s.condition)}</td>
           <td><span class="severity-pill ${sc(s.severity)}">${s.severity}</span></td>
           <td style="max-width:160px;font-style:italic;">${esc(s.advice||'—')}</td>
           <td style="max-width:140px;font-style:italic;">${esc(s.firstAid||'—')}</td>
           <td class="timestamp">${new Date(s.timestamp).toLocaleString()}</td>
-          <td><img src="${s.image || ''}" class="img-preview" onerror="this.style.display='none'" alt="scan image"></td>
+          <td>${imageSrc ? `<img src="${imageSrc}" class="img-preview" onerror="this.style.display='none'" alt="scan image">` : '—'}</td>
           <td class="actions">
             <button class="btn-edit" onclick="editScan(${s.id})">EDIT</button>
             <button class="btn-delete" onclick="deleteScan(${s.id})">DELETE</button>
@@ -587,6 +647,7 @@
 
   document.getElementById('filter-condition').addEventListener('change', () => renderTable());
 
+  // Load on page load
   loadScans();
 </script>
 </body>

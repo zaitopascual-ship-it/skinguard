@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/x-icon" href="/favicon1.png">
+  <title>SkinGuard · Continental</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --void:       #060607;
+      --obsidian:   #0D0D0F;
+      --charcoal:   #111113;
+      --iron:       #1A1A1D;
+      --steel:      #252528;
+      --mist:       #363639;
+      --gold:       #C9A844;
+      --gold-dim:   #8A7230;
+      --gold-glow:  rgba(201,168,68,.12);
+      --gold-line:  rgba(201,168,68,.2);
+      --crimson:    #9B1C2E;
+      --blood:      #C0392B;
+      --text:       #E8E0CE;
+      --text-dim:   #7A7060;
+      --text-faint: #3D3930;
+      --radius:     3px;
+      --radius-lg:  6px;
+    }
+
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    html { -webkit-font-smoothing: antialiased; }
+
+    body {
+      font-family: 'Cormorant Garamond', serif;
+      background: var(--void);
+      min-height: 100vh;
+      color: var(--text);
+      padding: 28px 20px;
+      background-image:
+        radial-gradient(ellipse 80% 40% at 50% -5%, #1c1810 0%, transparent 55%),
+        radial-gradient(ellipse 50% 30% at 50% 105%, #150508 0%, transparent 55%);
+    }
+
+    body::after {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      opacity: .45;
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    .container {
+      position: relative; z-index: 1;
+      max-width: 1120px;
+      margin: 0 auto;
+    }
+
+    .header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--gold-line);
+      position: relative;
+    }
+
+    .header::after {
+      content: '';
+      position: absolute;
+      bottom: -1px; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, var(--gold), transparent);
+      opacity: .4;
+    }
+
+    .wordmark {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 36px;
+      letter-spacing: .1em;
+      color: var(--gold);
+      text-shadow: 0 0 40px rgba(201,168,68,.2);
+      line-height: 1;
+    }
+
+    .wordmark-sub {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .3em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-top: 3px;
+    }
+
+    .back-link {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 15px;
+      letter-spacing: .12em;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: transparent;
+      color: var(--text-dim);
+      text-decoration: none;
+      padding: 9px 16px;
+      border-radius: var(--radius);
+      border: 1px solid var(--mist);
+      transition: all .15s;
+    }
+    .back-link:hover { border-color: var(--gold-dim); color: var(--gold); background: var(--gold-glow); }
+
+    .panel {
+      background: var(--obsidian);
+      border: 1px solid var(--gold-line);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin-bottom: 16px;
+      box-shadow: 0 4px 30px rgba(0,0,0,.5), inset 0 1px 0 rgba(201,168,68,.06);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .panel::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 5%; right: 5%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--gold-dim), transparent);
+      opacity: .5;
+    }
+
+    .panel-title {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .28em;
+      text-transform: uppercase;
+      color: var(--gold-dim);
+      margin-bottom: 18px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+      gap: 10px;
+    }
+
+    .form-grid input,
+    .form-grid select,
+    .form-grid textarea {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 15px;
+      padding: 11px 13px;
+      background: var(--iron);
+      border: 1px solid var(--steel);
+      border-radius: var(--radius);
+      color: var(--text);
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+      width: 100%;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+    .form-grid textarea { min-height: 70px; resize: vertical; }
+    .form-grid input::placeholder, .form-grid textarea::placeholder {
+      color: var(--text-faint);
+      font-style: italic;
+    }
+    .form-grid input:focus, .form-grid select:focus, .form-grid textarea:focus {
+      border-color: var(--gold-dim);
+      box-shadow: 0 0 0 2px var(--gold-glow);
+    }
+    .form-grid select option { background: var(--iron); }
+    .span-all { grid-column: 1 / -1; }
+
+    .btn-add {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 16px;
+      letter-spacing: .14em;
+      background: var(--gold);
+      color: var(--void);
+      border: none;
+      padding: 12px 20px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background .15s, box-shadow .15s, transform .1s;
+      box-shadow: 0 2px 16px rgba(201,168,68,.15);
+    }
+    .btn-add:hover { background: #D4B54E; box-shadow: 0 4px 24px rgba(201,168,68,.28); transform: translateY(-1px); }
+
+    .filter-panel {
+      background: var(--obsidian);
+      border: 1px solid var(--gold-line);
+      border-radius: var(--radius-lg);
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+    .filter-label {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      letter-spacing: .2em;
+      color: var(--gold-dim);
+      text-transform: uppercase;
+    }
+    #filter-condition {
+      background: var(--iron);
+      border: 1px solid var(--steel);
+      border-radius: var(--radius);
+      padding: 8px 15px;
+      font-family: 'Cormorant Garamond', serif;
+      color: var(--text);
+      min-width: 180px;
+      cursor: pointer;
+    }
+
+    .table-panel {
+      background: var(--obsidian);
+      border: 1px solid var(--gold-line);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: 0 4px 30px rgba(0,0,0,.5);
+    }
+
+    .table-wrap { overflow-x: auto; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+    thead tr {
+      background: var(--charcoal);
+      border-bottom: 1px solid var(--gold-line);
+    }
+    thead th {
+      padding: 13px 14px;
+      text-align: left;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--gold-dim);
+      white-space: nowrap;
+    }
+
+    tbody tr { border-bottom: 1px solid rgba(255,255,255,.04); transition: background .1s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: rgba(201,168,68,.03); }
+
+    td { padding: 12px 14px; vertical-align: top; color: var(--text); }
+
+    .id-cell {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      color: var(--text-faint);
+    }
+
+    .timestamp {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--text-faint);
+      white-space: nowrap;
+    }
+
+    .severity-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: var(--radius);
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 13px;
+      letter-spacing: .1em;
+      border: 1px solid;
+    }
+    .severity-pill::before {
+      content: '◆';
+      font-size: 6px;
+    }
+    .severity-pill.green  { background: rgba(5,150,105,.1);  color: #4ADE80; border-color: rgba(74,222,128,.2);  }
+    .severity-pill.yellow { background: rgba(201,168,68,.1);  color: #F59E0B; border-color: rgba(245,158,11,.2); }
+    .severity-pill.red    { background: rgba(155,28,46,.15);  color: #F87171; border-color: rgba(248,113,113,.2); }
+
+    .img-preview {
+      max-width: 80px;
+      max-height: 80px;
+      border-radius: 6px;
+      background: var(--iron);
+      object-fit: cover;
+    }
+
+    .actions { display: flex; gap: 5px; flex-wrap: wrap; }
+
+    .btn-edit, .btn-delete, .btn-save, .btn-cancel {
+      font-family: 'Bebas Neue', sans-serif;
+      border: 1px solid;
+      padding: 4px 10px;
+      border-radius: var(--radius);
+      font-size: 12px;
+      letter-spacing: .08em;
+      cursor: pointer;
+      transition: opacity .14s, transform .1s;
+      background: transparent;
+    }
+    .btn-edit   { color: #F59E0B; border-color: rgba(245,158,11,.4); }
+    .btn-delete { color: #F87171; border-color: rgba(248,113,113,.4); }
+    .btn-save   { color: #4ADE80; border-color: rgba(74,222,128,.4); }
+    .btn-cancel { color: var(--text-dim); border-color: var(--mist); }
+    .btn-edit:hover, .btn-delete:hover, .btn-save:hover, .btn-cancel:hover { opacity: .7; }
+
+    .edit-row td { background: rgba(201,168,68,.03); }
+    .edit-row input, .edit-row select, .edit-row textarea {
+      font-family: 'Cormorant Garamond', serif;
+      width: 100%;
+      padding: 7px 9px;
+      background: var(--iron);
+      border: 1px solid var(--steel);
+      border-radius: var(--radius);
+      font-size: 13px;
+      color: var(--text);
+      outline: none;
+    }
+    .edit-row textarea { min-height: 56px; resize: vertical; }
+    .edit-row input:focus, .edit-row select:focus, .edit-row textarea:focus {
+      border-color: var(--gold-dim);
+    }
+    .edit-row select option { background: var(--iron); }
+
+    .empty-state {
+      padding: 48px;
+      text-align: center;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+    }
+
+    .status-banner {
+      background: var(--iron);
+      border: 1px solid var(--gold-line);
+      border-radius: var(--radius);
+      padding: 10px 15px;
+      margin-bottom: 15px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+    .status-banner strong { color: var(--gold); }
+
+    @media (max-width: 760px) {
+      body { padding: 18px 12px; }
+      .header { align-items: flex-start; gap: 14px; }
+      .wordmark { font-size: 28px; }
+      .panel { padding: 16px; }
+      .form-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .filter-panel { flex-direction: column; align-items: stretch; }
+      #filter-condition { min-width: 0; width: 100%; }
+      table { font-size: 12px; }
+      thead th, td { padding: 9px 10px; }
+      .img-preview { max-width: 56px; max-height: 56px; }
+      .actions { flex-direction: column; }
+      .btn-edit, .btn-delete, .btn-save, .btn-cancel { width: 100%; text-align: center; }
+    }
+
+    @media (max-width: 480px) {
+      .header { flex-direction: column; align-items: stretch; }
+      .back-link { justify-content: center; }
+      .form-grid { grid-template-columns: 1fr; }
+      .wordmark { font-size: 25px; }
+      .panel-title { font-size: 9px; }
+      table { font-size: 11px; }
+      .advice-box, td[style*="max-width:160px"], td[style*="max-width:140px"] { max-width: 110px !important; }
+    }
+
+    @media (min-width: 1400px) {
+      .container { max-width: 1320px; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div>
+      <div class="wordmark">SKINGUARD</div>
+      <div class="wordmark-sub">◆ &nbsp; Continental Records &nbsp; ◆</div>
+    </div>
+    <a href="/" class="back-link">← SCANNER</a>
+  </div>
+
+  <!-- Status banner -->
+  <div class="status-banner" id="status-banner">
+    <strong>📊 Database Status:</strong> <span id="db-status">Loading...</span>
+  </div>
+
+  <!-- Add form -->
+  <div class="panel">
+    <div class="panel-title">◆ &nbsp; New Incident Record</div>
+    <div class="form-grid">
+      <input type="text" id="new-name" placeholder="Full name *">
+      <input type="text" id="new-phone" placeholder="Parent contact">
+      <input type="text" id="new-condition" placeholder="Condition *">
+      <select id="new-severity">
+        <option value="Green">◆ Green — Clear</option>
+        <option value="Yellow">◆ Yellow — Moderate</option>
+        <option value="Red">◆ Red — Critical</option>
+      </select>
+      <textarea id="new-advice" placeholder="Advice…"></textarea>
+      <textarea id="new-firstaid" placeholder="First Aid protocol…"></textarea>
+      <button id="add-scan-btn" class="btn-add span-all">◆ &nbsp; LOG INCIDENT</button>
+    </div>
+  </div>
+
+  <!-- Filter panel -->
+  <div class="filter-panel">
+    <span class="filter-label">◆ FILTER BY CONDITION</span>
+    <select id="filter-condition">
+      <option value="all">All conditions</option>
+    </select>
+    <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-faint);">
+      Total: <span id="total-count">0</span> records
+    </span>
+  </div>
+
+  <!-- Table -->
+  <div class="table-panel">
+    <div class="table-wrap">
+      <table id="scans-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Contact</th>
+            <th>Condition</th>
+            <th>Level</th>
+            <th>Advice</th>
+            <th>First Aid</th>
+            <th>Logged</th>
+            <th>Image</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="scans-body">
+          <tr><td colspan="10" class="empty-state">loading records…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  let scansData = [];
+
+  async function loadScans() {
+    const statusEl = document.getElementById('db-status');
+    const tbody = document.getElementById('scans-body');
+    
+    try {
+      statusEl.textContent = 'Fetching...';
+      const r = await fetch('/api/get-scans');
+      
+      if (!r.ok) {
+        throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+      }
+      
+      scansData = await r.json();
+      console.log('✅ Loaded scans:', scansData.length, 'records');
+      console.log('📋 Sample:', scansData[0] || 'No data');
+      
+      statusEl.textContent = `✅ ${scansData.length} records found`;
+      document.getElementById('total-count').textContent = scansData.length;
+      
+      // Populate filter dropdown
+      const filterSelect = document.getElementById('filter-condition');
+      const conditions = [...new Set(scansData.map(s => s.condition).filter(Boolean))];
+      filterSelect.innerHTML = '<option value="all">All conditions</option>' +
+        conditions.map(c => `<option value="${c}">${c}</option>`).join('');
+      
+      renderTable();
+    } catch (error) {
+      console.error('❌ Load scans error:', error);
+      statusEl.textContent = '❌ Connection error: ' + error.message;
+      tbody.innerHTML = `
+        <tr><td colspan="10" class="empty-state" style="color:#F87171;">
+          ⚠️ Failed to load records: ${error.message}
+        </td></tr>
+      `;
+    }
+  }
+
+  function sc(s) { return (s||'').toLowerCase(); }
+
+  function esc(u) {
+    if (!u) return '';
+    return u.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+  }
+
+  function renderTable() {
+    const filterValue = document.getElementById('filter-condition').value;
+    const filtered = filterValue === 'all' ? scansData : scansData.filter(s => s.condition === filterValue);
+
+    const tbody = document.getElementById('scans-body');
+    document.getElementById('total-count').textContent = scansData.length;
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = `
+        <tr><td colspan="10" class="empty-state">
+          ${scansData.length === 0 ? '📭 No records found. Save your first scan from the scanner app!' : '🔍 No records match this filter.'}
+        </td></tr>
+      `;
+      return;
+    }
+
+    let html = '';
+    filtered.forEach(s => {
+      const phoneDisplay = s.phone && s.phone.trim() !== '' ? esc(s.phone) : '—';
+      const imageSrc = s.image || '';
+      
+      html += `
+        <tr id="row-${s.id}" class="view-row">
+          <td class="id-cell">${s.id}</td>
+          <td style="font-weight:600;">${esc(s.name)}</td>
+          <td style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);">${phoneDisplay}</td>
+          <td>${esc(s.condition)}</td>
+          <td><span class="severity-pill ${sc(s.severity)}">${s.severity}</span></td>
+          <td style="max-width:160px;font-style:italic;">${esc(s.advice||'—')}</td>
+          <td style="max-width:140px;font-style:italic;">${esc(s.firstAid||'—')}</td>
+          <td class="timestamp">${new Date(s.timestamp).toLocaleString()}</td>
+          <td>${imageSrc ? `<img src="${imageSrc}" class="img-preview" onerror="this.style.display='none'" alt="scan image">` : '—'}</td>
+          <td class="actions">
+            <button class="btn-edit" onclick="editScan(${s.id})">EDIT</button>
+            <button class="btn-delete" onclick="deleteScan(${s.id})">DELETE</button>
+          </td>
+        </tr>
+        <tr id="edit-${s.id}" class="edit-row" style="display:none;">
+          <td class="id-cell">${s.id}</td>
+          <td><input type="text" id="edit-name-${s.id}" value="${esc(s.name)}"></td>
+          <td><input type="text" id="edit-phone-${s.id}" value="${esc(s.phone||'')}"></td>
+          <td><input type="text" id="edit-condition-${s.id}" value="${esc(s.condition)}"></td>
+          <td>
+            <select id="edit-severity-${s.id}">
+              <option value="Green" ${s.severity==='Green'?'selected':''}>Green</option>
+              <option value="Yellow" ${s.severity==='Yellow'?'selected':''}>Yellow</option>
+              <option value="Red" ${s.severity==='Red'?'selected':''}>Red</option>
+            </select>
+          </td>
+          <td><textarea id="edit-advice-${s.id}">${esc(s.advice||'')}</textarea></td>
+          <td><textarea id="edit-firstaid-${s.id}">${esc(s.firstAid||'')}</textarea></td>
+          <td></td>
+          <td></td>
+          <td class="actions">
+            <button class="btn-save" onclick="saveEdit(${s.id})">SAVE</button>
+            <button class="btn-cancel" onclick="cancelEdit(${s.id})">CANCEL</button>
+          </td>
+        </tr>
+      `;
+    });
+    tbody.innerHTML = html;
+  }
+
+  window.editScan = id => {
+    document.getElementById(`row-${id}`).style.display = 'none';
+    document.getElementById(`edit-${id}`).style.display = 'table-row';
+  };
+  window.cancelEdit = id => {
+    document.getElementById(`row-${id}`).style.display = 'table-row';
+    document.getElementById(`edit-${id}`).style.display = 'none';
+  };
+  window.saveEdit = async id => {
+    const body = {
+      name:      document.getElementById(`edit-name-${id}`).value.trim(),
+      phone:     document.getElementById(`edit-phone-${id}`).value.trim(),
+      condition: document.getElementById(`edit-condition-${id}`).value.trim(),
+      severity:  document.getElementById(`edit-severity-${id}`).value,
+      advice:    document.getElementById(`edit-advice-${id}`).value.trim(),
+      firstAid:  document.getElementById(`edit-firstaid-${id}`).value.trim(),
+    };
+    if (!body.name || !body.condition) return alert('Name and condition required.');
+    try {
+      const r = await fetch(`/api/update-scan/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+      if (!r.ok) throw new Error();
+      loadScans();
+    } catch { alert('Update failed.'); }
+  };
+  window.deleteScan = async id => {
+    if (!confirm('Eliminate this record?')) return;
+    try {
+      const r = await fetch(`/api/delete-scan/${id}`, { method:'DELETE' });
+      if (!r.ok) throw new Error();
+      loadScans();
+    } catch { alert('Delete failed.'); }
+  };
+
+  document.getElementById('add-scan-btn').addEventListener('click', async () => {
+    const body = {
+      name:      document.getElementById('new-name').value.trim(),
+      phone:     document.getElementById('new-phone').value.trim(),
+      condition: document.getElementById('new-condition').value.trim(),
+      severity:  document.getElementById('new-severity').value,
+      advice:    document.getElementById('new-advice').value.trim(),
+      firstAid:  document.getElementById('new-firstaid').value.trim(),
+    };
+    if (!body.name || !body.condition) return alert('Name and condition required.');
+    try {
+      const r = await fetch('/api/add-scan', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+      if (!r.ok) throw new Error();
+      ['new-name','new-phone','new-condition','new-advice','new-firstaid'].forEach(i => document.getElementById(i).value='');
+      document.getElementById('new-severity').value = 'Green';
+      loadScans();
+    } catch { alert('Failed to add record.'); }
+  });
+
+  document.getElementById('filter-condition').addEventListener('change', () => renderTable());
+
+  // Load on page load
+  loadScans();
+</script>
+</body>
+</html>

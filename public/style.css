@@ -126,9 +126,10 @@ body::after {
 }
 
 .crest {
-  width: 56px;
-  height: 64px;
+  width: 52px;
+  height: 66px;
   flex-shrink: 0;
+  object-fit: contain;
   filter: drop-shadow(0 4px 14px rgba(196,18,48,.35));
 }
 
@@ -544,3 +545,11 @@ input:focus, textarea:focus {
 ::-webkit-scrollbar { width: 2px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--mist); border-radius: 999px; }
+#hospital-map {
+    height: 400px;
+    width: 100%;
+    border-radius: 24px;
+    border: 2px solid white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    margin-bottom: 16px;
+}

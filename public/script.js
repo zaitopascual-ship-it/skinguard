@@ -3,8 +3,32 @@ let videoStream = null;
 let currentFacingMode = 'environment';
 let lastResult = null;
 let torchEnabled = false;
-let pendingAction = null;          // 'save' or 'notify'
-let selectedStudent = null;        // current selected student object
+let pendingAction = null;
+let selectedStudent = null;
+
+// ---------- AMA SANTIAGO CAMPUS COORDINATES ----------//
+const SCHOOL_LAT = 16.688356;
+const SCHOOL_LNG = 121.550856;
+
+// ---------- MAPBOX TOKEN ----------
+const MAPBOX_TOKEN = 'pk.eyJ1IjoiYWFyb25wb2dpMDYiLCJhIjoiY21xcThtcmN3MGczODJ3c2J3Y2Viem1pNSJ9.Sscnjo8gxhVt2C2Gbitxgg';
+
+// ---------- STATIC HOSPITAL LIST IN SANTIAGO CITY ----------
+// These are approximate coordinates – replace with exact ones if needed
+const SANTIAGO_HOSPITALS = [
+    { name: 'Southern Isabela Medical Center (SIMC)', address: 'Rosario, Santiago City', lat: 16.6802574, lon: 121.5460643 },
+    { name: 'Santiago Medical City', address: 'Rizal, Santiago City', lat: 16.7282523, lon: 121.5493394 },
+    { name: 'Callang General Hospital and Medical Center', address: 'Centro East, Santiago City', lat: 16.6925894, lon: 121.5504356 },
+    { name: 'Adventist Hospital Santiago City, Inc.', address: 'Mabini, Santiago City', lat: 16.6972695, lon: 121.5643473 },
+    { name: 'De Vera Medical Center, Inc.', address: 'Calao East, Santiago City', lat: 16.6788763, lon: 121.5540857 },
+    { name: 'Flores Memorial Medical Center', address: 'Villasis, Santiago City', lat: 16.6902891, lon: 121.5487915 },
+    { name: 'Renmar Specialists Hospital', address: 'Plaridel, Santiago City', lat: 16.6872677, lon: 121.540592 },
+    { name: 'Corado Medical Clinic & Hospital', address: 'Victory Norte, Santiago City', lat: 16.6863428, lon: 121.5477267 },
+    { name: 'Cagayan Valley Sanitarium & Hospital', address: 'Santiago City', lat: 16.6972695, lon: 121.5647587 },
+    { name: 'Dr. Adolfo O. Flores Memorial Hospital', address: 'Santiago City', lat: 16.6901371, lon: 121.5510837 },
+    { name: 'Clinica Caritas Santiago', address: 'Santiago City', lat: 16.6890425, lon: 121.5509493 },
+    { name: 'Intellicare - Maharlika Highway', address: 'Santiago City', lat: 16.687584, lon: 121.542402 }
+];
 
 // ---------- FALLBACK CONDITIONS ----------
 const conditions = [
@@ -107,6 +131,7 @@ async function performSave() {
     if (!selectedStudent) {
         alert('No student selected.');
         return;
+    console.log('📞 Phone number being saved:', selectedStudent.phone);
     }
     const payload = {
         name: selectedStudent.name,
@@ -152,8 +177,8 @@ async function performNotify() {
     }
 
     const btn = document.getElementById('notify-parent-btn');
-    const originalHTML = btn.innerHTML;
-    btn.innerHTML = 'SENDING…';
+    const originalText = btn.textContent;
+    btn.textContent = 'Sending...';
     btn.disabled = true;
 
     try {
@@ -178,7 +203,7 @@ async function performNotify() {
         console.error('SMS error:', error);
         alert('Error sending SMS.');
     } finally {
-        btn.innerHTML = originalHTML;
+        btn.textContent = originalText;
         btn.disabled = false;
         selectedStudent = null;
         showScreen('results-screen');
@@ -249,7 +274,7 @@ async function startCamera(facingMode = 'environment') {
                     } catch (e) {
                         console.warn('Torch re-enable failed');
                         torchEnabled = false;
-                        document.getElementById('flash-btn').classList.remove('flash-on');
+                        document.getElementById('flash-btn').textContent = '🔦 Flash';
                     }
                 }
             }, 500);
@@ -277,16 +302,16 @@ document.getElementById('flash-btn').addEventListener('click', async () => {
         }
         torchEnabled = !torchEnabled;
         await track.applyConstraints({ advanced: [{ torch: torchEnabled }] });
-        document.getElementById('flash-btn').classList.toggle('flash-on', torchEnabled);
+        document.getElementById('flash-btn').textContent = torchEnabled ? '🔦 Flash ON' : '🔦 Flash';
     } catch (err) {
         console.error('Torch error:', err);
         alert('Could not toggle flashlight.');
         torchEnabled = false;
-        document.getElementById('flash-btn').classList.remove('flash-on');
+        document.getElementById('flash-btn').textContent = '🔦 Flash';
     }
 });
 
-// Capture photo – with video dimension check
+// Capture photo
 document.getElementById('capture-btn').addEventListener('click', () => {
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
@@ -323,7 +348,7 @@ document.getElementById('upload-btn').addEventListener('click', () => {
     input.click();
 });
 
-// ---------- DRAW MULTIPLE BOUNDING BOXES ----------
+// ---------- DRAW BOUNDING BOXES ----------
 function drawBoundingBoxes(img, bboxes, imgSize) {
     let canvas = document.getElementById('bbox-canvas');
     if (canvas) canvas.remove();
@@ -363,7 +388,7 @@ function drawBoundingBoxes(img, bboxes, imgSize) {
     }
 }
 
-// ---------- RESIZE IMAGE HELPER ----------
+// ---------- RESIZE IMAGE ----------
 function resizeImage(dataUrl, maxWidth, maxHeight) {
     return new Promise((resolve) => {
         const img = new Image();
@@ -395,7 +420,6 @@ async function analyzeImage() {
     if (!capturedImage) return;
     showLoading();
     try {
-        // Resize to avoid 400 errors from Roboflow
         const resizedImage = await resizeImage(capturedImage, 800, 800);
         const response = await fetch('/api/analyze', {
             method: 'POST',
@@ -427,8 +451,6 @@ async function analyzeImage() {
         }
         if (!allowedConditions.some(c => c.toLowerCase() === aiResult.condition.toLowerCase())) {
             console.warn('Invalid condition, fallback');
-            console.log('AI generated advice:', aiResult.advice);
-            console.log('AI generated first aid:', aiResult.firstAid);
             hideLoading();
             useFallback();
             return;
@@ -452,7 +474,6 @@ function displayResults(result) {
     lastResult = result;
     const img = document.getElementById('result-image');
     img.src = capturedImage;
-    // Remove old bounding box canvas
     const oldCanvas = document.getElementById('bbox-canvas');
     if (oldCanvas) oldCanvas.remove();
 
@@ -487,9 +508,8 @@ function displayResults(result) {
         }
     }
 
-    // ---------- AUDIO PLAYBACK (with unique filename and cleanup) ----------
+    // ---------- AUDIO PLAYBACK ----------
     if (result.audioUrl) {
-        // Remove any previous audio element to force fresh load
         const oldAudio = document.getElementById('skinguard-audio');
         if (oldAudio) oldAudio.remove();
         const audio = new Audio(result.audioUrl);
@@ -500,7 +520,7 @@ function displayResults(result) {
     showScreen('results-screen');
 }
 
-// ---------- SAVE & NOTIFY (using student selection) ----------
+// ---------- SAVE & NOTIFY ----------
 document.getElementById('save-history-btn').addEventListener('click', () => {
     if (!lastResult) return alert('No result to save.');
     pendingAction = 'save';
@@ -520,20 +540,18 @@ document.getElementById('notify-parent-btn').addEventListener('click', () => {
 
 // ---------- SCAN AGAIN ----------
 document.getElementById('scan-again-btn').addEventListener('click', async () => {
-    // Stop any playing audio
     const audio = document.getElementById('skinguard-audio');
     if (audio) {
         audio.pause();
         audio.currentTime = 0;
-        console.log('🔇 Audio stopped');
     }
-    
     capturedImage = null;
     lastResult = null;
     await startCamera(currentFacingMode);
     showScreen('camera-screen');
 });
-// ---------- UTILITIES ----------
+
+// ---------- UTILITY ----------
 function escapeHtml(unsafe) {
     if (!unsafe) return '';
     return unsafe.replace(/[&<>]/g, function(m) {
@@ -550,154 +568,127 @@ window.addEventListener('beforeunload', () => {
     if (videoStream) videoStream.getTracks().forEach(track => track.stop());
 });
 
-// ---------- HOSPITAL FINDER ----------
+// ---------- HOSPITAL FINDER (Mapbox) — STATIC LIST ----------
 let hospitalMap;
 let hospitalMarkers = [];
-let userLocationMarker;
 
-async function findNearbyHospitals(lat, lng) {
-    const loadingElement = document.getElementById('hospital-list');
-    loadingElement.innerHTML = '<p>Searching for nearby hospitals...</p>';
-    
-    try {
-        const response = await fetch('/api/hospitals', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lat, lng, radius: 5000 })
-        });
-        
-        if (!response.ok) throw new Error('Backend error');
-        
-        const data = await response.json();
-        const hospitals = data.hospitals;
-        
-        displayHospitalsOnMap(hospitals, lat, lng);
-        
-    } catch (error) {
-        console.error('Hospital search error:', error);
-        loadingElement.innerHTML = '<p>Error finding hospitals. Please try again.</p>';
-    }
+function initHospitalMap() {
+    mapboxgl.accessToken = MAPBOX_TOKEN;
+    hospitalMap = new mapboxgl.Map({
+        container: 'hospital-map',
+        style: 'mapbox://styles/mapbox/streets-v12',
+        center: [SCHOOL_LNG, SCHOOL_LAT],
+        zoom: 14
+    });
+    hospitalMap.addControl(new mapboxgl.NavigationControl());
 }
 
 function displayHospitalsOnMap(hospitals, userLat, userLng) {
     const listContainer = document.getElementById('hospital-list');
-    
-    if (hospitals.length === 0) {
-        listContainer.innerHTML = '<p>No hospitals found within 5km.</p>';
+    console.log(`📋 Displaying ${hospitals.length} hospitals on map`);
+
+    hospitalMarkers.forEach(marker => marker.remove());
+    hospitalMarkers = [];
+
+    if (!hospitals || hospitals.length === 0) {
+        listContainer.innerHTML = '<p>🏥 No hospitals found.</p>';
         return;
     }
-    
-    hospitalMarkers.forEach(marker => hospitalMap.removeLayer(marker));
-    hospitalMarkers = [];
-    
-    hospitals.forEach(hospital => {
-        const marker = L.marker([hospital.lat, hospital.lon]).addTo(hospitalMap);
-        marker.bindPopup(`
-            <strong>${escapeHtml(hospital.name)}</strong><br>
-            ${escapeHtml(hospital.address) || 'Address not available'}<br>
-            <a href="https://www.openstreetmap.org/directions?engine=graphhopper_foot&route=${userLat},${userLng}/${hospital.lat},${hospital.lon}" target="_blank">📍 Get Directions</a>
-        `);
-        hospitalMarkers.push(marker);
-    });
-    
+
+    if (userLat && userLng) {
+        try {
+            const userMarker = new mapboxgl.Marker({ color: '#4285F4' })
+                .setLngLat([userLng, userLat])
+                .setPopup(new mapboxgl.Popup().setHTML('<strong>📍 Your location</strong>'))
+                .addTo(hospitalMap);
+            hospitalMarkers.push(userMarker);
+        } catch (e) { console.warn('User marker error:', e); }
+    }
+
     let listHtml = '';
-    hospitals.forEach(hospital => {
+    hospitals.forEach((h) => {
+        const hospitalName = h.name || 'Medical Facility';
+        const hospitalAddress = h.address || 'Address not available';
+
+        // NO origin – Google Maps will ask for user's location
+        const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${h.lat},${h.lon}`;
+
+        try {
+            const popupHTML = `
+                <strong>${escapeHtml(hospitalName)}</strong><br>
+                ${escapeHtml(hospitalAddress)}<br>
+                <a href="${directionsUrl}" target="_blank">📍 Get Directions</a>
+            `;
+            const marker = new mapboxgl.Marker({ color: '#FF0000' })
+                .setLngLat([h.lon, h.lat])
+                .setPopup(new mapboxgl.Popup().setHTML(popupHTML))
+                .addTo(hospitalMap);
+            hospitalMarkers.push(marker);
+        } catch (e) { console.warn('Marker error:', hospitalName, e); }
+
         listHtml += `
-            <div class="hospital-item" style="background:#f8fafd; border-radius:16px; padding:12px; margin-bottom:10px; cursor:pointer;" onclick="window.open('https://www.openstreetmap.org/directions?engine=graphhopper_foot&route=${userLat},${userLng}/${hospital.lat},${hospital.lon}', '_blank')">
-                <strong>${escapeHtml(hospital.name)}</strong><br>
-                <span style="font-size:12px; color:#6b7f99;">${escapeHtml(hospital.address) || 'Address not available'}</span><br>
-                <a href="https://www.openstreetmap.org/directions?engine=graphhopper_foot&route=${userLat},${userLng}/${hospital.lat},${hospital.lon}" target="_blank" style="font-size:12px;">📱 Get Directions</a>
+            <div class="hospital-item" onclick="window.open('${directionsUrl}', '_blank')" style="background:#f8fafd; border-radius:16px; padding:12px; margin-bottom:10px; cursor:pointer; border-left:4px solid #C41230;">
+                <strong>${escapeHtml(hospitalName)}</strong><br>
+                <span style="font-size:12px; color:#6b7f99;">${escapeHtml(hospitalAddress)}</span><br>
+                <span style="font-size:11px; color:#C41230;">📱 Tap for directions</span>
             </div>
         `;
     });
+
     listContainer.innerHTML = listHtml;
-    
-    const bounds = L.latLngBounds(hospitals.map(h => [h.lat, h.lon]));
-    bounds.extend([userLat, userLng]);
-    hospitalMap.fitBounds(bounds, { padding: [50, 50] });
-}
+    listContainer.style.display = 'block';
+    console.log(`✅ List updated with ${hospitals.length} hospitals`);
 
-function initHospitalMap() {
-    const defaultLat = 14.5995;
-    const defaultLng = 120.9842;
-    
-    hospitalMap = L.map('hospital-map').setView([defaultLat, defaultLng], 13);
-    
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        maxZoom: 19
-    }).addTo(hospitalMap);
+    try {
+        const bounds = new mapboxgl.LngLatBounds();
+        if (userLat && userLng) bounds.extend([userLng, userLat]);
+        hospitals.forEach(h => bounds.extend([h.lon, h.lat]));
+        hospitalMap.fitBounds(bounds, { padding: 50, maxZoom: 16 });
+    } catch (e) { console.warn('Fit bounds error:', e); }
 }
-
+// ---------- Hospital Screen Event Handler – just show the static list ----------
 document.getElementById('find-hospital-btn').addEventListener('click', () => {
     showScreen('hospital-screen');
-    
-    if (!hospitalMap) {
-        initHospitalMap();
-    }
-    
+    if (!hospitalMap) initHospitalMap();
+
+    // Show static hospitals list immediately
+    const hospitals = SANTIAGO_HOSPITALS;
+    // Use the school location as the user location (or if geolocation fails, we use school)
+    // If geolocation is available, we can get the user's actual location and include it
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 const userLat = position.coords.latitude;
                 const userLng = position.coords.longitude;
-                
-                hospitalMap.setView([userLat, userLng], 14);
-                
-                if (userLocationMarker) {
-                    hospitalMap.removeLayer(userLocationMarker);
-                }
-                userLocationMarker = L.marker([userLat, userLng], {
-                    icon: L.divIcon({
-                        className: 'user-location-marker',
-                        html: '📍',
-                        iconSize: [20, 20]
-                    })
-                }).addTo(hospitalMap);
-                userLocationMarker.bindPopup('Your location').openPopup();
-                
-                findNearbyHospitals(userLat, userLng);
+                displayHospitalsOnMap(hospitals, userLat, userLng);
             },
             (error) => {
-                console.error('Geolocation error:', error);
-                document.getElementById('hospital-list').innerHTML = '<p>Unable to get your location. Please enable location access.</p>';
-                findNearbyHospitals(14.5995, 120.9842);
+                console.warn('Geolocation error, using school location for user:', error);
+                displayHospitalsOnMap(hospitals, SCHOOL_LAT, SCHOOL_LNG);
             }
         );
     } else {
-        document.getElementById('hospital-list').innerHTML = '<p>Geolocation not supported by your browser.</p>';
-        findNearbyHospitals(14.5995, 120.9842);
+        displayHospitalsOnMap(hospitals, SCHOOL_LAT, SCHOOL_LNG);
     }
 });
 
 document.getElementById('refresh-hospitals-btn').addEventListener('click', () => {
+    // Just redisplay the static list (no need to refresh anything)
+    const hospitals = SANTIAGO_HOSPITALS;
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
             (position) => {
-                findNearbyHospitals(position.coords.latitude, position.coords.longitude);
+                displayHospitalsOnMap(hospitals, position.coords.latitude, position.coords.longitude);
             },
             () => {
-                findNearbyHospitals(14.5995, 120.9842);
+                displayHospitalsOnMap(hospitals, SCHOOL_LAT, SCHOOL_LNG);
             }
         );
     } else {
-        findNearbyHospitals(14.5995, 120.9842);
+        displayHospitalsOnMap(hospitals, SCHOOL_LAT, SCHOOL_LNG);
     }
 });
 
 document.getElementById('back-from-hospital-btn').addEventListener('click', () => {
     showScreen('results-screen');
 });
-
-// Register Service Worker
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-            .then(registration => {
-                console.log('Service Worker registered successfully');
-            })
-            .catch(err => {
-                console.log('Service Worker registration failed:', err);
-            });
-    });
-}
