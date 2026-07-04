@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SkinGuard · AI Clinic Intelligence — AMA Santiago Campus</title>
+<link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="assets/icon-512.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --void:       #0A0205;
+    --obsidian:   #120408;
+    --charcoal:   #1A060C;
+    --iron:       #220A12;
+    --steel:      #2E1018;
+    --mist:       #3E1820;
+    --gold:       #C41230;
+    --gold-dim:   #8B0D22;
+    --gold-glow:  rgba(196,18,48,.15);
+    --gold-line:  rgba(196,18,48,.30);
+    --accent:        #F5C400;
+    --accent-dim:    #B89200;
+    --accent-glow:   rgba(245,196,0,.15);
+    --accent-line:   rgba(245,196,0,.30);
+    --navy:          #0E2060;
+    --navy-mid:      #1A3080;
+    --navy-line:     rgba(14,32,96,.5);
+    --text:       #F5EEE8;
+    --text-dim:   #A0888A;
+    --text-faint: #4A2830;
+    --radius:     4px;
+    --radius-lg:  8px;
+    --maxw:       1180px;
+  }
+
+  *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html { scroll-behavior:smooth; -webkit-font-smoothing:antialiased; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior:auto; }
+    *, *::before, *::after { animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important; }
+  }
+
+  body {
+    font-family:'Rajdhani', sans-serif;
+    background:var(--void);
+    color:var(--text);
+    line-height:1.5;
+    overflow-x:hidden;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, #2a0610 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 50% 105%, #0a0218 0%, transparent 55%);
+  }
+
+  body::after {
+    content:'';
+    position:fixed; inset:0;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+    opacity:.55;
+    pointer-events:none;
+    z-index:999;
+  }
+
+  a { color:inherit; text-decoration:none; }
+  img { display:block; max-width:100%; }
+
+  .wrap { max-width:var(--maxw); margin:0 auto; padding:0 28px; }
+
+  h1,h2,h3 { font-family:'Bebas Neue', sans-serif; letter-spacing:.05em; color:var(--text); }
+  .eyebrow {
+    font-family:'Share Tech Mono', monospace;
+    font-size:11px;
+    letter-spacing:.32em;
+    text-transform:uppercase;
+    color:var(--accent-dim);
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+  }
+  .eyebrow::before { content:'◆'; font-size:7px; color:var(--gold); }
+
+  /* ── NAV ── */
+  .nav {
+    position:sticky; top:0; z-index:500;
+    background:rgba(10,2,5,.82);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--gold-line);
+  }
+  .nav-inner {
+    max-width:var(--maxw); margin:0 auto; padding:14px 28px;
+    display:flex; align-items:center; justify-content:space-between; gap:20px;
+  }
+  .nav-brand { display:flex; align-items:center; gap:10px; }
+  .nav-brand img { width:26px; height:33px; object-fit:contain; filter:drop-shadow(0 2px 8px rgba(196,18,48,.4)); }
+  .nav-brand span {
+    font-family:'Bebas Neue', sans-serif;
+    font-size:20px; letter-spacing:.1em; color:var(--gold);
+  }
+  .nav-links { display:flex; align-items:center; gap:26px; }
+  .nav-links a {
+    font-family:'Share Tech Mono', monospace;
+    font-size:11px; letter-spacing:.15em; text-transform:uppercase;
+    color:var(--text-dim); transition:color .15s;
+  }
+  .nav-links a:hover { color:var(--accent); }
+  .nav-cta {
+    font-family:'Bebas Neue', sans-serif;
+    font-size:14px; letter-spacing:.1em;
+    background:var(--gold); color:#fff;
+    padding:9px 18px; border-radius:var(--radius);
+    border:1px solid rgba(196,18,48,.5);
+    transition:all .15s;
+  }
+  .nav-cta:hover { background:#D91535; transform:translateY(-1px); }
+  .nav-toggle { display:none; }
+
+  /* ── BUTTONS ── */
+  .btn, .btn-outline {
+    font-family:'Bebas Neue', sans-serif;
+    font-size:16px; letter-spacing:.12em;
+    border-radius:var(--radius);
+    padding:14px 28px;
+    cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center; gap:9px;
+    transition:all .15s ease;
+    position:relative; overflow:hidden;
+  }
+  .btn {
+    background:var(--gold); color:#fff;
+    border:1px solid rgba(196,18,48,.5);
+    box-shadow:0 2px 20px rgba(196,18,48,.25), inset 0 1px 0 rgba(255,255,255,.08);
+  }
+  .btn:hover { background:#D91535; box-shadow:0 4px 30px rgba(196,18,48,.4); transform:translateY(-1px); }
+  .btn-outline {
+    background:transparent; color:var(--text-dim);
+    border:1px solid var(--mist);
+  }
+  .btn-outline:hover { border-color:var(--gold-dim); color:var(--gold); background:rgba(196,18,48,.06); }
+
+  /* ── VIEWFINDER FRAME (signature motif) ── */
+  .frame { position:relative; }
+  .frame .corner { position:absolute; width:18px; height:18px; border-color:var(--accent); border-style:solid; opacity:.75; pointer-events:none; }
+  .frame .corner.tl { top:-1px; left:-1px; border-width:2px 0 0 2px; }
+  .frame .corner.tr { top:-1px; right:-1px; border-width:2px 2px 0 0; }
+  .frame .corner.bl { bottom:-1px; left:-1px; border-width:0 0 2px 2px; }
+  .frame .corner.br { bottom:-1px; right:-1px; border-width:0 2px 2px 0; }
+
+  /* ── HERO ── */
+  .hero {
+    padding:88px 0 60px;
+    position:relative;
+  }
+  .hero-inner {
+    display:grid; grid-template-columns:1.1fr .9fr; gap:56px; align-items:center;
+  }
+  .hero h1 {
+    font-size:clamp(40px, 6vw, 68px);
+    line-height:.98;
+    margin:18px 0 20px;
+    text-shadow:0 0 50px rgba(196,18,48,.3);
+  }
+  .hero h1 em { font-style:normal; color:var(--accent); }
+  .hero p.lead {
+    font-size:17px; color:var(--text-dim); max-width:480px; margin-bottom:30px;
+  }
+  .hero-ctas { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:36px; }
+
+  .hud-strip {
+    display:flex; flex-wrap:wrap; gap:22px;
+    font-family:'Share Tech Mono', monospace;
+    font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--text-faint);
+  }
+  .hud-strip span { display:inline-flex; align-items:center; gap:6px; }
+  .hud-strip span::before { content:'◆'; font-size:6px; color:var(--gold-dim); }
+
+  .hero-visual {
+    position:relative;
+    aspect-ratio:4/4.6;
+    background:var(--obsidian);
+    border-radius:var(--radius-lg);
+    border:1px solid var(--gold-line);
+    box-shadow:0 30px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(196,18,48,.1);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    overflow:hidden;
+  }
+  .hero-visual::before {
+    content:'';
+    position:absolute; inset:0;
+    background:
+      radial-gradient(ellipse 70% 60% at 50% 30%, rgba(196,18,48,.14), transparent 65%);
+  }
+  .hero-visual .crosshair { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:34px; height:34px; opacity:.4; }
+  .hero-visual .crosshair::before, .hero-visual .crosshair::after { content:''; position:absolute; background:var(--accent); }
+  .hero-visual .crosshair::before { width:100%; height:1px; top:50%; left:0; }
+  .hero-visual .crosshair::after { width:1px; height:100%; left:50%; top:0; }
+
+  .hero-visual img.logo-big { width:150px; z-index:2; filter:drop-shadow(0 10px 30px rgba(196,18,48,.4)); }
+
+  .scan-line {
+    position:absolute; left:6%; right:6%; height:2px;
+    background:linear-gradient(90deg, transparent, var(--accent), transparent);
+    box-shadow:0 0 12px 2px rgba(245,196,0,.5);
+    animation:scan 3.2s ease-in-out infinite;
+    opacity:.85;
+  }
+  @keyframes scan { 0%{top:10%;} 50%{top:88%;} 100%{top:10%;} }
+
+  .hud-tag {
+    position:absolute;
+    font-family:'Share Tech Mono', monospace;
+    font-size:9px; letter-spacing:.2em; text-transform:uppercase;
+    color:var(--text-faint);
+  }
+  .hud-tag.top { top:16px; left:16px; }
+  .hud-tag.bottom { bottom:16px; right:16px; text-align:right; }
+  .hud-tag .live { color:#4ADE80; }
+
+  /* ── SECTION SHARED ── */
+  section { padding:76px 0; position:relative; }
+  .section-head { max-width:640px; margin-bottom:44px; }
+  .section-head h2 { font-size:clamp(28px,4vw,40px); margin-top:12px; }
+  .section-head p { color:var(--text-dim); margin-top:12px; font-size:15.5px; }
+  .rule {
+    height:1px;
+    background:linear-gradient(90deg, transparent, var(--gold-line), var(--accent-line), var(--gold-line), transparent);
+  }
+
+  /* ── STEPS ── */
+  .steps { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; position:relative; }
+  .step {
+    background:var(--obsidian); border:1px solid var(--steel); border-radius:var(--radius-lg);
+    padding:26px 22px; position:relative;
+  }
+  .step .num {
+    font-family:'Share Tech Mono', monospace; font-size:11px; letter-spacing:.2em;
+    color:var(--gold-dim); margin-bottom:14px; display:block;
+  }
+  .step h3 { font-size:23px; color:var(--accent); letter-spacing:.08em; margin-bottom:10px; }
+  .step p { color:var(--text-dim); font-size:14.5px; }
+
+  /* ── SEVERITY LEGEND ── */
+  .legend { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+  .legend-card {
+    background:var(--iron); border:1px solid var(--steel); border-left:3px solid var(--mist);
+    border-radius:var(--radius); padding:20px;
+  }
+  .legend-card.green  { border-left-color:#4ADE80; }
+  .legend-card.yellow { border-left-color:var(--accent); }
+  .legend-card.red    { border-left-color:#FF6B6B; }
+  .badge {
+    display:inline-flex; align-items:center; gap:8px;
+    padding:7px 14px; border-radius:var(--radius);
+    font-family:'Bebas Neue', sans-serif; font-size:14px; letter-spacing:.16em;
+    border:1px solid; margin-bottom:12px;
+  }
+  .badge::before { content:'◆'; font-size:7px; }
+  .badge.green  { background:rgba(5,150,105,.1); color:#4ADE80; border-color:rgba(74,222,128,.25); }
+  .badge.yellow { background:rgba(245,196,0,.1); color:var(--accent); border-color:rgba(245,196,0,.25); }
+  .badge.red    { background:rgba(196,18,48,.15); color:#FF6B6B; border-color:rgba(255,107,107,.25); }
+  .legend-card p { color:var(--text-dim); font-size:14px; }
+
+  /* ── SPEC GRID ── */
+  .spec-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:1px; background:var(--steel); border:1px solid var(--steel); border-radius:var(--radius-lg); overflow:hidden; }
+  .spec {
+    background:var(--obsidian); padding:22px 18px; min-height:150px;
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .spec .tag {
+    font-family:'Share Tech Mono', monospace; font-size:9.5px; letter-spacing:.18em;
+    text-transform:uppercase; color:var(--gold-dim);
+  }
+  .spec h3 { font-size:19px; letter-spacing:.06em; color:var(--text); }
+  .spec p { font-size:13px; color:var(--text-dim); }
+
+  /* ── CTA BANNER ── */
+  .cta-banner {
+    background:var(--obsidian); border:1px solid var(--gold-line); border-radius:var(--radius-lg);
+    padding:52px 44px; text-align:center; position:relative; overflow:hidden;
+  }
+  .cta-banner::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:3px;
+    background:linear-gradient(90deg, var(--navy), var(--gold), var(--accent), var(--gold), var(--navy));
+  }
+  .cta-banner h2 { font-size:clamp(26px,4vw,38px); margin-bottom:14px; }
+  .cta-banner p { color:var(--text-dim); margin-bottom:28px; }
+  .cta-row { display:flex; gap:14px; justify-content:center; flex-wrap:wrap; }
+
+  /* ── FOOTER ── */
+  footer { padding:40px 0 50px; border-top:1px solid var(--gold-line); }
+  .footer-inner { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:20px; }
+  .footer-brand { display:flex; align-items:center; gap:10px; }
+  .footer-brand img { width:22px; height:28px; object-fit:contain; opacity:.9; }
+  .footer-brand div { font-family:'Bebas Neue', sans-serif; font-size:16px; letter-spacing:.08em; color:var(--gold); }
+  .footer-sub {
+    font-family:'Share Tech Mono', monospace; font-size:10px; letter-spacing:.15em;
+    color:var(--text-faint); margin-top:3px; text-transform:uppercase;
+  }
+  .footer-links { display:flex; gap:22px; }
+  .footer-links a {
+    font-family:'Share Tech Mono', monospace; font-size:11px; letter-spacing:.12em;
+    text-transform:uppercase; color:var(--text-dim);
+  }
+  .footer-links a:hover { color:var(--accent); }
+  .disclaimer {
+    margin-top:26px; font-size:12.5px; color:var(--text-faint); max-width:640px; line-height:1.6;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 980px) {
+    .hero-inner { grid-template-columns:1fr; }
+    .hero-visual { max-width:340px; margin:0 auto; }
+    .steps { grid-template-columns:1fr; }
+    .legend { grid-template-columns:1fr; }
+    .spec-grid { grid-template-columns:repeat(2,1fr); }
+    .nav-links { display:none; }
+  }
+  @media (max-width: 560px) {
+    .wrap { padding:0 18px; }
+    .hero { padding:60px 0 40px; }
+    .spec-grid { grid-template-columns:1fr; }
+    .cta-banner { padding:36px 22px; }
+    .footer-inner { flex-direction:column; align-items:flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="nav-brand" href="#top">
+      <img src="assets/skinguard-logo.png" alt="SkinGuard">
+      <span>SKINGUARD</span>
+    </a>
+    <div class="nav-links">
+      <a href="#how">How It Works</a>
+      <a href="#severity">Severity Scale</a>
+      <a href="#specs">Specifications</a>
+    </div>
+    <a class="nav-cta" href="index.html">LAUNCH SCANNER</a>
+  </div>
+</nav>
+
+<div id="top"></div>
+
+<!-- ── HERO ── -->
+<header class="hero">
+  <div class="wrap hero-inner">
+    <div>
+      <span class="eyebrow">AMA SANTIAGO CAMPUS · CLINIC INTELLIGENCE SYSTEM</span>
+      <h1>SEE THE MARK.<br>KNOW THE <em>RISK.</em></h1>
+      <p class="lead">SkinGuard turns a clinic camera into a first read on common skin conditions — instant severity, first-aid steps, and parent notification, logged straight to the record.</p>
+      <div class="hero-ctas">
+        <a class="btn" href="index.html">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.6-2.4A2 2 0 0 1 10.2 4.6h3.6a2 2 0 0 1 1.6 1L17 8h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z"/><circle cx="12" cy="14" r="3.5"/></svg>
+          LAUNCH SCANNER
+        </a>
+        <a class="btn-outline" href="admin.html">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="11" height="17" rx="1.5"/><path d="M8 4v6h8V4M8 21v-7h8v7"/></svg>
+          VIEW RECORDS
+        </a>
+      </div>
+      <div class="hud-strip">
+        <span>3 SEVERITY TIERS</span>
+        <span>INSTANT FIRST AID</span>
+        <span>PARENT DISPATCH</span>
+        <span>FULL RECORD LOG</span>
+      </div>
+    </div>
+
+    <div class="hero-visual frame">
+      <span class="corner tl"></span><span class="corner tr"></span>
+      <span class="corner bl"></span><span class="corner br"></span>
+      <span class="hud-tag top">MODE: STANDBY</span>
+      <span class="hud-tag bottom"><span class="live">● LIVE</span><br>AI MODEL READY</span>
+      <div class="crosshair"></div>
+      <div class="scan-line"></div>
+      <img class="logo-big" src="assets/skinguard-logo.png" alt="SkinGuard crest">
+    </div>
+  </div>
+</header>
+
+<div class="wrap"><div class="rule"></div></div>
+
+<!-- ── HOW IT WORKS ── -->
+<section id="how">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">SCAN SEQUENCE</span>
+      <h2>THREE STEPS, ONE ASSESSMENT</h2>
+      <p>From lens to record, the full workflow takes seconds — built for a nurse's office, not a lab.</p>
+    </div>
+    <div class="steps">
+      <div class="step frame">
+        <span class="corner tl"></span><span class="corner br"></span>
+        <span class="num">01 / CAPTURE</span>
+        <h3>POINT &amp; SHOOT</h3>
+        <p>Aim the camera at the mark, or upload a photo from the gallery. No special lighting or equipment required.</p>
+      </div>
+      <div class="step frame">
+        <span class="corner tl"></span><span class="corner br"></span>
+        <span class="num">02 / ANALYZE</span>
+        <h3>READ THE TARGET</h3>
+        <p>The model returns a likely condition, a confidence score, and a severity read — usually in under three seconds.</p>
+      </div>
+      <div class="step frame">
+        <span class="corner tl"></span><span class="corner br"></span>
+        <span class="num">03 / RESPOND</span>
+        <h3>ACT ON IT</h3>
+        <p>Follow the first-aid protocol, notify a parent by SMS, or log the incident straight to the clinic record.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── SEVERITY LEGEND ── -->
+<section id="severity">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">SEVERITY SCALE</span>
+      <h2>HOW RESULTS ARE GRADED</h2>
+      <p>Every scan resolves to one of three tiers, so the next step is never ambiguous.</p>
+    </div>
+    <div class="legend">
+      <div class="legend-card green">
+        <span class="badge green">CLEAR</span>
+        <p>Minor or cosmetic. Standard care advice is shown — no escalation needed.</p>
+      </div>
+      <div class="legend-card yellow">
+        <span class="badge yellow">MODERATE</span>
+        <p>Warrants monitoring and basic first aid. Logging the incident is recommended.</p>
+      </div>
+      <div class="legend-card red">
+        <span class="badge red">CRITICAL</span>
+        <p>Needs prompt attention — nearby hospital lookup and parent notification are surfaced immediately.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── SPECIFICATIONS ── -->
+<section id="specs">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">BUILT AND EVALUATED AGAINST</span>
+      <h2>SYSTEM SPECIFICATIONS</h2>
+      <p>SkinGuard was designed and tested against ten criteria before it reached the clinic floor.</p>
+    </div>
+    <div class="spec-grid">
+      <div class="spec"><span class="tag">SPEC 01</span><h3>Efficiency</h3><p>Returns a read in seconds, not minutes.</p></div>
+      <div class="spec"><span class="tag">SPEC 02</span><h3>Reliability</h3><p>Consistent results, scan after scan.</p></div>
+      <div class="spec"><span class="tag">SPEC 03</span><h3>Convenience</h3><p>Works from any clinic device with a camera.</p></div>
+      <div class="spec"><span class="tag">SPEC 04</span><h3>Robustness</h3><p>Holds up under poor lighting and awkward angles.</p></div>
+      <div class="spec"><span class="tag">SPEC 05</span><h3>Effectiveness</h3><p>Assessments that track with real clinical judgment.</p></div>
+      <div class="spec"><span class="tag">SPEC 06</span><h3>User-Friendliness</h3><p>Clinic staff can pick it up with no training.</p></div>
+      <div class="spec"><span class="tag">SPEC 07</span><h3>Security</h3><p>Student records stay access-controlled.</p></div>
+      <div class="spec"><span class="tag">SPEC 08</span><h3>Portability</h3><p>Runs the same on desktop, tablet, or phone.</p></div>
+      <div class="spec"><span class="tag">SPEC 09</span><h3>Usability</h3><p>Every screen has one clear next step.</p></div>
+      <div class="spec"><span class="tag">SPEC 10</span><h3>Integrity</h3><p>Records can't be altered without a trace.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA BANNER ── -->
+<section>
+  <div class="wrap">
+    <div class="cta-banner">
+      <span class="eyebrow">READY WHEN THE CLINIC IS</span>
+      <h2>RUN YOUR FIRST SCAN</h2>
+      <p>No setup, no waiting — open the scanner and point it at the mark.</p>
+      <div class="cta-row">
+        <a class="btn" href="index.html">LAUNCH SCANNER</a>
+        <a class="btn-outline" href="admin.html">VIEW RECORDS</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <img src="assets/skinguard-logo.png" alt="SkinGuard">
+        <div>
+          SKINGUARD
+          <div class="footer-sub">AMA Computer College · Santiago Campus</div>
+        </div>
+      </div>
+      <div class="footer-links">
+        <a href="index.html">Scanner</a>
+        <a href="admin.html">Admin</a>
+        <a href="#how">How It Works</a>
+      </div>
+    </div>
+    <p class="disclaimer">SkinGuard is a capstone research project and is intended to assist, not replace, clinical judgment. It is not a substitute for professional medical diagnosis or treatment.</p>
+  </div>
+</footer>
+
+</body>
+</html>
