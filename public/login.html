@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SkinGuard · Admin Login</title>
+  <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --void: #0A0205;
+      --obsidian: #120408;
+      --gold: #C41230;
+      --gold-glow: rgba(196,18,48,.15);
+      --gold-line: rgba(196,18,48,.30);
+      --accent: #F5C400;
+      --accent-dim: #B89200;
+      --text: #F5EEE8;
+      --text-dim: #A0888A;
+      --text-faint: #4A2830;
+      --radius: 4px;
+      --radius-lg: 8px;
+    }
+
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: 'Rajdhani', sans-serif;
+      background: var(--void);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -10%, #2a0610 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 50% 110%, #0a0218 0%, transparent 60%);
+    }
+
+    body::after {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+      opacity: .6;
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    .login-container {
+      max-width: 400px;
+      width: 100%;
+      padding: 40px 32px;
+      background: var(--obsidian);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--gold-line);
+      box-shadow: 0 30px 80px rgba(0,0,0,.8), inset 0 1px 0 rgba(196,18,48,.1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .login-container::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #0E2060, var(--gold), var(--accent), var(--gold), #0E2060);
+    }
+
+    .login-header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .login-header img {
+      width: 60px;
+      height: 76px;
+      margin: 0 auto 12px;
+      filter: drop-shadow(0 4px 20px rgba(196,18,48,.35));
+    }
+
+    .login-header h1 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 32px;
+      letter-spacing: .08em;
+      color: var(--gold);
+      text-shadow: 0 0 40px rgba(196,18,48,.3);
+    }
+
+    .login-header p {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .3em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      margin-top: 4px;
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    .form-group label {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .form-group input {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 500;
+      font-size: 16px;
+      width: 100%;
+      padding: 12px 15px;
+      background: #1A060C;
+      border: 1px solid #2E1018;
+      border-radius: var(--radius);
+      color: var(--text);
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+
+    .form-group input:focus {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 2px var(--gold-glow);
+    }
+
+    .btn-login {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 18px;
+      letter-spacing: .12em;
+      width: 100%;
+      padding: 14px;
+      background: var(--gold);
+      color: #fff;
+      border: 1px solid rgba(196,18,48,.5);
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background .15s, box-shadow .15s, transform .1s;
+      box-shadow: 0 2px 20px rgba(196,18,48,.25), inset 0 1px 0 rgba(255,255,255,.08);
+      margin-top: 8px;
+    }
+
+    .btn-login:hover {
+      background: #D91535;
+      box-shadow: 0 4px 30px rgba(196,18,48,.4);
+      transform: translateY(-1px);
+    }
+
+    .btn-login:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+
+    .error-msg {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      color: #FF6B6B;
+      text-align: center;
+      margin-top: 14px;
+      min-height: 20px;
+    }
+
+    .error-msg.success {
+      color: #4ADE80;
+    }
+
+    .footer-text {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      text-align: center;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+<div class="login-container">
+  <div class="login-header">
+    <img src="assets/skinguard-logo.png" alt="SkinGuard Logo">
+    <h1>SKINGUARD</h1>
+    <p>Admin Access</p>
+  </div>
+
+  <form id="login-form" autocomplete="off">
+    <div class="form-group">
+      <label for="username">Username</label>
+      <input type="text" id="username" placeholder="Enter username" required autofocus>
+    </div>
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input type="password" id="password" placeholder="Enter password" required>
+    </div>
+    <button type="submit" class="btn-login" id="login-btn">LOGIN</button>
+    <div class="error-msg" id="error-msg"></div>
+  </form>
+  <div class="footer-text">AMA Computer College · Santiago Campus</div>
+</div>
+
+<script>
+  document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value.trim();
+    const errorEl = document.getElementById('error-msg');
+    const btn = document.getElementById('login-btn');
+
+    if (!username || !password) {
+      errorEl.textContent = 'Please enter both username and password.';
+      errorEl.className = 'error-msg';
+      return;
+    }
+
+    errorEl.textContent = '';
+    btn.disabled = true;
+    btn.textContent = 'LOGGING IN...';
+
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        errorEl.textContent = '✅ Login successful! Redirecting...';
+        errorEl.className = 'error-msg success';
+        setTimeout(() => {
+          window.location.href = '/admin';
+        }, 800);
+      } else {
+        errorEl.textContent = data.error || 'Invalid username or password.';
+        errorEl.className = 'error-msg';
+        btn.disabled = false;
+        btn.textContent = 'LOGIN';
+        document.getElementById('password').value = '';
+        document.getElementById('password').focus();
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      errorEl.textContent = 'Network error. Please try again.';
+      errorEl.className = 'error-msg';
+      btn.disabled = false;
+      btn.textContent = 'LOGIN';
+    }
+  });
+
+  // Enter key submits the form
+  document.getElementById('password').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      document.getElementById('login-form').dispatchEvent(new Event('submit'));
+    }
+  });
+</script>
+</body>
+</html>

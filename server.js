@@ -6,7 +6,7 @@ const axios = require('axios');
 const fs = require('fs');
 const { ElevenLabsClient } = require('@elevenlabs/elevenlabs-js');
 const { Readable } = require('stream');
-const basicAuth = require('express-basic-auth');
+const session = require('express-session');
 require('dotenv').config();
 
 console.log('OpenAI API Key:', process.env.OPENAI_API_KEY ? 'Loaded' : 'Not found');
@@ -19,13 +19,61 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-// ---------- ADMIN AUTH ----------
-const adminAuth = basicAuth({
-    users: {
-        [process.env.ADMIN_USER || 'admin']: process.env.ADMIN_PASSWORD || 'admin123'
-    },
-    challenge: true,
-    realm: 'SkinGuard Admin'
+// ---------- SESSION SETUP ----------
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'skinguard-secret-key-change-me',
+    resave: false,
+    saveUninitialized: false,
+    cookie: { 
+        secure: false, // set to true if using HTTPS
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
+}));
+
+// ---------- AUTH MIDDLEWARE ----------
+function requireAdmin(req, res, next) {
+    if (req.session && req.session.isAdmin) {
+        return next();
+    }
+    // If it's an API request, return 401 JSON
+    if (req.path.startsWith('/api/')) {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
+    // For page requests, redirect to login
+    res.redirect('/login');
+}
+
+// ---------- LOGIN PAGE ----------
+app.get('/login', (req, res) => {
+    // If already logged in, redirect to admin
+    if (req.session && req.session.isAdmin) {
+        return res.redirect('/admin');
+    }
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+// ---------- LOGIN API ----------
+app.post('/api/login', (req, res) => {
+    const { username, password } = req.body;
+    const adminUser = process.env.ADMIN_USER || 'admin';
+    const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
+
+    if (username === adminUser && password === adminPass) {
+        req.session.isAdmin = true;
+        req.session.username = username;
+        console.log('✅ Admin logged in:', username);
+        return res.json({ success: true });
+    }
+
+    console.log('❌ Failed login attempt:', username);
+    res.status(401).json({ error: 'Invalid username or password' });
+});
+
+// ---------- LOGOUT ----------
+app.get('/logout', (req, res) => {
+    req.session.destroy(() => {
+        res.redirect('/login');
+    });
 });
 
 // ---------- LANDING PAGE ----------
@@ -34,19 +82,20 @@ app.get('/', (req, res) => {
 });
 
 // ---------- ADMIN PAGE (Protected) ----------
-app.get('/admin', adminAuth, (req, res) => {
+app.get('/admin', requireAdmin, (req, res) => {
+    console.log('✅ Admin page accessed by:', req.session.username);
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
-app.get('/admin.html', adminAuth, (req, res) => {
+app.get('/admin.html', requireAdmin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
 // ---------- PROTECTED API ROUTES ----------
-app.use('/api/get-scans', adminAuth);
-app.use('/api/add-scan', adminAuth);
-app.use('/api/update-scan', adminAuth);
-app.use('/api/delete-scan', adminAuth);
+app.use('/api/get-scans', requireAdmin);
+app.use('/api/add-scan', requireAdmin);
+app.use('/api/update-scan', requireAdmin);
+app.use('/api/delete-scan', requireAdmin);
 
 // ---------- STATIC FILES ----------
 app.use(express.static('public'));
@@ -101,19 +150,16 @@ app.get('/api/students', (req, res) => {
     });
 });
 
-// FIXED: Handle duplicate student names gracefully
 app.post('/api/students', (req, res) => {
     const { name, phone } = req.body;
     if (!name) return res.status(400).json({ error: 'Name required' });
 
-    // First, check if student already exists
     db.get('SELECT id, name, phone FROM students WHERE name = ?', [name], (err, row) => {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
         }
         if (row) {
-            // Student exists – update phone if provided and return existing student
             if (phone && phone !== row.phone) {
                 db.run('UPDATE students SET phone = ? WHERE id = ?', [phone, row.id], (updateErr) => {
                     if (updateErr) {
@@ -126,7 +172,6 @@ app.post('/api/students', (req, res) => {
                 res.json({ id: row.id, name: row.name, phone: row.phone });
             }
         } else {
-            // Insert new student
             const stmt = db.prepare('INSERT INTO students (name, phone) VALUES (?, ?)');
             stmt.run(name, phone, function(insertErr) {
                 if (insertErr) {
@@ -432,7 +477,7 @@ app.post('/api/analyze', async (req, res) => {
     }
 });
 
-// ---------- SMS ENDPOINT using correct UniSMS API (fixed success detection) ----------
+// ---------- SMS ENDPOINT ----------
 app.post('/api/send-sms', async (req, res) => {
     const { to, studentName, condition, advice, severity } = req.body;
 
@@ -451,14 +496,9 @@ app.post('/api/send-sms', async (req, res) => {
         });
     }
 
-    // Build message WITHOUT emojis
-    let messageText = `AMA SKINGUARD ALERT
-    \nDear parent/guardian of ${studentName}, your child was assessed with ${condition}. ${advice}. Please take appropriate action.`;
-    
-    // Remove any remaining non-ASCII characters
+    let messageText = `AMA SKINGUARD ALERT\nDear parent/guardian of ${studentName}, your child was assessed with ${condition}. ${advice}. Please take appropriate action.`;
     messageText = messageText.replace(/[^\x00-\x7F]/g, '');
 
-    // Get sender ID from environment, or omit it to use default
     let senderId = process.env.UNISMS_SENDER_ID;
     const useSenderId = senderId && senderId.trim().length > 0;
 
@@ -468,7 +508,6 @@ app.post('/api/send-sms', async (req, res) => {
     else console.log('📤 No sender ID provided – will omit field');
 
     try {
-        // Build request body
         const requestBody = {
             recipient: to,
             content: messageText
@@ -499,7 +538,6 @@ app.post('/api/send-sms', async (req, res) => {
             data = JSON.parse(responseText);
         } catch (e) {
             console.error('❌ Failed to parse JSON:', e.message);
-            // If we got a 2xx status but can't parse, treat as success
             if (response.status >= 200 && response.status < 300) {
                 console.log('✅ SMS sent successfully (response status 2xx)');
                 return res.json({
@@ -516,7 +554,6 @@ app.post('/api/send-sms', async (req, res) => {
             });
         }
 
-        // ✅ IMPROVED SUCCESS DETECTION – any 2xx status with valid response
         if (response.status >= 200 && response.status < 300) {
             console.log('✅ SMS sent successfully');
             return res.json({
@@ -526,7 +563,6 @@ app.post('/api/send-sms', async (req, res) => {
             });
         }
 
-        // Handle specific error codes
         if (response.status === 401) {
             console.error('❌ Authentication failed – check your API Secret key');
         }
@@ -544,7 +580,6 @@ app.post('/api/send-sms', async (req, res) => {
             }
         }
 
-        // If we reach here, it failed – simulate success for demo
         console.warn('⚠️ SMS sending failed – simulating success for demo');
         res.json({
             success: true,
@@ -565,7 +600,7 @@ app.post('/api/send-sms', async (req, res) => {
     }
 });
 
-// ---------- HOSPITAL SEARCH using OpenStreetMap (improved) ----------
+// ---------- HOSPITAL SEARCH ----------
 app.post('/api/hospitals', async (req, res) => {
     const { lat, lng, radius = 30000 } = req.body;
 
@@ -666,15 +701,3 @@ app.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
     console.log(`Admin panel at http://localhost:${PORT}/admin`);
 });
-
-// -------------------- Thank you for using SkinGuard! --------------------
-// -------------------- Developed by: --------------------
-                        //AARON DORONIO
-                        //TRISTAN JACOB BALMACEDA
-                        //JAN RYE ASWEN MINA
-
-//SPECIAL THANKS TO MY FAMILY AND FRIENDS FOR SUPPORTING ME IN THIS PROJECT.
-//AND TO MY PROFESSORS AND CLASSMATES FOR THEIR GUIDANCE AND ENCOURAGEMENT.
-//SPECIAL THANKS TO DENNIELYN SOPHIA PINTO WHO BELIEVED IN ME AND HELPED ME THROUGH THIS JOURNEY. I COULDN'T HAVE DONE IT WITHOUT YOU.
-//THANK YOU!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-//TO GOD BE THE GLORY!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
