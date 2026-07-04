@@ -16,6 +16,25 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
+const basicAuth = require('express-basic-auth');
+
+// ---------- ADMIN AUTH ----------
+const adminAuth = basicAuth({
+    users: {
+        [process.env.ADMIN_USER || 'admin']: process.env.ADMIN_PASSWORD || 'admin123'
+    },
+    challenge: true,
+    realm: 'SkinGuard Admin'
+});
+
+// Apply auth to admin page and admin API endpoints
+const adminPaths = ['/admin', '/admin.html', '/api/get-scans', '/api/add-scan', '/api/update-scan', '/api/delete-scan'];
+app.use((req, res, next) => {
+    if (adminPaths.some(path => req.path.startsWith(path))) {
+        return adminAuth(req, res, next);
+    }
+    next();
+});
 app.use(express.json({ limit: '10mb' }));
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'landing.html'));
