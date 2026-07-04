@@ -6,6 +6,7 @@ const axios = require('axios');
 const fs = require('fs');
 const { ElevenLabsClient } = require('@elevenlabs/elevenlabs-js');
 const { Readable } = require('stream');
+const basicAuth = require('express-basic-auth');
 require('dotenv').config();
 
 console.log('OpenAI API Key:', process.env.OPENAI_API_KEY ? 'Loaded' : 'Not found');
@@ -16,7 +17,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-const basicAuth = require('express-basic-auth');
+app.use(express.json({ limit: '10mb' }));
 
 // ---------- ADMIN AUTH ----------
 const adminAuth = basicAuth({
@@ -27,18 +28,27 @@ const adminAuth = basicAuth({
     realm: 'SkinGuard Admin'
 });
 
-// Apply auth to admin page and admin API endpoints
-const adminPaths = ['/admin', '/admin.html', '/api/get-scans', '/api/add-scan', '/api/update-scan', '/api/delete-scan'];
-app.use((req, res, next) => {
-    if (adminPaths.some(path => req.path.startsWith(path))) {
-        return adminAuth(req, res, next);
-    }
-    next();
-});
-app.use(express.json({ limit: '10mb' }));
+// ---------- LANDING PAGE ----------
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'landing.html'));
 });
+
+// ---------- ADMIN PAGE (Protected) ----------
+app.get('/admin', adminAuth, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+app.get('/admin.html', adminAuth, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// ---------- PROTECTED API ROUTES ----------
+app.use('/api/get-scans', adminAuth);
+app.use('/api/add-scan', adminAuth);
+app.use('/api/update-scan', adminAuth);
+app.use('/api/delete-scan', adminAuth);
+
+// ---------- STATIC FILES ----------
 app.use(express.static('public'));
 
 // ---------- ElevenLabs Client ----------
@@ -553,11 +563,6 @@ app.post('/api/send-sms', async (req, res) => {
             error: error.message
         });
     }
-});
-
-// ---------- ADMIN ----------
-app.get('/admin', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
 // ---------- HOSPITAL SEARCH using OpenStreetMap (improved) ----------
