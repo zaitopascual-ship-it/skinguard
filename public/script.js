@@ -5,6 +5,8 @@ let lastResult = null;
 let torchEnabled = false;
 let pendingAction = null;
 let selectedStudent = null;
+let isTeacher = false;
+let isGuest = true;
 
 // ---------- AMA SANTIAGO CAMPUS COORDINATES ----------//
 const SCHOOL_LAT = 16.688356;
@@ -13,7 +15,7 @@ const SCHOOL_LNG = 121.550856;
 // ---------- MAPBOX TOKEN ----------
 const MAPBOX_TOKEN = 'pk.eyJ1IjoiYWFyb25wb2dpMDYiLCJhIjoiY21xcThtcmN3MGczODJ3c2J3Y2Viem1pNSJ9.Sscnjo8gxhVt2C2Gbitxgg';
 
-// ---------- STATIC HOSPITAL LIST IN SANTIAGO CITY ----------
+// ---------- STATIC HOSPITAL LIST ----------
 const SANTIAGO_HOSPITALS = [
     { name: 'Southern Isabela Medical Center (SIMC)', address: 'Rosario, Santiago City', lat: 16.6802574, lon: 121.5460643 },
     { name: 'Santiago Medical City', address: 'Rizal, Santiago City', lat: 16.7282523, lon: 121.5493394 },
@@ -56,6 +58,7 @@ const allowedConditions = [
 // ---------- MASK PHONE (Privacy) ----------
 function maskPhone(phone) {
     if (!phone) return 'No phone';
+    if (isTeacher) return phone; // teachers see full number
     let cleaned = phone.replace(/[^\d+]/g, '');
     let prefix = '';
     let number = cleaned;
@@ -95,6 +98,99 @@ function formatPhoneNumber(rawNumber) {
     if (/^\d{12}$/.test(cleaned) && cleaned.startsWith('63')) return '+' + cleaned;
     return cleaned;
 }
+
+// ---------- LOGIN / GUEST ----------
+async function checkLoginStatus() {
+    try {
+        const res = await fetch('/api/me');
+        if (res.ok) {
+            const data = await res.json();
+            if (data.role === 'teacher' || data.role === 'admin') {
+                isTeacher = true;
+                isGuest = false;
+                document.getElementById('login-status').textContent = `👤 Logged in as ${data.username} (${data.role})`;
+                document.getElementById('login-status').style.display = 'inline-block';
+                document.getElementById('login-form').style.display = 'none';
+                document.getElementById('guest-btn').style.display = 'none';
+                document.getElementById('login-btn').style.display = 'none';
+                document.getElementById('login-overlay').classList.add('hidden');
+                document.getElementById('app').style.display = 'block';
+                return;
+            }
+        }
+        // Not logged in, show login overlay
+        document.getElementById('login-overlay').classList.remove('hidden');
+        document.getElementById('app').style.display = 'none';
+    } catch (e) {
+        // show login
+        document.getElementById('login-overlay').classList.remove('hidden');
+        document.getElementById('app').style.display = 'none';
+    }
+}
+
+// Handle login form
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('login-username').value.trim();
+    const password = document.getElementById('login-password').value.trim();
+    const errorEl = document.getElementById('login-error');
+    const btn = document.getElementById('login-btn');
+    if (!username || !password) {
+        errorEl.textContent = 'Please enter username and password.';
+        return;
+    }
+    errorEl.textContent = '';
+    btn.disabled = true;
+    btn.textContent = 'LOGGING IN...';
+    try {
+        const res = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            if (data.role === 'teacher' || data.role === 'admin') {
+                isTeacher = true;
+                isGuest = false;
+                document.getElementById('login-status').textContent = `👤 Logged in as ${username} (${data.role})`;
+                document.getElementById('login-status').style.display = 'inline-block';
+                document.getElementById('login-form').style.display = 'none';
+                document.getElementById('guest-btn').style.display = 'none';
+                document.getElementById('login-btn').style.display = 'none';
+                document.getElementById('login-overlay').classList.add('hidden');
+                document.getElementById('app').style.display = 'block';
+                // refresh student list
+                if (document.getElementById('student-list-container')) {
+                    loadStudents();
+                }
+            } else {
+                errorEl.textContent = 'Only teachers or admins can log in here.';
+                btn.disabled = false;
+                btn.textContent = 'LOGIN AS TEACHER';
+            }
+        } else {
+            errorEl.textContent = data.error || 'Invalid credentials.';
+            btn.disabled = false;
+            btn.textContent = 'LOGIN AS TEACHER';
+            document.getElementById('login-password').value = '';
+        }
+    } catch (err) {
+        errorEl.textContent = 'Network error. Please try again.';
+        btn.disabled = false;
+        btn.textContent = 'LOGIN AS TEACHER';
+    }
+});
+
+// Guest mode
+document.getElementById('guest-btn').addEventListener('click', function() {
+    isTeacher = false;
+    isGuest = true;
+    document.getElementById('login-overlay').classList.add('hidden');
+    document.getElementById('app').style.display = 'block';
+    // Load students with masked numbers
+    loadStudents();
+});
 
 // ---------- STUDENT SELECTION HELPERS ----------
 async function loadStudents(searchTerm = '') {
@@ -246,7 +342,6 @@ async function autoSaveScan(result) {
         });
         if (response.ok) {
             console.log('✅ Auto-saved scan');
-            // Show a subtle toast notification
             const notify = document.createElement('div');
             notify.textContent = 'Scan auto-saved to records.';
             notify.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#4ADE80;color:#000;padding:10px 20px;border-radius:8px;font-family:sans-serif;z-index:9999;font-weight:bold;';
@@ -616,7 +711,15 @@ function escapeHtml(unsafe) {
 }
 
 // ---------- INIT ----------
-window.addEventListener('load', () => startCamera('environment'));
+window.addEventListener('load', async () => {
+    await checkLoginStatus();
+    if (!isGuest && !isTeacher) {
+        // login overlay is shown
+    } else {
+        startCamera('environment');
+    }
+});
+
 window.addEventListener('beforeunload', () => {
     if (videoStream) videoStream.getTracks().forEach(track => track.stop());
 });
@@ -663,7 +766,6 @@ function displayHospitalsOnMap(hospitals, userLat, userLng) {
         const hospitalName = h.name || 'Medical Facility';
         const hospitalAddress = h.address || 'Address not available';
 
-        // NO origin – Google Maps will ask for user's location
         const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${h.lat},${h.lon}`;
 
         try {
@@ -699,21 +801,16 @@ function displayHospitalsOnMap(hospitals, userLat, userLng) {
         hospitalMap.fitBounds(bounds, { padding: 50, maxZoom: 16 });
     } catch (e) { console.warn('Fit bounds error:', e); }
 }
-// ---------- Hospital Screen Event Handler – just show the static list ----------
+
 document.getElementById('find-hospital-btn').addEventListener('click', () => {
     showScreen('hospital-screen');
     if (!hospitalMap) initHospitalMap();
 
-    // Show static hospitals list immediately
     const hospitals = SANTIAGO_HOSPITALS;
-    // Use the school location as the user location (or if geolocation fails, we use school)
-    // If geolocation is available, we can get the user's actual location and include it
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
             (position) => {
-                const userLat = position.coords.latitude;
-                const userLng = position.coords.longitude;
-                displayHospitalsOnMap(hospitals, userLat, userLng);
+                displayHospitalsOnMap(hospitals, position.coords.latitude, position.coords.longitude);
             },
             (error) => {
                 console.warn('Geolocation error, using school location for user:', error);
@@ -726,7 +823,6 @@ document.getElementById('find-hospital-btn').addEventListener('click', () => {
 });
 
 document.getElementById('refresh-hospitals-btn').addEventListener('click', () => {
-    // Just redisplay the static list (no need to refresh anything)
     const hospitals = SANTIAGO_HOSPITALS;
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
