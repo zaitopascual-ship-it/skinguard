@@ -45,9 +45,10 @@
 
   body {
     font-family:'Rajdhani', sans-serif;
+    font-size: 19px;
     background:var(--void);
     color:var(--text);
-    line-height:1.5;
+    line-height:1.6;
     overflow-x:hidden;
     background-image:
       radial-gradient(ellipse 80% 50% at 50% -10%, #2a0610 0%, transparent 60%),
@@ -68,10 +69,14 @@
 
   .wrap { max-width:var(--maxw); margin:0 auto; padding:0 28px; }
 
-  h1,h2,h3 { font-family:'Bebas Neue', sans-serif; letter-spacing:.05em; color:var(--text); }
+  h1, h2, h3 { font-family:'Bebas Neue', sans-serif; letter-spacing:.05em; color:var(--text); }
+  h1 { font-size: clamp(48px, 7vw, 80px); }
+  h2 { font-size: clamp(36px, 4.5vw, 52px); }
+  h3 { font-size: clamp(26px, 3vw, 36px); }
+
   .eyebrow {
     font-family:'Share Tech Mono', monospace;
-    font-size:11px;
+    font-size: 13px;
     letter-spacing:.32em;
     text-transform:uppercase;
     color:var(--accent-dim);
@@ -79,7 +84,43 @@
     align-items:center;
     gap:8px;
   }
-  .eyebrow::before { content:'◆'; font-size:7px; color:var(--gold); }
+  .eyebrow::before { content:'◆'; font-size:9px; color:var(--gold); }
+
+  .lead {
+    font-size: 22px;
+    line-height:1.7;
+  }
+
+  .hud-strip {
+    font-size: 13px;
+    letter-spacing:.14em;
+  }
+
+  .step p, .legend-card p, .spec p, .cta-banner p {
+    font-size: 18px;
+  }
+
+  .btn, .btn-outline {
+    font-size: 20px;
+    padding: 16px 34px;
+  }
+
+  .nav-cta {
+    font-size: 18px;
+    padding: 12px 24px;
+  }
+
+  .nav-links a {
+    font-size: 14px;
+  }
+
+  .disclaimer {
+    font-size: 15px;
+  }
+
+  .footer-sub, .footer-links a {
+    font-size: 13px;
+  }
 
   /* ── NAV ── */
   .nav {
@@ -96,32 +137,31 @@
   .nav-brand img { width:26px; height:33px; object-fit:contain; filter:drop-shadow(0 2px 8px rgba(196,18,48,.4)); }
   .nav-brand span {
     font-family:'Bebas Neue', sans-serif;
-    font-size:20px; letter-spacing:.1em; color:var(--gold);
+    font-size:24px; letter-spacing:.1em; color:var(--gold);
   }
   .nav-links { display:flex; align-items:center; gap:26px; }
   .nav-links a {
     font-family:'Share Tech Mono', monospace;
-    font-size:11px; letter-spacing:.15em; text-transform:uppercase;
+    font-size:14px; letter-spacing:.15em; text-transform:uppercase;
     color:var(--text-dim); transition:color .15s;
   }
   .nav-links a:hover { color:var(--accent); }
   .nav-cta {
     font-family:'Bebas Neue', sans-serif;
-    font-size:14px; letter-spacing:.1em;
+    font-size:18px; letter-spacing:.1em;
     background:var(--gold); color:#fff;
-    padding:9px 18px; border-radius:var(--radius);
+    padding:12px 24px; border-radius:var(--radius);
     border:1px solid rgba(196,18,48,.5);
     transition:all .15s;
   }
   .nav-cta:hover { background:#D91535; transform:translateY(-1px); }
-  .nav-toggle { display:none; }
 
   /* ── BUTTONS ── */
   .btn, .btn-outline {
     font-family:'Bebas Neue', sans-serif;
-    font-size:16px; letter-spacing:.12em;
+    font-size:20px; letter-spacing:.12em;
     border-radius:var(--radius);
-    padding:14px 28px;
+    padding:16px 34px;
     cursor:pointer;
     display:inline-flex; align-items:center; justify-content:center; gap:9px;
     transition:all .15s ease;
@@ -139,7 +179,7 @@
   }
   .btn-outline:hover { border-color:var(--gold-dim); color:var(--gold); background:rgba(196,18,48,.06); }
 
-  /* ── VIEWFINDER FRAME (signature motif) ── */
+  /* ── VIEWFINDER FRAME ── */
   .frame { position:relative; }
   .frame .corner { position:absolute; width:18px; height:18px; border-color:var(--accent); border-style:solid; opacity:.75; pointer-events:none; }
   .frame .corner.tl { top:-1px; left:-1px; border-width:2px 0 0 2px; }
@@ -156,21 +196,21 @@
     display:grid; grid-template-columns:1.1fr .9fr; gap:56px; align-items:center;
   }
   .hero h1 {
-    font-size:clamp(40px, 6vw, 68px);
+    font-size:clamp(54px, 7vw, 82px);
     line-height:.98;
     margin:18px 0 20px;
     text-shadow:0 0 50px rgba(196,18,48,.3);
   }
   .hero h1 em { font-style:normal; color:var(--accent); }
   .hero p.lead {
-    font-size:17px; color:var(--text-dim); max-width:480px; margin-bottom:30px;
+    font-size:24px; color:var(--text-dim); max-width:480px; margin-bottom:30px;
   }
   .hero-ctas { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:36px; }
 
   .hud-strip {
     display:flex; flex-wrap:wrap; gap:22px;
     font-family:'Share Tech Mono', monospace;
-    font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--text-faint);
+    font-size:13px; letter-spacing:.14em; text-transform:uppercase; color:var(--text-faint);
   }
   .hud-strip span { display:inline-flex; align-items:center; gap:6px; }
   .hud-strip span::before { content:'◆'; font-size:6px; color:var(--gold-dim); }
@@ -188,8 +228,7 @@
   .hero-visual::before {
     content:'';
     position:absolute; inset:0;
-    background:
-      radial-gradient(ellipse 70% 60% at 50% 30%, rgba(196,18,48,.14), transparent 65%);
+    background:radial-gradient(ellipse 70% 60% at 50% 30%, rgba(196,18,48,.14), transparent 65%);
   }
   .hero-visual .crosshair { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:34px; height:34px; opacity:.4; }
   .hero-visual .crosshair::before, .hero-visual .crosshair::after { content:''; position:absolute; background:var(--accent); }
@@ -220,8 +259,8 @@
   /* ── SECTION SHARED ── */
   section { padding:76px 0; position:relative; }
   .section-head { max-width:640px; margin-bottom:44px; }
-  .section-head h2 { font-size:clamp(28px,4vw,40px); margin-top:12px; }
-  .section-head p { color:var(--text-dim); margin-top:12px; font-size:15.5px; }
+  .section-head h2 { font-size:clamp(36px, 4.5vw, 52px); margin-top:12px; }
+  .section-head p { color:var(--text-dim); margin-top:12px; font-size:20px; }
   .rule {
     height:1px;
     background:linear-gradient(90deg, transparent, var(--gold-line), var(--accent-line), var(--gold-line), transparent);
@@ -234,11 +273,11 @@
     padding:26px 22px; position:relative;
   }
   .step .num {
-    font-family:'Share Tech Mono', monospace; font-size:11px; letter-spacing:.2em;
+    font-family:'Share Tech Mono', monospace; font-size:13px; letter-spacing:.2em;
     color:var(--gold-dim); margin-bottom:14px; display:block;
   }
-  .step h3 { font-size:23px; color:var(--accent); letter-spacing:.08em; margin-bottom:10px; }
-  .step p { color:var(--text-dim); font-size:14.5px; }
+  .step h3 { font-size:30px; color:var(--accent); letter-spacing:.08em; margin-bottom:10px; }
+  .step p { color:var(--text-dim); font-size:18px; }
 
   /* ── SEVERITY LEGEND ── */
   .legend { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
@@ -252,14 +291,14 @@
   .badge {
     display:inline-flex; align-items:center; gap:8px;
     padding:7px 14px; border-radius:var(--radius);
-    font-family:'Bebas Neue', sans-serif; font-size:14px; letter-spacing:.16em;
+    font-family:'Bebas Neue', sans-serif; font-size:16px; letter-spacing:.16em;
     border:1px solid; margin-bottom:12px;
   }
-  .badge::before { content:'◆'; font-size:7px; }
+  .badge::before { content:'◆'; font-size:9px; }
   .badge.green  { background:rgba(5,150,105,.1); color:#4ADE80; border-color:rgba(74,222,128,.25); }
   .badge.yellow { background:rgba(245,196,0,.1); color:var(--accent); border-color:rgba(245,196,0,.25); }
   .badge.red    { background:rgba(196,18,48,.15); color:#FF6B6B; border-color:rgba(255,107,107,.25); }
-  .legend-card p { color:var(--text-dim); font-size:14px; }
+  .legend-card p { color:var(--text-dim); font-size:18px; }
 
   /* ── SPEC GRID ── */
   .spec-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:1px; background:var(--steel); border:1px solid var(--steel); border-radius:var(--radius-lg); overflow:hidden; }
@@ -268,11 +307,11 @@
     display:flex; flex-direction:column; gap:8px;
   }
   .spec .tag {
-    font-family:'Share Tech Mono', monospace; font-size:9.5px; letter-spacing:.18em;
+    font-family:'Share Tech Mono', monospace; font-size:11px; letter-spacing:.18em;
     text-transform:uppercase; color:var(--gold-dim);
   }
-  .spec h3 { font-size:19px; letter-spacing:.06em; color:var(--text); }
-  .spec p { font-size:13px; color:var(--text-dim); }
+  .spec h3 { font-size:24px; letter-spacing:.06em; color:var(--text); }
+  .spec p { font-size:18px; color:var(--text-dim); }
 
   /* ── CTA BANNER ── */
   .cta-banner {
@@ -283,8 +322,8 @@
     content:''; position:absolute; top:0; left:0; right:0; height:3px;
     background:linear-gradient(90deg, var(--navy), var(--gold), var(--accent), var(--gold), var(--navy));
   }
-  .cta-banner h2 { font-size:clamp(26px,4vw,38px); margin-bottom:14px; }
-  .cta-banner p { color:var(--text-dim); margin-bottom:28px; }
+  .cta-banner h2 { font-size:clamp(36px, 4vw, 46px); margin-bottom:14px; }
+  .cta-banner p { color:var(--text-dim); font-size:20px; margin-bottom:28px; }
   .cta-row { display:flex; gap:14px; justify-content:center; flex-wrap:wrap; }
 
   /* ── FOOTER ── */
@@ -292,19 +331,19 @@
   .footer-inner { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:20px; }
   .footer-brand { display:flex; align-items:center; gap:10px; }
   .footer-brand img { width:22px; height:28px; object-fit:contain; opacity:.9; }
-  .footer-brand div { font-family:'Bebas Neue', sans-serif; font-size:16px; letter-spacing:.08em; color:var(--gold); }
+  .footer-brand div { font-family:'Bebas Neue', sans-serif; font-size:20px; letter-spacing:.08em; color:var(--gold); }
   .footer-sub {
-    font-family:'Share Tech Mono', monospace; font-size:10px; letter-spacing:.15em;
+    font-family:'Share Tech Mono', monospace; font-size:13px; letter-spacing:.15em;
     color:var(--text-faint); margin-top:3px; text-transform:uppercase;
   }
   .footer-links { display:flex; gap:22px; }
   .footer-links a {
-    font-family:'Share Tech Mono', monospace; font-size:11px; letter-spacing:.12em;
+    font-family:'Share Tech Mono', monospace; font-size:13px; letter-spacing:.12em;
     text-transform:uppercase; color:var(--text-dim);
   }
   .footer-links a:hover { color:var(--accent); }
   .disclaimer {
-    margin-top:26px; font-size:12.5px; color:var(--text-faint); max-width:640px; line-height:1.6;
+    margin-top:26px; font-size:15px; color:var(--text-faint); max-width:640px; line-height:1.6;
   }
 
   /* ── RESPONSIVE ── */
@@ -350,7 +389,7 @@
     <div>
       <span class="eyebrow">AMA SANTIAGO CAMPUS · CLINIC INTELLIGENCE SYSTEM</span>
       <h1>SEE THE MARK.<br>KNOW THE <em>RISK.</em></h1>
-      <p class="lead">SkinGuard turns a clinic camera into a first read on common skin conditions — instant severity, first-aid steps, and parent notification, logged straight to the record.</p>
+      <p class="lead">SkinGuard turns a clinic camera into a first read on common skin conditions — instant severity, first‑aid steps, and parent notification, logged straight to the record.</p>
       <div class="hero-ctas">
         <a class="btn" href="index.html">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.6-2.4A2 2 0 0 1 10.2 4.6h3.6a2 2 0 0 1 1.6 1L17 8h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z"/><circle cx="12" cy="14" r="3.5"/></svg>
@@ -364,7 +403,7 @@
       <div class="hud-strip">
         <span>3 SEVERITY TIERS</span>
         <span>INSTANT FIRST AID</span>
-        <span>PARENT NOTIFICATION</span>
+        <span>PARENT DISPATCH</span>
         <span>FULL RECORD LOG</span>
       </div>
     </div>
@@ -376,7 +415,10 @@
       <span class="hud-tag bottom"><span class="live">● LIVE</span><br>AI MODEL READY</span>
       <div class="crosshair"></div>
       <div class="scan-line"></div>
-      <img class="logo-big" src="assets/skinguard-logo.png" alt="SkinGuard crest">
+      <!-- BIG LOGO NOW REDIRECTS TO SCANNER -->
+      <a href="index.html">
+        <img class="logo-big" src="assets/skinguard-logo.png" alt="SkinGuard crest">
+      </a>
     </div>
   </div>
 </header>
@@ -408,7 +450,7 @@
         <span class="corner tl"></span><span class="corner br"></span>
         <span class="num">03 / RESPOND</span>
         <h3>ACT ON IT</h3>
-        <p>Follow the first-aid protocol, notify a parent by SMS, or log the incident straight to the clinic record.</p>
+        <p>Follow the first‑aid protocol, notify a parent by SMS, or log the incident straight to the clinic record.</p>
       </div>
     </div>
   </div>
@@ -453,8 +495,8 @@
       <div class="spec"><span class="tag">SPEC 03</span><h3>Convenience</h3><p>Works from any clinic device with a camera.</p></div>
       <div class="spec"><span class="tag">SPEC 04</span><h3>Robustness</h3><p>Holds up under poor lighting and awkward angles.</p></div>
       <div class="spec"><span class="tag">SPEC 05</span><h3>Effectiveness</h3><p>Assessments that track with real clinical judgment.</p></div>
-      <div class="spec"><span class="tag">SPEC 06</span><h3>User-Friendliness</h3><p>Clinic staff can pick it up with no training.</p></div>
-      <div class="spec"><span class="tag">SPEC 07</span><h3>Security</h3><p>Student records stay access-controlled.</p></div>
+      <div class="spec"><span class="tag">SPEC 06</span><h3>User‑Friendliness</h3><p>Clinic staff can pick it up with no training.</p></div>
+      <div class="spec"><span class="tag">SPEC 07</span><h3>Security</h3><p>Student records stay access‑controlled.</p></div>
       <div class="spec"><span class="tag">SPEC 08</span><h3>Portability</h3><p>Runs the same on desktop, tablet, or phone.</p></div>
       <div class="spec"><span class="tag">SPEC 09</span><h3>Usability</h3><p>Every screen has one clear next step.</p></div>
       <div class="spec"><span class="tag">SPEC 10</span><h3>Integrity</h3><p>Records can't be altered without a trace.</p></div>

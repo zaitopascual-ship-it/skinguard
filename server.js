@@ -35,17 +35,20 @@ function requireAdmin(req, res, next) {
     if (req.session && req.session.isAdmin) {
         return next();
     }
-    // If it's an API request, return 401 JSON
     if (req.path.startsWith('/api/')) {
         return res.status(401).json({ error: 'Authentication required' });
     }
-    // For page requests, redirect to login
     res.redirect('/login');
+}
+
+// ---------- PHONE SANITIZER ----------
+function sanitizePhone(phone) {
+    if (!phone) return null;
+    return phone.replace(/[^\d+]/g, '');
 }
 
 // ---------- LOGIN PAGE ----------
 app.get('/login', (req, res) => {
-    // If already logged in, redirect to admin
     if (req.session && req.session.isAdmin) {
         return res.redirect('/admin');
     }
@@ -57,16 +60,34 @@ app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
     const adminUser = process.env.ADMIN_USER || 'admin';
     const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
+    const teacherUser = process.env.TEACHER_USER || 'teacher';
+    const teacherPass = process.env.TEACHER_PASSWORD || 'teacher123';
 
+    let role = null;
     if (username === adminUser && password === adminPass) {
+        role = 'admin';
+    } else if (username === teacherUser && password === teacherPass) {
+        role = 'teacher';
+    }
+
+    if (role) {
         req.session.isAdmin = true;
+        req.session.role = role;
         req.session.username = username;
-        console.log('✅ Admin logged in:', username);
-        return res.json({ success: true });
+        console.log(`✅ ${role} logged in:`, username);
+        return res.json({ success: true, role });
     }
 
     console.log('❌ Failed login attempt:', username);
     res.status(401).json({ error: 'Invalid username or password' });
+});
+
+// ---------- GET CURRENT USER ----------
+app.get('/api/me', (req, res) => {
+    if (req.session && req.session.isAdmin) {
+        return res.json({ role: req.session.role, username: req.session.username });
+    }
+    res.status(401).json({ error: 'Not logged in' });
 });
 
 // ---------- LOGOUT ----------
@@ -153,6 +174,7 @@ app.get('/api/students', (req, res) => {
 app.post('/api/students', (req, res) => {
     const { name, phone } = req.body;
     if (!name) return res.status(400).json({ error: 'Name required' });
+    const sanitizedPhone = sanitizePhone(phone);
 
     db.get('SELECT id, name, phone FROM students WHERE name = ?', [name], (err, row) => {
         if (err) {
@@ -160,25 +182,25 @@ app.post('/api/students', (req, res) => {
             return res.status(500).json({ error: 'Database error' });
         }
         if (row) {
-            if (phone && phone !== row.phone) {
-                db.run('UPDATE students SET phone = ? WHERE id = ?', [phone, row.id], (updateErr) => {
+            if (sanitizedPhone && sanitizedPhone !== row.phone) {
+                db.run('UPDATE students SET phone = ? WHERE id = ?', [sanitizedPhone, row.id], (updateErr) => {
                     if (updateErr) {
                         console.error(updateErr);
                         return res.status(500).json({ error: 'Failed to update phone' });
                     }
-                    res.json({ id: row.id, name: row.name, phone: phone || row.phone });
+                    res.json({ id: row.id, name: row.name, phone: sanitizedPhone || row.phone });
                 });
             } else {
                 res.json({ id: row.id, name: row.name, phone: row.phone });
             }
         } else {
             const stmt = db.prepare('INSERT INTO students (name, phone) VALUES (?, ?)');
-            stmt.run(name, phone, function(insertErr) {
+            stmt.run(name, sanitizedPhone, function(insertErr) {
                 if (insertErr) {
                     console.error(insertErr);
                     return res.status(500).json({ error: 'Database error' });
                 }
-                res.json({ id: this.lastID, name, phone });
+                res.json({ id: this.lastID, name, phone: sanitizedPhone });
             });
             stmt.finalize();
         }
@@ -192,8 +214,9 @@ app.post('/api/save-scan', (req, res) => {
     if (!name || !condition || !severity) {
         return res.status(400).json({ error: 'Missing required fields' });
     }
+    const sanitizedPhone = sanitizePhone(phone);
     const stmt = db.prepare('INSERT INTO scans (name, phone, condition, severity, advice, firstAid, image) VALUES (?, ?, ?, ?, ?, ?, ?)');
-    stmt.run(name, phone, condition, severity, advice, firstAid, image || null, function(err) {
+    stmt.run(name, sanitizedPhone, condition, severity, advice, firstAid, image || null, function(err) {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
@@ -220,8 +243,9 @@ app.post('/api/add-scan', (req, res) => {
     if (!name || !condition || !severity) {
         return res.status(400).json({ error: 'Missing required fields' });
     }
+    const sanitizedPhone = sanitizePhone(phone);
     const stmt = db.prepare('INSERT INTO scans (name, phone, condition, severity, advice, firstAid, image) VALUES (?, ?, ?, ?, ?, ?, ?)');
-    stmt.run(name, phone, condition, severity, advice, firstAid, image || null, function(err) {
+    stmt.run(name, sanitizedPhone, condition, severity, advice, firstAid, image || null, function(err) {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
@@ -232,13 +256,17 @@ app.post('/api/add-scan', (req, res) => {
 });
 
 app.put('/api/update-scan/:id', (req, res) => {
+    if (req.session.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+    }
     const { id } = req.params;
     const { name, phone, condition, severity, advice, firstAid } = req.body;
     if (!name || !condition || !severity) {
         return res.status(400).json({ error: 'Missing required fields' });
     }
+    const sanitizedPhone = sanitizePhone(phone);
     const stmt = db.prepare('UPDATE scans SET name = ?, phone = ?, condition = ?, severity = ?, advice = ?, firstAid = ? WHERE id = ?');
-    stmt.run(name, phone, condition, severity, advice, firstAid, id, function(err) {
+    stmt.run(name, sanitizedPhone, condition, severity, advice, firstAid, id, function(err) {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
@@ -252,6 +280,9 @@ app.put('/api/update-scan/:id', (req, res) => {
 });
 
 app.delete('/api/delete-scan/:id', (req, res) => {
+    if (req.session.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+    }
     const { id } = req.params;
     const stmt = db.prepare('DELETE FROM scans WHERE id = ?');
     stmt.run(id, function(err) {

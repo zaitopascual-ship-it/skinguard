@@ -14,7 +14,6 @@ const SCHOOL_LNG = 121.550856;
 const MAPBOX_TOKEN = 'pk.eyJ1IjoiYWFyb25wb2dpMDYiLCJhIjoiY21xcThtcmN3MGczODJ3c2J3Y2Viem1pNSJ9.Sscnjo8gxhVt2C2Gbitxgg';
 
 // ---------- STATIC HOSPITAL LIST IN SANTIAGO CITY ----------
-// These are approximate coordinates – replace with exact ones if needed
 const SANTIAGO_HOSPITALS = [
     { name: 'Southern Isabela Medical Center (SIMC)', address: 'Rosario, Santiago City', lat: 16.6802574, lon: 121.5460643 },
     { name: 'Santiago Medical City', address: 'Rizal, Santiago City', lat: 16.7282523, lon: 121.5493394 },
@@ -53,6 +52,24 @@ const allowedConditions = [
     'Eczema', 'Ringworm', 'Hives', 'Impetigo', 'Cold sore',
     'Scabies', 'Molluscum', 'Warts', 'Heat rash', 'No issue detected'
 ];
+
+// ---------- MASK PHONE (Privacy) ----------
+function maskPhone(phone) {
+    if (!phone) return 'No phone';
+    let cleaned = phone.replace(/[^\d+]/g, '');
+    let prefix = '';
+    let number = cleaned;
+    if (cleaned.startsWith('+')) {
+        prefix = '+';
+        number = cleaned.substring(1);
+    }
+    if (number.length > 4) {
+        let last4 = number.slice(-4);
+        let masked = '*'.repeat(number.length - 4) + last4;
+        return prefix + masked;
+    }
+    return prefix + number;
+}
 
 // ---------- SCREEN MANAGEMENT ----------
 function showScreen(screenId) {
@@ -98,7 +115,7 @@ async function loadStudents(searchTerm = '') {
             html += `
                 <div class="student-card" data-id="${s.id}" style="background:#f8fafd; border-radius:16px; padding:12px; margin-bottom:10px; cursor:pointer;">
                     <strong>${escapeHtml(s.name)}</strong><br>
-                    <span style="font-size:12px; color:#6b7f99;">${s.phone || 'No phone'}</span>
+                    <span style="font-size:12px; color:#6b7f99;">${maskPhone(s.phone)}</span>
                 </div>
             `;
         });
@@ -131,8 +148,8 @@ async function performSave() {
     if (!selectedStudent) {
         alert('No student selected.');
         return;
-    console.log('📞 Phone number being saved:', selectedStudent.phone);
     }
+    console.log('📞 Phone number being saved:', selectedStudent.phone);
     const payload = {
         name: selectedStudent.name,
         phone: selectedStudent.phone || null,
@@ -207,6 +224,37 @@ async function performNotify() {
         btn.disabled = false;
         selectedStudent = null;
         showScreen('results-screen');
+    }
+}
+
+// ---------- AUTO-SAVE SCAN ----------
+async function autoSaveScan(result) {
+    const payload = {
+        name: selectedStudent ? selectedStudent.name : 'Auto-saved (Unknown)',
+        phone: selectedStudent ? selectedStudent.phone : null,
+        condition: result.condition,
+        severity: result.severity,
+        advice: result.advice,
+        firstAid: result.firstAid,
+        image: capturedImage
+    };
+    try {
+        const response = await fetch('/api/save-scan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (response.ok) {
+            console.log('✅ Auto-saved scan');
+            // Show a subtle toast notification
+            const notify = document.createElement('div');
+            notify.textContent = 'Scan auto-saved to records.';
+            notify.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#4ADE80;color:#000;padding:10px 20px;border-radius:8px;font-family:sans-serif;z-index:9999;font-weight:bold;';
+            document.body.appendChild(notify);
+            setTimeout(() => notify.remove(), 3000);
+        }
+    } catch (e) {
+        console.warn('Auto-save failed:', e);
     }
 }
 
@@ -515,6 +563,11 @@ function displayResults(result) {
         const audio = new Audio(result.audioUrl);
         audio.id = 'skinguard-audio';
         audio.play().catch(e => console.log('Audio play failed:', e));
+    }
+
+    // ---------- AUTO-SAVE IF SKIN ISSUE ----------
+    if (result.condition && result.condition !== 'No issue detected') {
+        autoSaveScan(result);
     }
 
     showScreen('results-screen');

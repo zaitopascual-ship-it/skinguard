@@ -485,7 +485,27 @@
 
 <script>
   let scansData = [];
+  let userRole = 'admin'; // default fallback
 
+  // ---------- GET USER ROLE ----------
+  async function getUserRole() {
+    try {
+      const res = await fetch('/api/me');
+      if (res.ok) {
+        const data = await res.json();
+        userRole = data.role || 'admin';
+        console.log('👤 User role:', userRole);
+      } else {
+        // Not logged in, redirect to login
+        window.location.href = '/login';
+      }
+    } catch (e) {
+      console.warn('Failed to fetch role:', e);
+      window.location.href = '/login';
+    }
+  }
+
+  // ---------- LOAD SCANS ----------
   async function loadScans() {
     const statusEl = document.getElementById('db-status');
     const tbody = document.getElementById('scans-body');
@@ -546,6 +566,8 @@
       return;
     }
 
+    const isAdmin = userRole === 'admin';
+
     let html = '';
     filtered.forEach(s => {
       const phoneDisplay = s.phone && s.phone.trim() !== '' ? esc(s.phone) : '—';
@@ -563,10 +585,15 @@
           <td class="timestamp">${new Date(s.timestamp).toLocaleString()}</td>
           <td>${imageSrc ? `<img src="${imageSrc}" class="img-preview" onerror="this.style.display='none'" alt="scan image">` : '—'}</td>
           <td class="actions">
-            <button class="btn-edit" onclick="editScan(${s.id})">EDIT</button>
-            <button class="btn-delete" onclick="deleteScan(${s.id})">DELETE</button>
+            ${isAdmin ? `
+              <button class="btn-edit" onclick="editScan(${s.id})">EDIT</button>
+              <button class="btn-delete" onclick="deleteScan(${s.id})">DELETE</button>
+            ` : `
+              <span style="color:var(--text-faint);font-size:11px;">View only</span>
+            `}
           </td>
         </tr>
+        ${isAdmin ? `
         <tr id="edit-${s.id}" class="edit-row" style="display:none;">
           <td class="id-cell">${s.id}</td>
           <td><input type="text" id="edit-name-${s.id}" value="${esc(s.name)}"></td>
@@ -588,20 +615,25 @@
             <button class="btn-cancel" onclick="cancelEdit(${s.id})">CANCEL</button>
           </td>
         </tr>
+        ` : ''}
       `;
     });
     tbody.innerHTML = html;
   }
 
+  // Edit functions (only available if isAdmin is true)
   window.editScan = id => {
+    if (userRole !== 'admin') return;
     document.getElementById(`row-${id}`).style.display = 'none';
     document.getElementById(`edit-${id}`).style.display = 'table-row';
   };
   window.cancelEdit = id => {
+    if (userRole !== 'admin') return;
     document.getElementById(`row-${id}`).style.display = 'table-row';
     document.getElementById(`edit-${id}`).style.display = 'none';
   };
   window.saveEdit = async id => {
+    if (userRole !== 'admin') return;
     const body = {
       name:      document.getElementById(`edit-name-${id}`).value.trim(),
       phone:     document.getElementById(`edit-phone-${id}`).value.trim(),
@@ -618,6 +650,7 @@
     } catch { alert('Update failed.'); }
   };
   window.deleteScan = async id => {
+    if (userRole !== 'admin') return;
     if (!confirm('Eliminate this record?')) return;
     try {
       const r = await fetch(`/api/delete-scan/${id}`, { method:'DELETE' });
@@ -627,6 +660,10 @@
   };
 
   document.getElementById('add-scan-btn').addEventListener('click', async () => {
+    if (userRole !== 'admin') {
+      alert('Only administrators can add records.');
+      return;
+    }
     const body = {
       name:      document.getElementById('new-name').value.trim(),
       phone:     document.getElementById('new-phone').value.trim(),
@@ -647,8 +684,11 @@
 
   document.getElementById('filter-condition').addEventListener('change', () => renderTable());
 
-  // Load on page load
-  loadScans();
+  // ---------- INIT ----------
+  (async function init() {
+    await getUserRole();
+    await loadScans();
+  })();
 </script>
 </body>
 </html>
