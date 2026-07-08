@@ -55,13 +55,36 @@ const allowedConditions = [
     'Scabies', 'Molluscum', 'Warts', 'Heat rash', 'No issue detected'
 ];
 
-// ---------- PHONE VALIDATOR ----------
+// ---------- VALIDATORS ----------
+function isValidNamePart(part) {
+    if (!part || part.trim().length < 2) return false;
+    // Only letters, spaces, hyphens, apostrophes, dots (for initials)
+    const cleaned = part.trim();
+    if (!/^[A-Za-z\s\-\.']+$/.test(cleaned)) return false;
+    // Must contain at least one vowel (to avoid gibberish like "qwerty")
+    if (!/[aeiouAEIOU]/.test(cleaned)) return false;
+    return true;
+}
+
 function isValidPhone(phone) {
     if (!phone) return true;
     return /^[\d+]+$/.test(phone);
 }
 
-// ---------- MASK PHONE (Privacy) ----------
+// ---------- MASK FUNCTIONS (Privacy) ----------
+function maskName(name) {
+    if (!name) return '';
+    if (isTeacher) return name;
+    const trimmed = name.trim();
+    if (trimmed.length <= 2) {
+        return trimmed.charAt(0) + '*';
+    }
+    const first = trimmed.charAt(0);
+    const last = trimmed.charAt(trimmed.length - 1);
+    const middle = '*'.repeat(trimmed.length - 2);
+    return first + middle + last;
+}
+
 function maskPhone(phone) {
     if (!phone) return 'No phone';
     if (isTeacher) return phone;
@@ -121,12 +144,10 @@ async function checkLoginStatus() {
                 document.getElementById('login-btn').style.display = 'none';
                 document.getElementById('login-overlay').classList.add('hidden');
                 document.getElementById('app').style.display = 'block';
-                // Show back button
                 document.getElementById('logout-btn').style.display = 'flex';
                 return;
             }
         }
-        // Not logged in, show login overlay
         document.getElementById('login-overlay').classList.remove('hidden');
         document.getElementById('app').style.display = 'none';
         document.getElementById('logout-btn').style.display = 'none';
@@ -137,7 +158,6 @@ async function checkLoginStatus() {
     }
 }
 
-// Handle login form
 document.getElementById('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const username = document.getElementById('login-username').value.trim();
@@ -191,27 +211,22 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     }
 });
 
-// Guest mode
 document.getElementById('guest-btn').addEventListener('click', function() {
     isTeacher = false;
     isGuest = true;
     document.getElementById('login-overlay').classList.add('hidden');
     document.getElementById('app').style.display = 'block';
-    document.getElementById('logout-btn').style.display = 'flex'; // show back button for guest
+    document.getElementById('logout-btn').style.display = 'flex';
     loadStudents();
 });
 
-// ---------- LOGOUT/BACK BUTTON ----------
+// ---------- LOGOUT ----------
 document.getElementById('logout-btn').addEventListener('click', async function() {
-    // If teacher, log out the session
     if (isTeacher) {
         try {
             await fetch('/logout');
-        } catch (e) {
-            // ignore
-        }
+        } catch (e) {}
     }
-    // Redirect to landing page
     window.location.href = '/';
 });
 
@@ -231,10 +246,12 @@ async function loadStudents(searchTerm = '') {
         }
         let html = '';
         students.forEach(s => {
+            const displayName = maskName(s.name);
+            const displayPhone = maskPhone(s.phone);
             html += `
                 <div class="student-card" data-id="${s.id}" style="background:#f8fafd; border-radius:16px; padding:12px; margin-bottom:10px; cursor:pointer;">
-                    <strong>${escapeHtml(s.name)}</strong><br>
-                    <span style="font-size:12px; color:#6b7f99;">${maskPhone(s.phone)}</span>
+                    <strong>${escapeHtml(displayName)}</strong><br>
+                    <span style="font-size:12px; color:#6b7f99;">${escapeHtml(displayPhone)}</span>
                 </div>
             `;
         });
@@ -378,33 +395,48 @@ async function autoSaveScan(result) {
 
 // ---------- ADD STUDENT ----------
 document.getElementById('add-new-student-btn').addEventListener('click', () => {
-    document.getElementById('new-student-name').value = '';
+    document.getElementById('new-student-firstname').value = '';
+    document.getElementById('new-student-lastname').value = '';
     document.getElementById('new-student-phone').value = '';
     showScreen('add-student-screen');
 });
 
 document.getElementById('confirm-add-student-btn').addEventListener('click', async () => {
-    const name = document.getElementById('new-student-name').value.trim();
+    const firstName = document.getElementById('new-student-firstname').value.trim();
+    const lastName = document.getElementById('new-student-lastname').value.trim();
     const phone = document.getElementById('new-student-phone').value.trim();
 
-    if (!name) {
-        alert('Please enter a name.');
+    if (!firstName || !lastName) {
+        alert('Please enter both first name and last name.');
         return;
     }
+
+    if (!isValidNamePart(firstName)) {
+        alert('First name can only contain letters, spaces, hyphens, apostrophes, and dots. Must be at least 2 characters and contain a vowel. No numbers or gibberish.');
+        return;
+    }
+
+    if (!isValidNamePart(lastName)) {
+        alert('Last name can only contain letters, spaces, hyphens, apostrophes, and dots. Must be at least 2 characters and contain a vowel. No numbers or gibberish.');
+        return;
+    }
+
     if (phone && !isValidPhone(phone)) {
         alert('Phone number can only contain digits and the plus sign (+). No letters or special characters allowed.');
         return;
     }
 
+    const fullName = firstName + ' ' + lastName;
+
     try {
         const response = await fetch('/api/students', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, phone: phone || null })
+            body: JSON.stringify({ name: fullName, phone: phone || null })
         });
         if (!response.ok) throw new Error('Failed to add student');
         const newStudent = await response.json();
-        alert(`Student ${name} added!`);
+        alert(`Student ${fullName} added!`);
         selectStudent(newStudent);
     } catch (error) {
         console.error('Add student error:', error);
@@ -737,6 +769,12 @@ function escapeHtml(unsafe) {
         if (m === '>') return '&gt;';
         return m;
     });
+}
+
+// ---------- PHONE VALIDATOR ----------
+function isValidPhone(phone) {
+    if (!phone) return true;
+    return /^[\d+]+$/.test(phone);
 }
 
 // ---------- INIT ----------

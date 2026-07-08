@@ -52,7 +52,6 @@
         <h1>SKINGUARD</h1>
         <span class="subtitle">&nbsp; AI Skin Assessment &nbsp;</span>
       </div>
-      <!-- BACK/LOGOUT BUTTON – visible when app is active (teacher or guest) -->
       <button id="logout-btn">← BACK</button>
     </div>
 
@@ -202,8 +201,11 @@
     <h2>REGISTER SUBJECT</h2>
     <p>Add a new student to the roster.</p>
 
-    <div class="section-label">Name</div>
-    <input type="text" id="new-student-name" placeholder="Full name">
+    <div class="section-label">First Name</div>
+    <input type="text" id="new-student-firstname" placeholder="First name" required>
+
+    <div class="section-label">Last Name</div>
+    <input type="text" id="new-student-lastname" placeholder="Last name" required>
 
     <div class="section-label">Parent Contact</div>
     <input type="tel" id="new-student-phone" placeholder="Optional">

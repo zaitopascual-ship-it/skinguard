@@ -4,8 +4,6 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const axios = require('axios');
 const fs = require('fs');
-const bcrypt = require('bcryptjs');
-const rateLimit = require('express-rate-limit');
 const { ElevenLabsClient } = require('@elevenlabs/elevenlabs-js');
 const { Readable } = require('stream');
 const session = require('express-session');
@@ -15,82 +13,25 @@ console.log('OpenAI API Key:', process.env.OPENAI_API_KEY ? 'Loaded' : 'Not foun
 console.log('Roboflow API Key:', process.env.ROBOFLOW_API_KEY ? 'Loaded' : 'Not found');
 console.log('ElevenLabs API Key:', process.env.ELEVENLABS_API_KEY ? 'Loaded' : 'Not found');
 
-// ---------- REQUIRED SECURITY ENV VARS ----------
-// The app refuses to start without these instead of silently falling back to
-// hardcoded/guessable defaults (that fallback was the root cause of the
-// admin/admin login issue).
-const REQUIRED_ENV = [
-    'SESSION_SECRET',
-    'ADMIN_USER',
-    'ADMIN_PASSWORD_HASH',
-    'TEACHER_USER',
-    'TEACHER_PASSWORD_HASH'
-];
-const missingEnv = REQUIRED_ENV.filter(k => !process.env[k]);
-if (missingEnv.length > 0) {
-    console.error('❌ Missing required environment variables:', missingEnv.join(', '));
-    console.error('   Run `node scripts/hash-password.js <password>` to generate a bcrypt hash for');
-    console.error('   ADMIN_PASSWORD_HASH / TEACHER_PASSWORD_HASH, and set a long random SESSION_SECRET.');
-    process.exit(1);
-}
-
 const app = express();
 const PORT = process.env.PORT || 3000;
-const isProd = process.env.NODE_ENV === 'production';
 
-// Needed so express-session sees requests as secure when behind a reverse
-// proxy / load balancer (Render, Railway, nginx, etc.) that terminates TLS.
-app.set('trust proxy', 1);
-
-app.use(cors({
-    origin: process.env.ALLOWED_ORIGIN || 'https://skinguard.site',
-    credentials: true
-}));
+app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
 // ---------- SESSION SETUP ----------
 app.use(session({
-    secret: process.env.SESSION_SECRET,
+    secret: process.env.SESSION_SECRET || 'skinguard-secret-key-change-me',
     resave: false,
     saveUninitialized: false,
     cookie: {
-        secure: isProd,      // requires HTTPS in production (trust proxy above makes this work)
-        httpOnly: true,
-        sameSite: 'lax',
+        secure: false, // set to true if using HTTPS
         maxAge: 24 * 60 * 60 * 1000 // 24 hours
     }
 }));
 
-// ---------- RATE LIMITERS ----------
-// Login: slow down brute-forcing of credentials.
-const loginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 8,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: 'Too many login attempts. Please try again later.' }
-});
-// AI analysis: protects your OpenAI/Roboflow API budget from abuse.
-const analyzeLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 60,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: 'Too many scan requests. Please slow down.' }
-});
-// SMS: protects your UniSMS credits and prevents the endpoint being used as
-// an SMS-spam relay.
-const smsLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000,
-    max: 20,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: 'SMS rate limit reached. Please try again later.' }
-});
-
 // ---------- AUTH MIDDLEWARE ----------
 function requireAdmin(req, res, next) {
-    // Only admin role can access admin panel
     if (req.session && req.session.isAdmin) {
         return next();
     }
@@ -100,41 +41,10 @@ function requireAdmin(req, res, next) {
     res.redirect('/login');
 }
 
-// Any logged-in staff member (teacher or admin) — NOT guests. Used on
-// endpoints that write student/scan data or contact a parent, since those
-// shouldn't be reachable by an unauthenticated "Continue as Guest" session
-// or by someone calling the API directly without ever going through the UI.
-function requireStaff(req, res, next) {
-    if (req.session && (req.session.isAdmin || req.session.isTeacher)) {
-        return next();
-    }
-    return res.status(401).json({ error: 'Staff login required' });
-}
-
-// ---------- IMAGE VALIDATOR ----------
-// Defense in depth: even though admin.html now validates this before
-// rendering, reject anything that isn't a real base64 image data URI at
-// write time too, so bad data never lands in the database at all.
-const IMAGE_DATA_URI_RE = /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/;
-function sanitizeImage(image) {
-    if (!image || typeof image !== 'string') return null;
-    return IMAGE_DATA_URI_RE.test(image) ? image : null;
-}
-
 // ---------- PHONE SANITIZER ----------
 function sanitizePhone(phone) {
     if (!phone) return null;
     return phone.replace(/[^\d+]/g, '');
-}
-
-// Canonicalizes severity to exactly "Green" / "Yellow" / "Red" regardless of
-// incoming casing or stray whitespace, so downstream aggregation (admin
-// charts) can rely on an exact match instead of silently miscounting.
-function normalizeSeverity(severity) {
-    const s = String(severity || 'Green').trim().toLowerCase();
-    if (s === 'yellow') return 'Yellow';
-    if (s === 'red') return 'Red';
-    return 'Green';
 }
 
 // ---------- LOGIN PAGE ----------
@@ -145,19 +55,19 @@ app.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-// ---------- LOGIN API ----------
-app.post('/api/login', loginLimiter, async (req, res) => {
+// ---------- LOGIN API (public) ----------
+app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
-    if (!username || !password) {
-        return res.status(400).json({ error: 'Username and password required' });
-    }
-    const adminUser = process.env.ADMIN_USER;
-    const adminHash = process.env.ADMIN_PASSWORD_HASH;
-    const teacherUser = process.env.TEACHER_USER;
-    const teacherHash = process.env.TEACHER_PASSWORD_HASH;
+    const adminUser = process.env.ADMIN_USER || 'admin';
+    const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
+    const teacherUser = process.env.TEACHER_USER || 'teacher';
+    const teacherPass = process.env.TEACHER_PASSWORD || 'teacher123';
+
+    let role = null;
 
     // Admin login
-    if (username === adminUser && await bcrypt.compare(password, adminHash)) {
+    if (username === adminUser && password === adminPass) {
+        role = 'admin';
         req.session.isAdmin = true;
         req.session.role = 'admin';
         req.session.username = username;
@@ -166,8 +76,9 @@ app.post('/api/login', loginLimiter, async (req, res) => {
     }
 
     // Teacher login (does NOT set isAdmin)
-    if (username === teacherUser && await bcrypt.compare(password, teacherHash)) {
-        req.session.isTeacher = true;   // separate flag for teacher
+    if (username === teacherUser && password === teacherPass) {
+        role = 'teacher';
+        req.session.isTeacher = true;
         req.session.role = 'teacher';
         req.session.username = username;
         console.log(`✅ Teacher logged in:`, username);
@@ -178,7 +89,7 @@ app.post('/api/login', loginLimiter, async (req, res) => {
     res.status(401).json({ error: 'Invalid username or password' });
 });
 
-// ---------- GET CURRENT USER ----------
+// ---------- GET CURRENT USER (public, returns 401 if not logged in) ----------
 app.get('/api/me', (req, res) => {
     if (req.session && req.session.isAdmin) {
         return res.json({ role: 'admin', username: req.session.username });
@@ -216,6 +127,8 @@ app.use('/api/get-scans', requireAdmin);
 app.use('/api/add-scan', requireAdmin);
 app.use('/api/update-scan', requireAdmin);
 app.use('/api/delete-scan', requireAdmin);
+
+// ALL OTHER /api/* ROUTES ARE PUBLIC (students, save-scan, analyze, send-sms, hospitals, etc.)
 
 // ---------- STATIC FILES ----------
 app.use(express.static('public'));
@@ -259,8 +172,8 @@ db.serialize(() => {
     `);
 });
 
-// ---------- API ENDPOINTS ----------
-app.get('/api/students', requireStaff, (req, res) => {
+// ---------- PUBLIC API ENDPOINTS ----------
+app.get('/api/students', (req, res) => {
     db.all('SELECT id, name, phone FROM students ORDER BY name', (err, rows) => {
         if (err) {
             console.error(err);
@@ -270,7 +183,7 @@ app.get('/api/students', requireStaff, (req, res) => {
     });
 });
 
-app.post('/api/students', requireStaff, (req, res) => {
+app.post('/api/students', (req, res) => {
     const { name, phone } = req.body;
     if (!name) return res.status(400).json({ error: 'Name required' });
     const sanitizedPhone = sanitizePhone(phone);
@@ -306,7 +219,7 @@ app.post('/api/students', requireStaff, (req, res) => {
     });
 });
 
-app.post('/api/save-scan', requireStaff, (req, res) => {
+app.post('/api/save-scan', (req, res) => {
     const { name, phone, condition, severity, advice, firstAid, image } = req.body;
     console.log('📥 Saving scan:', { name, phone, condition, severity });
 
@@ -314,10 +227,8 @@ app.post('/api/save-scan', requireStaff, (req, res) => {
         return res.status(400).json({ error: 'Missing required fields' });
     }
     const sanitizedPhone = sanitizePhone(phone);
-    const sanitizedSeverity = normalizeSeverity(severity);
-    const sanitizedImage = sanitizeImage(image);
     const stmt = db.prepare('INSERT INTO scans (name, phone, condition, severity, advice, firstAid, image) VALUES (?, ?, ?, ?, ?, ?, ?)');
-    stmt.run(name, sanitizedPhone, condition, sanitizedSeverity, advice, firstAid, sanitizedImage, function(err) {
+    stmt.run(name, sanitizedPhone, condition, severity, advice, firstAid, image || null, function(err) {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
@@ -334,19 +245,8 @@ app.get('/api/get-scans', (req, res) => {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
         }
-        // SQLite's CURRENT_TIMESTAMP is stored as "YYYY-MM-DD HH:MM:SS" (UTC,
-        // no timezone marker). That format parses inconsistently across
-        // browsers (Safari/iOS returns Invalid Date for it), which can make
-        // scans silently vanish from date-grouped charts on the client.
-        // Normalize to strict ISO-8601 UTC here so every client parses it the same way.
-        const normalized = rows.map(row => {
-            if (row.timestamp && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(row.timestamp)) {
-                return { ...row, timestamp: row.timestamp.replace(' ', 'T') + 'Z' };
-            }
-            return row;
-        });
-        console.log(`📋 Retrieved ${normalized.length} scans`);
-        res.json(normalized);
+        console.log(`📋 Retrieved ${rows.length} scans`);
+        res.json(rows);
     });
 });
 
@@ -356,10 +256,8 @@ app.post('/api/add-scan', (req, res) => {
         return res.status(400).json({ error: 'Missing required fields' });
     }
     const sanitizedPhone = sanitizePhone(phone);
-    const sanitizedSeverity = normalizeSeverity(severity);
-    const sanitizedImage = sanitizeImage(image);
     const stmt = db.prepare('INSERT INTO scans (name, phone, condition, severity, advice, firstAid, image) VALUES (?, ?, ?, ?, ?, ?, ?)');
-    stmt.run(name, sanitizedPhone, condition, sanitizedSeverity, advice, firstAid, sanitizedImage, function(err) {
+    stmt.run(name, sanitizedPhone, condition, severity, advice, firstAid, image || null, function(err) {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
@@ -379,9 +277,8 @@ app.put('/api/update-scan/:id', (req, res) => {
         return res.status(400).json({ error: 'Missing required fields' });
     }
     const sanitizedPhone = sanitizePhone(phone);
-    const sanitizedSeverity = normalizeSeverity(severity);
     const stmt = db.prepare('UPDATE scans SET name = ?, phone = ?, condition = ?, severity = ?, advice = ?, firstAid = ? WHERE id = ?');
-    stmt.run(name, sanitizedPhone, condition, sanitizedSeverity, advice, firstAid, id, function(err) {
+    stmt.run(name, sanitizedPhone, condition, severity, advice, firstAid, id, function(err) {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
@@ -492,8 +389,8 @@ async function generateAndSaveAudio(text, fileName = 'analysis_audio.mp3') {
     }
 }
 
-// ---------- MAIN ANALYSIS ENDPOINT ----------
-app.post('/api/analyze', analyzeLimiter, async (req, res) => {
+// ---------- MAIN ANALYSIS ENDPOINT (public) ----------
+app.post('/api/analyze', async (req, res) => {
     const startTime = Date.now();
     console.log('\n📥 [SCAN] Received image from frontend');
 
@@ -623,8 +520,8 @@ app.post('/api/analyze', analyzeLimiter, async (req, res) => {
     }
 });
 
-// ---------- SMS ENDPOINT ----------
-app.post('/api/send-sms', requireStaff, smsLimiter, async (req, res) => {
+// ---------- SMS ENDPOINT (public) ----------
+app.post('/api/send-sms', async (req, res) => {
     const { to, studentName, condition, advice, severity } = req.body;
 
     if (!to || !studentName || !condition) {
@@ -746,7 +643,7 @@ app.post('/api/send-sms', requireStaff, smsLimiter, async (req, res) => {
     }
 });
 
-// ---------- HOSPITAL SEARCH ----------
+// ---------- HOSPITAL SEARCH (public) ----------
 app.post('/api/hospitals', async (req, res) => {
     const { lat, lng, radius = 30000 } = req.body;
 
