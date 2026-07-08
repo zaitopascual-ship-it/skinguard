@@ -880,8 +880,7 @@
 
   function monthLabel(key) {
     const [y, m] = key.split('-');
-    const monthName = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'short' });
-    return `${monthName} '${String(y).slice(-2)}`;
+    return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
   }
 
   function hudTooltip(extra) {
@@ -899,27 +898,14 @@
     }, extra || {});
   }
 
-  // Canonicalizes a severity value regardless of casing/whitespace
-  // (e.g. "green", " Green ", "GREEN" all resolve to "Green"). The severity
-  // pill's CSS class already tolerates this via sc()'s toLowerCase(), but
-  // the chart counts were doing a strict === match, so a scan saved with
-  // slightly different casing could show a correct green pill in the table
-  // yet never get counted in the Green stat/graph.
-  function normalizeSeverity(raw) {
-    const s = String(raw || 'Green').trim().toLowerCase();
-    if (s === 'yellow') return 'Yellow';
-    if (s === 'red') return 'Red';
-    return 'Green';
-  }
-
   function renderCharts(scans) {
     Object.values(charts).forEach(c => c && c.destroy());
     charts = {};
 
     const total = scans.length;
-    const green = scans.filter(s => normalizeSeverity(s.severity) === 'Green').length;
-    const yellow = scans.filter(s => normalizeSeverity(s.severity) === 'Yellow').length;
-    const red = scans.filter(s => normalizeSeverity(s.severity) === 'Red').length;
+    const green = scans.filter(s => (s.severity || 'Green') === 'Green').length;
+    const yellow = scans.filter(s => s.severity === 'Yellow').length;
+    const red = scans.filter(s => s.severity === 'Red').length;
 
     document.getElementById('stat-total').textContent = total;
     document.getElementById('stat-green').textContent = green;
@@ -960,9 +946,9 @@
       const monthKey = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0');
       monthMap[monthKey] = (monthMap[monthKey] || 0) + 1;
 
-      const sev = normalizeSeverity(s.severity);
+      const sev = s.severity || 'Green';
       if (!severityMonthMap[monthKey]) severityMonthMap[monthKey] = { Green: 0, Yellow: 0, Red: 0 };
-      severityMonthMap[monthKey][sev]++;
+      if (severityMonthMap[monthKey][sev] !== undefined) severityMonthMap[monthKey][sev]++;
 
       const cond = s.condition || 'Unspecified';
       conditionMap[cond] = (conditionMap[cond] || 0) + 1;

@@ -24,7 +24,7 @@ app.use(session({
     secret: process.env.SESSION_SECRET || 'skinguard-secret-key-change-me',
     resave: false,
     saveUninitialized: false,
-    cookie: { 
+    cookie: {
         secure: false, // set to true if using HTTPS
         maxAge: 24 * 60 * 60 * 1000 // 24 hours
     }
@@ -32,6 +32,7 @@ app.use(session({
 
 // ---------- AUTH MIDDLEWARE ----------
 function requireAdmin(req, res, next) {
+    // Only admin role can access admin panel
     if (req.session && req.session.isAdmin) {
         return next();
     }
@@ -45,6 +46,16 @@ function requireAdmin(req, res, next) {
 function sanitizePhone(phone) {
     if (!phone) return null;
     return phone.replace(/[^\d+]/g, '');
+}
+
+// Canonicalizes severity to exactly "Green" / "Yellow" / "Red" regardless of
+// incoming casing or stray whitespace, so downstream aggregation (admin
+// charts) can rely on an exact match instead of silently miscounting.
+function normalizeSeverity(severity) {
+    const s = String(severity || 'Green').trim().toLowerCase();
+    if (s === 'yellow') return 'Yellow';
+    if (s === 'red') return 'Red';
+    return 'Green';
 }
 
 // ---------- LOGIN PAGE ----------
@@ -64,18 +75,25 @@ app.post('/api/login', (req, res) => {
     const teacherPass = process.env.TEACHER_PASSWORD || 'teacher123';
 
     let role = null;
+
+    // Admin login
     if (username === adminUser && password === adminPass) {
         role = 'admin';
-    } else if (username === teacherUser && password === teacherPass) {
-        role = 'teacher';
+        req.session.isAdmin = true;
+        req.session.role = 'admin';
+        req.session.username = username;
+        console.log(`✅ Admin logged in:`, username);
+        return res.json({ success: true, role: 'admin' });
     }
 
-    if (role) {
-        req.session.isAdmin = true;
-        req.session.role = role;
+    // Teacher login (does NOT set isAdmin)
+    if (username === teacherUser && password === teacherPass) {
+        role = 'teacher';
+        req.session.isTeacher = true;   // separate flag for teacher
+        req.session.role = 'teacher';
         req.session.username = username;
-        console.log(`✅ ${role} logged in:`, username);
-        return res.json({ success: true, role });
+        console.log(`✅ Teacher logged in:`, username);
+        return res.json({ success: true, role: 'teacher' });
     }
 
     console.log('❌ Failed login attempt:', username);
@@ -85,7 +103,10 @@ app.post('/api/login', (req, res) => {
 // ---------- GET CURRENT USER ----------
 app.get('/api/me', (req, res) => {
     if (req.session && req.session.isAdmin) {
-        return res.json({ role: req.session.role, username: req.session.username });
+        return res.json({ role: 'admin', username: req.session.username });
+    }
+    if (req.session && req.session.isTeacher) {
+        return res.json({ role: 'teacher', username: req.session.username });
     }
     res.status(401).json({ error: 'Not logged in' });
 });
@@ -102,7 +123,7 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'landing.html'));
 });
 
-// ---------- ADMIN PAGE (Protected) ----------
+// ---------- ADMIN PAGE (Protected – Admin only) ----------
 app.get('/admin', requireAdmin, (req, res) => {
     console.log('✅ Admin page accessed by:', req.session.username);
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
@@ -112,7 +133,7 @@ app.get('/admin.html', requireAdmin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
-// ---------- PROTECTED API ROUTES ----------
+// ---------- PROTECTED API ROUTES (Admin only) ----------
 app.use('/api/get-scans', requireAdmin);
 app.use('/api/add-scan', requireAdmin);
 app.use('/api/update-scan', requireAdmin);
@@ -210,13 +231,14 @@ app.post('/api/students', (req, res) => {
 app.post('/api/save-scan', (req, res) => {
     const { name, phone, condition, severity, advice, firstAid, image } = req.body;
     console.log('📥 Saving scan:', { name, phone, condition, severity });
-    
+
     if (!name || !condition || !severity) {
         return res.status(400).json({ error: 'Missing required fields' });
     }
     const sanitizedPhone = sanitizePhone(phone);
+    const sanitizedSeverity = normalizeSeverity(severity);
     const stmt = db.prepare('INSERT INTO scans (name, phone, condition, severity, advice, firstAid, image) VALUES (?, ?, ?, ?, ?, ?, ?)');
-    stmt.run(name, sanitizedPhone, condition, severity, advice, firstAid, image || null, function(err) {
+    stmt.run(name, sanitizedPhone, condition, sanitizedSeverity, advice, firstAid, image || null, function(err) {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
@@ -233,8 +255,19 @@ app.get('/api/get-scans', (req, res) => {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
         }
-        console.log(`📋 Retrieved ${rows.length} scans`);
-        res.json(rows);
+        // SQLite's CURRENT_TIMESTAMP is stored as "YYYY-MM-DD HH:MM:SS" (UTC,
+        // no timezone marker). That format parses inconsistently across
+        // browsers (Safari/iOS returns Invalid Date for it), which can make
+        // scans silently vanish from date-grouped charts on the client.
+        // Normalize to strict ISO-8601 UTC here so every client parses it the same way.
+        const normalized = rows.map(row => {
+            if (row.timestamp && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(row.timestamp)) {
+                return { ...row, timestamp: row.timestamp.replace(' ', 'T') + 'Z' };
+            }
+            return row;
+        });
+        console.log(`📋 Retrieved ${normalized.length} scans`);
+        res.json(normalized);
     });
 });
 
@@ -244,8 +277,9 @@ app.post('/api/add-scan', (req, res) => {
         return res.status(400).json({ error: 'Missing required fields' });
     }
     const sanitizedPhone = sanitizePhone(phone);
+    const sanitizedSeverity = normalizeSeverity(severity);
     const stmt = db.prepare('INSERT INTO scans (name, phone, condition, severity, advice, firstAid, image) VALUES (?, ?, ?, ?, ?, ?, ?)');
-    stmt.run(name, sanitizedPhone, condition, severity, advice, firstAid, image || null, function(err) {
+    stmt.run(name, sanitizedPhone, condition, sanitizedSeverity, advice, firstAid, image || null, function(err) {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
@@ -265,8 +299,9 @@ app.put('/api/update-scan/:id', (req, res) => {
         return res.status(400).json({ error: 'Missing required fields' });
     }
     const sanitizedPhone = sanitizePhone(phone);
+    const sanitizedSeverity = normalizeSeverity(severity);
     const stmt = db.prepare('UPDATE scans SET name = ?, phone = ?, condition = ?, severity = ?, advice = ?, firstAid = ? WHERE id = ?');
-    stmt.run(name, sanitizedPhone, condition, severity, advice, firstAid, id, function(err) {
+    stmt.run(name, sanitizedPhone, condition, sanitizedSeverity, advice, firstAid, id, function(err) {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
@@ -381,7 +416,7 @@ async function generateAndSaveAudio(text, fileName = 'analysis_audio.mp3') {
 app.post('/api/analyze', async (req, res) => {
     const startTime = Date.now();
     console.log('\n📥 [SCAN] Received image from frontend');
-    
+
     const { image } = req.body;
     if (!image || typeof image !== 'string') {
         console.log('❌ No image provided');

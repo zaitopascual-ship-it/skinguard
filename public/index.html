@@ -15,129 +15,6 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#1a2e3f">
-  <style>
-    /* Login overlay styles */
-    #login-overlay {
-      position: fixed; top:0; left:0; right:0; bottom:0;
-      background: rgba(10,2,5,.95);
-      backdrop-filter: blur(10px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-      flex-direction: column;
-      padding: 20px;
-      transition: opacity .3s;
-    }
-    #login-overlay.hidden {
-      opacity: 0;
-      pointer-events: none;
-    }
-    .login-box {
-      max-width: 380px;
-      width: 100%;
-      background: var(--obsidian);
-      border: 1px solid var(--gold-line);
-      border-radius: var(--radius-lg);
-      padding: 40px 32px;
-      box-shadow: 0 30px 80px rgba(0,0,0,.8);
-      text-align: center;
-    }
-    .login-box img {
-      width: 56px;
-      height: 71px;
-      margin: 0 auto 12px;
-      filter: drop-shadow(0 4px 20px rgba(196,18,48,.35));
-    }
-    .login-box h2 {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 28px;
-      letter-spacing: .08em;
-      color: var(--gold);
-      margin-bottom: 6px;
-    }
-    .login-box p.sub {
-      font-family: 'Share Tech Mono', monospace;
-      font-size: 10px;
-      letter-spacing: .2em;
-      color: var(--text-faint);
-      margin-bottom: 22px;
-    }
-    .login-box .form-group {
-      margin-bottom: 14px;
-      text-align: left;
-    }
-    .login-box label {
-      font-family: 'Share Tech Mono', monospace;
-      font-size: 10px;
-      letter-spacing: .15em;
-      color: var(--text-dim);
-      display: block;
-      margin-bottom: 4px;
-    }
-    .login-box input {
-      font-family: 'Rajdhani', sans-serif;
-      font-weight: 500;
-      font-size: 16px;
-      width: 100%;
-      padding: 10px 14px;
-      background: var(--iron);
-      border: 1px solid var(--steel);
-      border-radius: var(--radius);
-      color: var(--text);
-      outline: none;
-    }
-    .login-box input:focus {
-      border-color: var(--gold);
-      box-shadow: 0 0 0 2px var(--gold-glow);
-    }
-    .login-box .btn-login {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 18px;
-      letter-spacing: .12em;
-      width: 100%;
-      padding: 12px;
-      background: var(--gold);
-      color: #fff;
-      border: 1px solid rgba(196,18,48,.5);
-      border-radius: var(--radius);
-      cursor: pointer;
-      transition: background .15s;
-      margin-top: 6px;
-    }
-    .login-box .btn-login:hover { background: #D91535; }
-    .login-box .btn-guest {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 14px;
-      letter-spacing: .1em;
-      background: transparent;
-      color: var(--text-dim);
-      border: none;
-      padding: 12px;
-      cursor: pointer;
-      width: 100%;
-      transition: color .15s;
-      margin-top: 6px;
-    }
-    .login-box .btn-guest:hover { color: var(--accent); }
-    .login-box .error-msg {
-      font-family: 'Share Tech Mono', monospace;
-      font-size: 11px;
-      color: #FF6B6B;
-      min-height: 20px;
-      margin-top: 10px;
-    }
-    .login-box .user-badge {
-      display: inline-block;
-      background: var(--gold-glow);
-      padding: 4px 12px;
-      border-radius: 20px;
-      font-family: 'Share Tech Mono', monospace;
-      font-size: 10px;
-      color: var(--gold);
-      margin-bottom: 12px;
-    }
-  </style>
 </head>
 <body>
 
@@ -175,6 +52,8 @@
         <h1>SKINGUARD</h1>
         <span class="subtitle">&nbsp; AI Skin Assessment &nbsp;</span>
       </div>
+      <!-- BACK/LOGOUT BUTTON – visible when app is active (teacher or guest) -->
+      <button id="logout-btn">← BACK</button>
     </div>
 
     <div class="camera-container">

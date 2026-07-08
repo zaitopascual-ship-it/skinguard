@@ -156,130 +156,21 @@
       margin-bottom: 12px;
     }
 
-    /* ---------- STAT STRIP ---------- */
-    .stat-strip {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 10px;
-      margin-bottom: 18px;
-    }
-
-    .stat-card {
-      position: relative;
-      background: linear-gradient(160deg, var(--iron), var(--charcoal));
-      border: 1px solid var(--mist);
-      border-radius: var(--radius);
-      padding: 12px 14px 11px;
-      overflow: hidden;
-      transition: border-color .2s, transform .2s;
-    }
-
-    .stat-card::before {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 2px;
-      background: var(--stat-color, var(--gold));
-      box-shadow: 0 0 10px var(--stat-color, var(--gold));
-      opacity: .85;
-    }
-
-    .stat-card::after {
-      content: '';
-      position: absolute;
-      top: -30%; right: -20%;
-      width: 90px; height: 90px;
-      background: radial-gradient(circle, var(--stat-color, var(--gold)), transparent 70%);
-      opacity: .08;
-      pointer-events: none;
-    }
-
-    .stat-card:hover { border-color: var(--stat-color, var(--gold-dim)); transform: translateY(-1px); }
-
-    .stat-card.total   { --stat-color: var(--accent); }
-    .stat-card.green   { --stat-color: #4ADE80; }
-    .stat-card.yellow  { --stat-color: #F5C400; }
-    .stat-card.red     { --stat-color: #FF4D4D; }
-
-    .stat-num {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 30px;
-      letter-spacing: .04em;
-      color: var(--text);
-      line-height: 1;
-      text-shadow: 0 0 18px var(--stat-color, transparent);
-    }
-
-    .stat-label {
-      font-family: 'Share Tech Mono', monospace;
-      font-size: 8.5px;
-      letter-spacing: .22em;
-      text-transform: uppercase;
-      color: var(--text-dim);
-      margin-top: 5px;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-
-    .stat-label .dot {
-      width: 5px; height: 5px;
-      border-radius: 50%;
-      background: var(--stat-color, var(--gold));
-      box-shadow: 0 0 6px var(--stat-color, var(--gold));
-      flex-shrink: 0;
-    }
-
-    /* ---------- CHART GRID ---------- */
     .chart-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 14px;
+      gap: 12px;
+      max-width: 640px;
+      margin: 0 auto;
     }
 
-    .chart-grid.chart-grid-secondary { margin-top: 14px; }
-
-    .chart-box {
-      position: relative;
-      background: radial-gradient(ellipse 120% 100% at 50% 0%, rgba(196,18,48,.08), transparent 65%), var(--void);
-      border: 1px solid var(--gold-line);
-      border-radius: var(--radius);
-      padding: 14px 12px 8px;
-      overflow: hidden;
-    }
-
-    .chart-box::before,
-    .chart-box::after {
-      content: '';
-      position: absolute;
-      width: 9px; height: 9px;
-      border: 1px solid var(--accent-line);
-      opacity: .8;
-      pointer-events: none;
-    }
-    .chart-box::before { top: 5px; left: 5px; border-right: none; border-bottom: none; }
-    .chart-box::after  { bottom: 5px; right: 5px; border-left: none; border-top: none; }
-
-    .chart-box canvas {
-      max-height: 150px;
+    .chart-grid canvas {
+      max-height: 120px;
       width: 100% !important;
     }
 
-    .chart-box-small canvas { max-height: 160px; }
-
-    .chart-empty {
-      font-family: 'Share Tech Mono', monospace;
-      font-size: 10px;
-      letter-spacing: .15em;
-      text-transform: uppercase;
-      color: var(--text-faint);
-      text-align: center;
-      padding: 30px 10px;
-    }
-
     @media (max-width: 760px) {
-      .chart-grid, .chart-grid.chart-grid-secondary { grid-template-columns: 1fr; }
-      .stat-strip { grid-template-columns: repeat(2, 1fr); }
+      .chart-grid { grid-template-columns: 1fr; max-width: 100%; }
       .panel { padding: 14px 16px; }
     }
 
@@ -511,6 +402,7 @@
       .img-preview { max-width: 50px; max-height: 50px; }
       .actions { flex-direction: column; }
       .btn-edit, .btn-delete, .btn-save, .btn-cancel { width: 100%; text-align: center; }
+      .chart-grid { grid-template-columns: 1fr; max-width: 100%; }
     }
 
     @media (max-width: 480px) {
@@ -550,33 +442,9 @@
   <!-- Charts Panel -->
   <div class="panel">
     <div class="panel-title">◆ &nbsp; Scan Trends</div>
-
-    <div class="stat-strip" id="stat-strip">
-      <div class="stat-card total">
-        <div class="stat-num" id="stat-total">0</div>
-        <div class="stat-label"><span class="dot"></span>Total Scans</div>
-      </div>
-      <div class="stat-card green">
-        <div class="stat-num" id="stat-green">0</div>
-        <div class="stat-label"><span class="dot"></span>Green — Clear</div>
-      </div>
-      <div class="stat-card yellow">
-        <div class="stat-num" id="stat-yellow">0</div>
-        <div class="stat-label"><span class="dot"></span>Yellow — Moderate</div>
-      </div>
-      <div class="stat-card red">
-        <div class="stat-num" id="stat-red">0</div>
-        <div class="stat-label"><span class="dot"></span>Red — Urgent</div>
-      </div>
-    </div>
-
     <div class="chart-grid">
-      <div class="chart-box"><canvas id="totalScansChart" height="150"></canvas></div>
-      <div class="chart-box"><canvas id="severityTrendChart" height="150"></canvas></div>
-    </div>
-    <div class="chart-grid chart-grid-secondary">
-      <div class="chart-box chart-box-small"><canvas id="severityDonutChart" height="160"></canvas></div>
-      <div class="chart-box chart-box-small"><canvas id="topConditionsChart" height="160"></canvas></div>
+      <canvas id="totalScansChart" height="110"></canvas>
+      <canvas id="severityTrendChart" height="110"></canvas>
     </div>
   </div>
 
@@ -640,27 +508,6 @@
   let scansData = [];
   let userRole = 'admin';
   let charts = {};
-
-  // ---------- TIMESTAMP PARSER (cross-browser safe) ----------
-  // SQLite stores "YYYY-MM-DD HH:MM:SS" (UTC, no timezone marker).
-  // Chrome parses that loosely, but Safari/iOS returns Invalid Date for it,
-  // which silently drops the scan out of month-grouped charts. Normalize
-  // to strict ISO-8601 UTC before handing it to `new Date()`.
-  function parseTimestamp(ts) {
-    if (!ts) return new Date(NaN);
-    if (ts instanceof Date) return ts;
-    let normalized = String(ts).trim();
-    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(normalized)) {
-      normalized = normalized.replace(' ', 'T') + 'Z';
-    }
-    const d = new Date(normalized);
-    if (isNaN(d.getTime())) {
-      // Last-resort fallback for any other odd format
-      const fallback = new Date(String(ts).replace(' ', 'T'));
-      return fallback;
-    }
-    return d;
-  }
 
   // ---------- PHONE VALIDATOR ----------
   function isValidPhone(phone) {
@@ -762,7 +609,7 @@
           <td><span class="severity-pill ${sc(s.severity)}">${s.severity}</span></td>
           <td style="max-width:160px;font-style:italic;">${esc(s.advice||'—')}</td>
           <td style="max-width:140px;font-style:italic;">${esc(s.firstAid||'—')}</td>
-          <td class="timestamp">${parseTimestamp(s.timestamp).toLocaleString()}</td>
+          <td class="timestamp">${new Date(s.timestamp).toLocaleString()}</td>
           <td>${imageSrc ? `<img src="${imageSrc}" class="img-preview" onerror="this.style.display='none'" alt="scan image">` : '—'}</td>
           <td class="actions">
             ${isAdmin ? `
@@ -875,262 +722,119 @@
 
   document.getElementById('filter-condition').addEventListener('change', () => renderTable());
 
-  // ---------- RENDER CHARTS ----------
-  const HUD_FONT = "'Share Tech Mono', monospace";
-
-  function monthLabel(key) {
-    const [y, m] = key.split('-');
-    const monthName = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'short' });
-    return `${monthName} '${String(y).slice(-2)}`;
-  }
-
-  function hudTooltip(extra) {
-    return Object.assign({
-      backgroundColor: 'rgba(18,4,8,0.95)',
-      titleColor: '#F5C400',
-      bodyColor: '#F5EEE8',
-      borderColor: 'rgba(196,18,48,.5)',
-      borderWidth: 1,
-      titleFont: { family: HUD_FONT, size: 10 },
-      bodyFont: { family: 'Rajdhani', size: 12, weight: '600' },
-      padding: 10,
-      cornerRadius: 3,
-      displayColors: true
-    }, extra || {});
-  }
-
-  // Canonicalizes a severity value regardless of casing/whitespace
-  // (e.g. "green", " Green ", "GREEN" all resolve to "Green"). The severity
-  // pill's CSS class already tolerates this via sc()'s toLowerCase(), but
-  // the chart counts were doing a strict === match, so a scan saved with
-  // slightly different casing could show a correct green pill in the table
-  // yet never get counted in the Green stat/graph.
-  function normalizeSeverity(raw) {
-    const s = String(raw || 'Green').trim().toLowerCase();
-    if (s === 'yellow') return 'Yellow';
-    if (s === 'red') return 'Red';
-    return 'Green';
-  }
-
+  // ---------- RENDER SMALL LINE CHARTS ----------
   function renderCharts(scans) {
-    Object.values(charts).forEach(c => c && c.destroy());
-    charts = {};
-
-    const total = scans.length;
-    const green = scans.filter(s => normalizeSeverity(s.severity) === 'Green').length;
-    const yellow = scans.filter(s => normalizeSeverity(s.severity) === 'Yellow').length;
-    const red = scans.filter(s => normalizeSeverity(s.severity) === 'Red').length;
-
-    document.getElementById('stat-total').textContent = total;
-    document.getElementById('stat-green').textContent = green;
-    document.getElementById('stat-yellow').textContent = yellow;
-    document.getElementById('stat-red').textContent = red;
-
-    const boxes = ['totalScansChart','severityTrendChart','severityDonutChart','topConditionsChart']
-      .map(id => document.getElementById(id).closest('.chart-box'));
+    if (charts.total) { charts.total.destroy(); }
+    if (charts.severity) { charts.severity.destroy(); }
 
     if (scans.length === 0) {
-      boxes.forEach(box => {
-        box.querySelector('canvas').style.display = 'none';
-        if (!box.querySelector('.chart-empty')) {
-          const empty = document.createElement('div');
-          empty.className = 'chart-empty';
-          empty.textContent = '◆ No scan data yet ◆';
-          box.appendChild(empty);
-        }
-      });
+      document.getElementById('totalScansChart').getContext('2d').clearRect(0,0,400,200);
+      document.getElementById('severityTrendChart').getContext('2d').clearRect(0,0,400,200);
       return;
     }
-    boxes.forEach(box => {
-      box.querySelector('canvas').style.display = 'block';
-      const empty = box.querySelector('.chart-empty');
-      if (empty) empty.remove();
-    });
 
     // Group by month (YYYY-MM)
     const monthMap = {};
     const severityMonthMap = {};
-    const conditionMap = {};
 
     scans.forEach(s => {
-      const date = parseTimestamp(s.timestamp);
-      // Skip records whose timestamp still can't be parsed, rather than
-      // dumping them into a bogus "NaN-NaN" bucket that breaks sorting.
-      if (isNaN(date.getTime())) return;
+      const date = new Date(s.timestamp);
       const monthKey = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0');
       monthMap[monthKey] = (monthMap[monthKey] || 0) + 1;
 
-      const sev = normalizeSeverity(s.severity);
-      if (!severityMonthMap[monthKey]) severityMonthMap[monthKey] = { Green: 0, Yellow: 0, Red: 0 };
-      severityMonthMap[monthKey][sev]++;
-
-      const cond = s.condition || 'Unspecified';
-      conditionMap[cond] = (conditionMap[cond] || 0) + 1;
+      const sev = s.severity || 'Green';
+      if (!severityMonthMap[monthKey]) {
+        severityMonthMap[monthKey] = { Green: 0, Yellow: 0, Red: 0 };
+      }
+      if (severityMonthMap[monthKey][sev] !== undefined) {
+        severityMonthMap[monthKey][sev]++;
+      }
     });
 
     const sortedMonths = Object.keys(monthMap).sort();
-    const monthLabels = sortedMonths.map(monthLabel);
 
-    // ---- 1. Total scans area chart (gold, glowing) ----
     const ctx1 = document.getElementById('totalScansChart').getContext('2d');
-    const goldFill = ctx1.createLinearGradient(0, 0, 0, 170);
-    goldFill.addColorStop(0, 'rgba(245,196,0,0.45)');
-    goldFill.addColorStop(1, 'rgba(245,196,0,0.01)');
-
     charts.total = new Chart(ctx1, {
       type: 'line',
       data: {
-        labels: monthLabels,
+        labels: sortedMonths,
         datasets: [{
-          label: 'Scans',
+          label: 'Scans per Month',
           data: sortedMonths.map(m => monthMap[m]),
           borderColor: '#F5C400',
-          borderWidth: 2.5,
-          backgroundColor: goldFill,
+          backgroundColor: 'rgba(245,196,0,0.08)',
           fill: true,
-          tension: 0.35,
-          pointBackgroundColor: '#0A0205',
-          pointBorderColor: '#F5C400',
-          pointBorderWidth: 2,
-          pointRadius: 4,
-          pointHoverRadius: 6,
-          pointHoverBackgroundColor: '#F5C400',
-          pointHoverBorderColor: '#C41230'
+          tension: 0.3,
+          pointBackgroundColor: '#F5C400',
+          pointBorderColor: '#C41230',
+          pointRadius: 3
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: true,
-        interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { display: false },
-          title: { display: true, text: '◆ TOTAL SCANS / MONTH', color: '#F5C400', font: { size: 10, family: HUD_FONT }, padding: { bottom: 10 } },
-          tooltip: hudTooltip()
+          legend: { labels: { color: '#A0888A', font: { size: 9 } } },
+          title: { display: true, text: 'Total Scans', color: '#A0888A', font: { size: 10 } }
         },
         scales: {
-          y: { beginAtZero: true, grid: { color: 'rgba(196,18,48,.12)', drawBorder: false }, ticks: { color: '#6A5A5A', font: { size: 9, family: 'Rajdhani' }, precision: 0 } },
-          x: { grid: { display: false }, ticks: { color: '#6A5A5A', font: { size: 9, family: 'Rajdhani' } } }
+          y: { beginAtZero: true, ticks: { color: '#6A5A5A', font: { size: 8 } } },
+          x: { ticks: { color: '#6A5A5A', font: { size: 8 } } }
         }
       }
     });
 
-    // ---- 2. Severity trend multi-line ----
     const ctx2 = document.getElementById('severityTrendChart').getContext('2d');
-    const sevSeries = [
-      { key: 'Green', color: '#4ADE80' },
-      { key: 'Yellow', color: '#F5C400' },
-      { key: 'Red', color: '#FF4D4D' }
-    ];
-
     charts.severity = new Chart(ctx2, {
       type: 'line',
       data: {
-        labels: monthLabels,
-        datasets: sevSeries.map(({ key, color }) => ({
-          label: key,
-          data: sortedMonths.map(m => severityMonthMap[m]?.[key] || 0),
-          borderColor: color,
-          backgroundColor: color + '14',
-          borderWidth: 2,
-          fill: false,
-          tension: 0.35,
-          pointBackgroundColor: '#0A0205',
-          pointBorderColor: color,
-          pointBorderWidth: 2,
-          pointRadius: 3,
-          pointHoverRadius: 5
-        }))
+        labels: sortedMonths,
+        datasets: [
+          {
+            label: 'Green',
+            data: sortedMonths.map(m => severityMonthMap[m]?.Green || 0),
+            borderColor: '#4ADE80',
+            backgroundColor: 'rgba(74,222,128,0.05)',
+            fill: false,
+            tension: 0.3,
+            pointBackgroundColor: '#4ADE80',
+            pointBorderColor: '#4ADE80',
+            pointRadius: 3
+          },
+          {
+            label: 'Yellow',
+            data: sortedMonths.map(m => severityMonthMap[m]?.Yellow || 0),
+            borderColor: '#F5C400',
+            backgroundColor: 'rgba(245,196,0,0.05)',
+            fill: false,
+            tension: 0.3,
+            pointBackgroundColor: '#F5C400',
+            pointBorderColor: '#F5C400',
+            pointRadius: 3
+          },
+          {
+            label: 'Red',
+            data: sortedMonths.map(m => severityMonthMap[m]?.Red || 0),
+            borderColor: '#FF6B6B',
+            backgroundColor: 'rgba(255,107,107,0.05)',
+            fill: false,
+            tension: 0.3,
+            pointBackgroundColor: '#FF6B6B',
+            pointBorderColor: '#FF6B6B',
+            pointRadius: 3
+          }
+        ]
       },
       options: {
         responsive: true,
         maintainAspectRatio: true,
-        interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: {
-            position: 'bottom',
-            labels: { color: '#A0888A', font: { size: 9, family: HUD_FONT }, boxWidth: 8, boxHeight: 8, usePointStyle: true, pointStyle: 'circle', padding: 12 }
-          },
-          title: { display: true, text: '◆ SEVERITY TRENDS', color: '#F5C400', font: { size: 10, family: HUD_FONT }, padding: { bottom: 10 } },
-          tooltip: hudTooltip()
+          legend: { labels: { color: '#A0888A', font: { size: 9 } } },
+          title: { display: true, text: 'Severity Trends', color: '#A0888A', font: { size: 10 } }
         },
         scales: {
-          y: { beginAtZero: true, grid: { color: 'rgba(196,18,48,.12)', drawBorder: false }, ticks: { color: '#6A5A5A', font: { size: 9, family: 'Rajdhani' }, precision: 0 } },
-          x: { grid: { display: false }, ticks: { color: '#6A5A5A', font: { size: 9, family: 'Rajdhani' } } }
-        }
-      }
-    });
-
-    // ---- 3. Severity distribution donut ----
-    const ctx3 = document.getElementById('severityDonutChart').getContext('2d');
-    charts.donut = new Chart(ctx3, {
-      type: 'doughnut',
-      data: {
-        labels: ['Green', 'Yellow', 'Red'],
-        datasets: [{
-          data: [green, yellow, red],
-          backgroundColor: ['#4ADE80', '#F5C400', '#FF4D4D'],
-          borderColor: '#0A0205',
-          borderWidth: 3,
-          hoverOffset: 8
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        cutout: '68%',
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: { color: '#A0888A', font: { size: 9, family: HUD_FONT }, boxWidth: 8, boxHeight: 8, usePointStyle: true, pointStyle: 'circle', padding: 12 }
-          },
-          title: { display: true, text: '◆ SEVERITY DISTRIBUTION', color: '#F5C400', font: { size: 10, family: HUD_FONT }, padding: { bottom: 10 } },
-          tooltip: hudTooltip({
-            callbacks: {
-              label: (ctx) => {
-                const val = ctx.parsed;
-                const pct = total ? Math.round((val / total) * 100) : 0;
-                return `${ctx.label}: ${val} (${pct}%)`;
-              }
-            }
-          })
-        }
-      }
-    });
-
-    // ---- 4. Top conditions horizontal bar ----
-    const topConditions = Object.entries(conditionMap)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5);
-
-    const ctx4 = document.getElementById('topConditionsChart').getContext('2d');
-    const barFill = ctx4.createLinearGradient(0, 0, 260, 0);
-    barFill.addColorStop(0, '#8B0D22');
-    barFill.addColorStop(1, '#F5C400');
-
-    charts.topConditions = new Chart(ctx4, {
-      type: 'bar',
-      data: {
-        labels: topConditions.map(([name]) => name),
-        datasets: [{
-          label: 'Cases',
-          data: topConditions.map(([, count]) => count),
-          backgroundColor: barFill,
-          borderRadius: 4,
-          barThickness: 16
-        }]
-      },
-      options: {
-        indexAxis: 'y',
-        responsive: true,
-        maintainAspectRatio: true,
-        plugins: {
-          legend: { display: false },
-          title: { display: true, text: '◆ TOP CONDITIONS', color: '#F5C400', font: { size: 10, family: HUD_FONT }, padding: { bottom: 10 } },
-          tooltip: hudTooltip()
-        },
-        scales: {
-          x: { beginAtZero: true, grid: { color: 'rgba(196,18,48,.12)', drawBorder: false }, ticks: { color: '#6A5A5A', font: { size: 9, family: 'Rajdhani' }, precision: 0 } },
-          y: { grid: { display: false }, ticks: { color: '#A0888A', font: { size: 10, family: 'Rajdhani', weight: '600' } } }
+          y: { beginAtZero: true, ticks: { color: '#6A5A5A', font: { size: 8 } } },
+          x: { ticks: { color: '#6A5A5A', font: { size: 8 } } }
         }
       }
     });

@@ -55,10 +55,16 @@ const allowedConditions = [
     'Scabies', 'Molluscum', 'Warts', 'Heat rash', 'No issue detected'
 ];
 
+// ---------- PHONE VALIDATOR ----------
+function isValidPhone(phone) {
+    if (!phone) return true;
+    return /^[\d+]+$/.test(phone);
+}
+
 // ---------- MASK PHONE (Privacy) ----------
 function maskPhone(phone) {
     if (!phone) return 'No phone';
-    if (isTeacher) return phone; // teachers see full number
+    if (isTeacher) return phone;
     let cleaned = phone.replace(/[^\d+]/g, '');
     let prefix = '';
     let number = cleaned;
@@ -105,7 +111,7 @@ async function checkLoginStatus() {
         const res = await fetch('/api/me');
         if (res.ok) {
             const data = await res.json();
-            if (data.role === 'teacher' || data.role === 'admin') {
+            if (data.role === 'teacher') {
                 isTeacher = true;
                 isGuest = false;
                 document.getElementById('login-status').textContent = `👤 Logged in as ${data.username} (${data.role})`;
@@ -115,16 +121,19 @@ async function checkLoginStatus() {
                 document.getElementById('login-btn').style.display = 'none';
                 document.getElementById('login-overlay').classList.add('hidden');
                 document.getElementById('app').style.display = 'block';
+                // Show back button
+                document.getElementById('logout-btn').style.display = 'flex';
                 return;
             }
         }
         // Not logged in, show login overlay
         document.getElementById('login-overlay').classList.remove('hidden');
         document.getElementById('app').style.display = 'none';
+        document.getElementById('logout-btn').style.display = 'none';
     } catch (e) {
-        // show login
         document.getElementById('login-overlay').classList.remove('hidden');
         document.getElementById('app').style.display = 'none';
+        document.getElementById('logout-btn').style.display = 'none';
     }
 }
 
@@ -150,7 +159,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
         });
         const data = await res.json();
         if (res.ok && data.success) {
-            if (data.role === 'teacher' || data.role === 'admin') {
+            if (data.role === 'teacher') {
                 isTeacher = true;
                 isGuest = false;
                 document.getElementById('login-status').textContent = `👤 Logged in as ${username} (${data.role})`;
@@ -160,12 +169,12 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
                 document.getElementById('login-btn').style.display = 'none';
                 document.getElementById('login-overlay').classList.add('hidden');
                 document.getElementById('app').style.display = 'block';
-                // refresh student list
+                document.getElementById('logout-btn').style.display = 'flex';
                 if (document.getElementById('student-list-container')) {
                     loadStudents();
                 }
             } else {
-                errorEl.textContent = 'Only teachers or admins can log in here.';
+                errorEl.textContent = 'Only teachers can log in here.';
                 btn.disabled = false;
                 btn.textContent = 'LOGIN AS TEACHER';
             }
@@ -188,8 +197,22 @@ document.getElementById('guest-btn').addEventListener('click', function() {
     isGuest = true;
     document.getElementById('login-overlay').classList.add('hidden');
     document.getElementById('app').style.display = 'block';
-    // Load students with masked numbers
+    document.getElementById('logout-btn').style.display = 'flex'; // show back button for guest
     loadStudents();
+});
+
+// ---------- LOGOUT/BACK BUTTON ----------
+document.getElementById('logout-btn').addEventListener('click', async function() {
+    // If teacher, log out the session
+    if (isTeacher) {
+        try {
+            await fetch('/logout');
+        } catch (e) {
+            // ignore
+        }
+    }
+    // Redirect to landing page
+    window.location.href = '/';
 });
 
 // ---------- STUDENT SELECTION HELPERS ----------
@@ -363,10 +386,16 @@ document.getElementById('add-new-student-btn').addEventListener('click', () => {
 document.getElementById('confirm-add-student-btn').addEventListener('click', async () => {
     const name = document.getElementById('new-student-name').value.trim();
     const phone = document.getElementById('new-student-phone').value.trim();
+
     if (!name) {
         alert('Please enter a name.');
         return;
     }
+    if (phone && !isValidPhone(phone)) {
+        alert('Phone number can only contain digits and the plus sign (+). No letters or special characters allowed.');
+        return;
+    }
+
     try {
         const response = await fetch('/api/students', {
             method: 'POST',
