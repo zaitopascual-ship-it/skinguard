@@ -751,7 +751,14 @@
     let html = '';
     filtered.forEach(s => {
       const phoneDisplay = s.phone && s.phone.trim() !== '' ? esc(s.phone) : '—';
-      const imageSrc = s.image || '';
+      // SECURITY: image must be validated as an actual base64 data URI before
+      // being placed in a src="" attribute. Without this check, a malicious
+      // value stored via the API (e.g. `x" onerror="...`) could break out of
+      // the attribute and execute arbitrary JS in the admin's session.
+      const rawImage = s.image || '';
+      const imageSrc = /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(rawImage)
+        ? rawImage
+        : '';
       
       html += `
         <tr id="row-${s.id}" class="view-row">
