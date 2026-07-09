@@ -108,6 +108,16 @@ const guestLoginLimiter = rateLimit({
     max: 10,
     message: { error: 'Too many guest session requests, please try again later.' },
 });
+const smsStatusLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 100,
+    message: { error: 'Too many status checks, please slow down.' },
+});
+const smsQueueLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 50,
+    message: { error: 'Too many SMS queue actions, please try again later.' },
+});
 
 // ---------- SESSION SETUP ----------
 app.use(session({
@@ -333,7 +343,8 @@ app.use('/api/delete-scan', requireAdmin);
 app.use('/api/students', requireSession);
 app.use('/api/save-scan', requireSession);
 app.use('/api/analyze', requireSession);
-app.use('/api/send-sms', requireTeacherOrAdmin);
+app.use('/api/send-sms', requireSession);
+app.use('/api/sms-requests', requireSession);
 
 app.use('/api/analyze', analyzeLimiter);
 app.use('/api/send-sms', smsLimiter);
@@ -392,6 +403,24 @@ db.serialize(() => {
             console.warn('Could not add addedByRole column:', err.message);
         }
     });
+
+    // Guest-initiated parent notifications sit here awaiting admin approval
+    // before an actual SMS is sent. Teacher/admin sends bypass this table.
+    db.run(`
+        CREATE TABLE IF NOT EXISTS sms_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            studentName TEXT NOT NULL,
+            phone TEXT NOT NULL,
+            condition TEXT NOT NULL,
+            advice TEXT,
+            severity TEXT,
+            requestedByRole TEXT,
+            status TEXT NOT NULL DEFAULT 'pending',
+            resolvedBy TEXT,
+            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+            resolvedAt DATETIME
+        )
+    `);
 });
 
 // ---------- PUBLIC API ENDPOINTS ----------
@@ -809,30 +838,17 @@ app.post('/api/analyze', async (req, res) => {
     }
 });
 
-// ---------- SMS ENDPOINT ----------
-app.post('/api/send-sms', async (req, res) => {
-    const { to, studentName, condition, advice, severity } = req.body;
-
-    if (!to || !studentName || !condition) {
-        return res.status(400).json({ error: 'Missing required fields: to, studentName, condition' });
-    }
-
-    const validatedPhone = sanitizePhone(to);
-    if (validatedPhone === false) {
-        return res.status(400).json({ error: 'Invalid phone number format. Use a PH mobile number, e.g. 09XXXXXXXXX or +639XXXXXXXXX.' });
-    }
-    if (!validatedPhone) {
-        return res.status(400).json({ error: 'Recipient phone number is required to send an SMS.' });
-    }
-
+// ---------- SMS SENDING (shared by direct sends and admin-approved requests) ----------
+async function sendSmsViaProvider(validatedPhone, studentName, condition, advice) {
     const apiSecretKey = process.env.UNISMS_API_SECRET;
 
     if (!apiSecretKey) {
         console.error('❌ UNISMS_API_SECRET not set in .env – cannot send SMS');
-        return res.status(500).json({
-            success: false,
-            error: 'SMS is not configured on the server. Add UNISMS_API_SECRET to .env'
-        });
+        return {
+            ok: false,
+            statusCode: 500,
+            body: { success: false, error: 'SMS is not configured on the server. Add UNISMS_API_SECRET to .env' }
+        };
     }
 
     let messageText = `AMA SKINGUARD ALERT\nPARENT NOTIFICATION\nDear parent/guardian of ${studentName}, your child was assessed with ${condition}. ${advice}. Please take appropriate action.`;
@@ -879,26 +895,22 @@ app.post('/api/send-sms', async (req, res) => {
             console.error('❌ Failed to parse JSON:', e.message);
             if (response.status >= 200 && response.status < 300) {
                 console.log('✅ SMS sent successfully (response status 2xx)');
-                return res.json({
-                    success: true,
-                    message: 'SMS sent successfully',
-                    referenceId: null
-                });
+                return { ok: true, statusCode: 200, body: { success: true, message: 'SMS sent successfully', referenceId: null } };
             }
-            return res.status(502).json({
-                success: false,
-                error: 'SMS provider returned an unparsable response',
-                rawResponse: responseText
-            });
+            return {
+                ok: false,
+                statusCode: 502,
+                body: { success: false, error: 'SMS provider returned an unparsable response', rawResponse: responseText }
+            };
         }
 
         if (response.status >= 200 && response.status < 300) {
             console.log('✅ SMS sent successfully');
-            return res.json({
-                success: true,
-                message: 'SMS sent successfully',
-                referenceId: data.message?.reference_id || data.reference_id || null
-            });
+            return {
+                ok: true,
+                statusCode: 200,
+                body: { success: true, message: 'SMS sent successfully', referenceId: data.message?.reference_id || data.reference_id || null }
+            };
         }
 
         if (response.status === 401) {
@@ -919,18 +931,157 @@ app.post('/api/send-sms', async (req, res) => {
         }
 
         console.error('❌ SMS sending failed');
-        res.status(response.status && response.status >= 400 ? response.status : 502).json({
-            success: false,
-            error: data.message || data.error || 'Unknown error from SMS provider',
-            details: data.errors || null
-        });
+        return {
+            ok: false,
+            statusCode: response.status && response.status >= 400 ? response.status : 502,
+            body: { success: false, error: data.message || data.error || 'Unknown error from SMS provider', details: data.errors || null }
+        };
     } catch (error) {
         console.error('❌ SMS sending error:', error.message);
-        res.status(502).json({
-            success: false,
-            error: 'Network error while sending SMS: ' + error.message
-        });
+        return { ok: false, statusCode: 502, body: { success: false, error: 'Network error while sending SMS: ' + error.message } };
     }
+}
+
+// ---------- SMS ENDPOINT ----------
+// Teachers/admins: sends immediately, as before.
+// Guests: queued into sms_requests for an admin to approve/reject — the SMS
+// only actually goes out once an admin approves it.
+//
+// The phone number is always looked up server-side by studentId rather than
+// trusted from the client: guests only ever see a masked phone number
+// (e.g. "+63*******1234"), so passing that straight through would fail
+// validation (and would also let a client claim any arbitrary "to" number).
+app.post('/api/send-sms', async (req, res) => {
+    const { studentId, condition, advice, severity } = req.body;
+
+    if (!studentId || !condition) {
+        return res.status(400).json({ error: 'Missing required fields: studentId, condition' });
+    }
+    const id = parseInt(studentId, 10);
+    if (!Number.isInteger(id)) {
+        return res.status(400).json({ error: 'Invalid studentId' });
+    }
+
+    db.get('SELECT id, name, phone FROM students WHERE id = ?', [id], async (err, student) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        if (!student) return res.status(404).json({ error: 'Student not found' });
+
+        const validatedPhone = sanitizePhone(student.phone);
+        if (validatedPhone === false || !validatedPhone) {
+            return res.status(400).json({ error: 'No valid phone number on file for this student. Ask a teacher or admin to add one.' });
+        }
+        const studentName = student.name;
+        const role = req.session.role;
+
+        if (role === 'guest') {
+            const stmt = db.prepare(`
+                INSERT INTO sms_requests (studentName, phone, condition, advice, severity, requestedByRole, status)
+                VALUES (?, ?, ?, ?, ?, ?, 'pending')
+            `);
+            stmt.run(studentName, validatedPhone, condition, advice || '', normalizeSeverity(severity) || null, role, function(insertErr) {
+                if (insertErr) {
+                    console.error(insertErr);
+                    return res.status(500).json({ error: 'Database error while creating SMS request' });
+                }
+                console.log(`📝 SMS request #${this.lastID} queued for admin approval (guest, ${studentName})`);
+                res.json({
+                    success: true,
+                    pending: true,
+                    requestId: this.lastID,
+                    message: 'Request sent to an admin for approval. The SMS will be sent once approved.'
+                });
+            });
+            stmt.finalize();
+            return;
+        }
+
+        const result = await sendSmsViaProvider(validatedPhone, studentName, condition, advice);
+        res.status(result.statusCode).json(result.body);
+    });
+});
+
+// ---------- SMS APPROVAL QUEUE (admin only) ----------
+app.get('/api/sms-requests', requireAdmin, smsQueueLimiter, (req, res) => {
+    db.all('SELECT * FROM sms_requests ORDER BY createdAt DESC LIMIT 200', (err, rows) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json(rows);
+    });
+});
+
+app.post('/api/sms-requests/:id/approve', requireAdmin, smsQueueLimiter, async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid request id' });
+
+    db.get('SELECT * FROM sms_requests WHERE id = ?', [id], async (err, row) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        if (!row) return res.status(404).json({ error: 'Request not found' });
+        if (row.status !== 'pending') return res.status(409).json({ error: `Request already ${row.status}` });
+
+        const result = await sendSmsViaProvider(row.phone, row.studentName, row.condition, row.advice);
+        const newStatus = result.ok ? 'approved' : 'failed';
+
+        db.run(
+            'UPDATE sms_requests SET status = ?, resolvedBy = ?, resolvedAt = CURRENT_TIMESTAMP WHERE id = ?',
+            [newStatus, req.session.username || 'admin', id],
+            (updateErr) => {
+                if (updateErr) console.error('Failed to update sms_request status:', updateErr);
+            }
+        );
+
+        console.log(`${result.ok ? '✅' : '❌'} SMS request #${id} ${newStatus} by ${req.session.username}`);
+        res.status(result.statusCode).json({ ...result.body, requestStatus: newStatus });
+    });
+});
+
+app.post('/api/sms-requests/:id/reject', requireAdmin, smsQueueLimiter, (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid request id' });
+
+    db.get('SELECT * FROM sms_requests WHERE id = ?', [id], (err, row) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        if (!row) return res.status(404).json({ error: 'Request not found' });
+        if (row.status !== 'pending') return res.status(409).json({ error: `Request already ${row.status}` });
+
+        db.run(
+            'UPDATE sms_requests SET status = ?, resolvedBy = ?, resolvedAt = CURRENT_TIMESTAMP WHERE id = ?',
+            ['rejected', req.session.username || 'admin', id],
+            (updateErr) => {
+                if (updateErr) {
+                    console.error(updateErr);
+                    return res.status(500).json({ error: 'Failed to reject request' });
+                }
+                console.log(`🚫 SMS request #${id} rejected by ${req.session.username}`);
+                res.json({ success: true, requestStatus: 'rejected' });
+            }
+        );
+    });
+});
+
+// Guest (or anyone with a session) polls the status of a request by id.
+app.get('/api/sms-requests/:id/status', requireSession, smsStatusLimiter, (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid request id' });
+
+    db.get('SELECT id, status, studentName FROM sms_requests WHERE id = ?', [id], (err, row) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        if (!row) return res.status(404).json({ error: 'Request not found' });
+        res.json({ id: row.id, status: row.status, studentName: row.studentName });
+    });
 });
 
 // ---------- HOSPITAL SEARCH ----------

@@ -345,14 +345,8 @@ async function performNotify() {
         alert('No student selected.');
         return;
     }
-    const parentPhone = selectedStudent.phone;
-    if (!parentPhone) {
+    if (!selectedStudent.phone) {
         alert('No phone number saved for this student. Please add a phone number.');
-        return;
-    }
-    const formattedPhone = formatPhoneNumber(parentPhone);
-    if (!formattedPhone) {
-        alert('Invalid phone number format.');
         return;
     }
 
@@ -366,15 +360,19 @@ async function performNotify() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                to: formattedPhone,
-                studentName: selectedStudent.name,
+                studentId: selectedStudent.id,
                 condition: lastResult.condition || lastResult.name,
                 advice: lastResult.advice,
                 severity: lastResult.severity
             })
         });
         const data = await response.json();
-        if (response.ok) {
+        if (response.ok && data.pending) {
+            // Guest flow: the request needs an admin's approval before the SMS
+            // actually goes out. Let the guest know, then watch for the outcome.
+            alert(`📨 Sent to admin for approval. ${selectedStudent.name}'s parent will only be notified once an admin approves the request.`);
+            pollSmsRequestStatus(data.requestId, selectedStudent.name);
+        } else if (response.ok) {
             alert(`✅ SMS sent to ${selectedStudent.name}'s parent!`);
         } else {
             alert(`❌ Failed: ${data.error}`);
@@ -388,6 +386,44 @@ async function performNotify() {
         selectedStudent = null;
         showScreen('results-screen');
     }
+}
+
+// ---------- POLL SMS APPROVAL STATUS (guest requests only) ----------
+function pollSmsRequestStatus(requestId, studentName) {
+    const maxAttempts = 40; // roughly 5 minutes at 7.5s intervals
+    let attempts = 0;
+
+    async function check() {
+        attempts++;
+        try {
+            const res = await fetch(`/api/sms-requests/${requestId}/status`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.status === 'approved') {
+                    alert(`✅ Admin approved it — SMS sent to ${studentName}'s parent.`);
+                    return;
+                }
+                if (data.status === 'rejected') {
+                    alert(`❌ An admin rejected the SMS request for ${studentName}.`);
+                    return;
+                }
+                if (data.status === 'failed') {
+                    alert(`⚠️ Admin approved, but the SMS failed to send for ${studentName}.`);
+                    return;
+                }
+            }
+        } catch (e) {
+            console.warn('SMS status check failed:', e);
+        }
+
+        if (attempts >= maxAttempts) {
+            console.warn(`Gave up polling SMS request #${requestId} after ${attempts} attempts.`);
+            return;
+        }
+        setTimeout(check, 7500);
+    }
+
+    check();
 }
 
 // ---------- AUTO-SAVE SCAN ----------

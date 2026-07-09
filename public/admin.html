@@ -157,6 +157,39 @@
       margin-bottom: 12px;
     }
 
+    /* ---------- VIEW TABS ---------- */
+    .view-tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .view-tab {
+      background: var(--obsidian);
+      border: 1px solid var(--gold-line);
+      color: var(--text-dim);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      padding: 10px 20px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .view-tab:hover { color: var(--text); border-color: var(--accent-line); }
+    .view-tab.active {
+      color: var(--accent);
+      border-color: var(--accent-line);
+      background: var(--accent-glow);
+    }
+    .contact-count {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--text-faint);
+      align-self: center;
+      margin-left: 4px;
+    }
+
     /* ---------- STAT STRIP ---------- */
     .stat-strip {
       display: grid;
@@ -630,74 +663,153 @@
     </div>
   </div>
 
-  <!-- Add form -->
-  <div class="panel">
-    <div class="panel-title">◆ &nbsp; New Incident Record</div>
-    <div class="form-grid">
-      <input type="text" id="new-name" placeholder="Full name *">
-      <input type="text" id="new-phone" placeholder="Parent contact">
-      <input type="text" id="new-condition" placeholder="Condition *">
-      <select id="new-severity">
-        <option value="Green">◆ Green — Clear</option>
-        <option value="Yellow">◆ Yellow — Moderate</option>
-        <option value="Red">◆ Red — Critical</option>
+  <!-- View tabs -->
+  <div class="view-tabs">
+    <button class="view-tab active" id="tab-records" onclick="switchView('records')">◆ &nbsp; Scan Records</button>
+    <button class="view-tab" id="tab-contacts" onclick="switchView('contacts')">◆ &nbsp; Contacts</button>
+    <button class="view-tab" id="tab-sms" onclick="switchView('sms')">◆ &nbsp; SMS Approvals <span id="sms-badge" style="display:none;background:#C41230;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;margin-left:6px;font-family:'Share Tech Mono',monospace;"></span></button>
+  </div>
+
+  <!-- ============ RECORDS VIEW ============ -->
+  <div id="records-view">
+
+    <!-- Add form -->
+    <div class="panel">
+      <div class="panel-title">◆ &nbsp; New Incident Record</div>
+      <div class="form-grid">
+        <input type="text" id="new-name" placeholder="Full name *">
+        <input type="text" id="new-phone" placeholder="Parent contact">
+        <input type="text" id="new-condition" placeholder="Condition *">
+        <select id="new-severity">
+          <option value="Green">◆ Green — Clear</option>
+          <option value="Yellow">◆ Yellow — Moderate</option>
+          <option value="Red">◆ Red — Critical</option>
+        </select>
+        <textarea id="new-advice" placeholder="Advice…"></textarea>
+        <textarea id="new-firstaid" placeholder="First Aid protocol…"></textarea>
+        <button id="add-scan-btn" class="btn-add span-all">◆ &nbsp; LOG INCIDENT</button>
+      </div>
+    </div>
+
+    <!-- Filter panel -->
+    <div class="filter-panel">
+      <span class="filter-label">◆ FILTER BY CONDITION</span>
+      <select id="filter-condition">
+        <option value="all">All conditions</option>
       </select>
-      <textarea id="new-advice" placeholder="Advice…"></textarea>
-      <textarea id="new-firstaid" placeholder="First Aid protocol…"></textarea>
-      <button id="add-scan-btn" class="btn-add span-all">◆ &nbsp; LOG INCIDENT</button>
+      <span class="filter-label">◆ PRINT BY DAY</span>
+      <input type="date" id="print-date-input">
+      <button class="btn-print" id="print-day-btn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
+        PRINT DAY
+      </button>
+      <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-faint);">
+        Total: <span id="total-count">0</span> records
+      </span>
     </div>
+
+    <!-- Print-only report (populated by JS, hidden on screen, shown via @media print) -->
+    <div id="print-report"></div>
+
+    <!-- Table -->
+    <div class="table-panel">
+      <div class="table-wrap">
+        <table id="scans-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Contact</th>
+              <th>Condition</th>
+              <th>Level</th>
+              <th>Advice</th>
+              <th>First Aid</th>
+              <th>Logged</th>
+              <th>Image</th>
+              <th>Source</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="scans-body">
+            <tr><td colspan="11" class="empty-state">loading records…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
   </div>
 
-  <!-- Filter panel -->
-  <div class="filter-panel">
-    <span class="filter-label">◆ FILTER BY CONDITION</span>
-    <select id="filter-condition">
-      <option value="all">All conditions</option>
-    </select>
-    <span class="filter-label">◆ PRINT BY DAY</span>
-    <input type="date" id="print-date-input">
-    <button class="btn-print" id="print-day-btn">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
-      PRINT DAY
-    </button>
-    <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-faint);">
-      Total: <span id="total-count">0</span> records
-    </span>
+  <!-- ============ CONTACTS VIEW ============ -->
+  <div id="contacts-view" style="display:none;">
+
+    <div class="filter-panel">
+      <span class="filter-label">◆ CONTACT DIRECTORY</span>
+      <span class="contact-count">Total: <span id="contacts-count">0</span> contacts</span>
+    </div>
+
+    <div class="table-panel">
+      <div class="table-wrap">
+        <table id="contacts-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Scans on File</th>
+              <th>Last Logged</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="contacts-body">
+            <tr><td colspan="5" class="empty-state">loading contacts…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
   </div>
 
-  <!-- Print-only report (populated by JS, hidden on screen, shown via @media print) -->
-  <div id="print-report"></div>
+  <!-- ============ SMS APPROVALS VIEW ============ -->
+  <div id="sms-view" style="display:none;">
 
-  <!-- Table -->
-  <div class="table-panel">
-    <div class="table-wrap">
-      <table id="scans-table">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Name</th>
-            <th>Contact</th>
-            <th>Condition</th>
-            <th>Level</th>
-            <th>Advice</th>
-            <th>First Aid</th>
-            <th>Logged</th>
-            <th>Image</th>
-            <th>Source</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="scans-body">
-          <tr><td colspan="11" class="empty-state">loading records…</td></tr>
-        </tbody>
-      </table>
+    <div class="filter-panel">
+      <span class="filter-label">◆ PARENT NOTIFICATION REQUESTS</span>
+      <span class="contact-count">Pending: <span id="sms-pending-count">0</span></span>
+      <button class="btn-print" id="refresh-sms-btn" style="margin-left:auto;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.1 21 6l-4 3.9"/><path d="M3 12.5a9 9 0 0 1 15-6.7l3 .2"/><path d="M7 21.9 3 18l4-3.9"/><path d="M21 11.5a9 9 0 0 1-15 6.7l-3-.2"/></svg>
+        REFRESH
+      </button>
     </div>
+
+    <div class="table-panel">
+      <div class="table-wrap">
+        <table id="sms-requests-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Student</th>
+              <th>Parent Phone</th>
+              <th>Condition</th>
+              <th>Level</th>
+              <th>Requested By</th>
+              <th>Requested</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="sms-requests-body">
+            <tr><td colspan="9" class="empty-state">loading requests…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
   </div>
 
 </div>
 
 <script>
   let scansData = [];
+  let smsRequests = [];
   let userRole = 'admin';
   let charts = {};
 
@@ -764,7 +876,12 @@
       filterSelect.innerHTML = '<option value="all">All conditions</option>' + 
         conditions.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
       renderTable();
-      renderCharts(scansData);
+      try {
+        renderCharts(scansData);
+      } catch (chartError) {
+        console.error('❌ Chart rendering error (table/contacts will still load):', chartError);
+      }
+      renderContacts();
     } catch (error) {
       console.error('❌ Load scans error:', error);
       statusEl.textContent = '❌ Connection error: ' + error.message;
@@ -906,6 +1023,222 @@
     try {
       const r = await fetch(`/api/delete-scan/${id}`, { method:'DELETE' });
       if (!r.ok) throw new Error();
+      loadScans();
+    } catch { alert('Delete failed.'); }
+  };
+
+  // ---------- VIEW SWITCHING ----------
+  window.switchView = view => {
+    document.getElementById('records-view').style.display = view === 'records' ? '' : 'none';
+    document.getElementById('contacts-view').style.display = view === 'contacts' ? '' : 'none';
+    document.getElementById('sms-view').style.display = view === 'sms' ? '' : 'none';
+    document.getElementById('tab-records').classList.toggle('active', view === 'records');
+    document.getElementById('tab-contacts').classList.toggle('active', view === 'contacts');
+    document.getElementById('tab-sms').classList.toggle('active', view === 'sms');
+    if (view === 'sms') loadSmsRequests();
+  };
+
+  // ---------- SMS APPROVAL QUEUE ----------
+  async function loadSmsRequests() {
+    try {
+      const r = await fetch('/api/sms-requests');
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      smsRequests = await r.json();
+      renderSmsRequests();
+    } catch (e) {
+      console.error('Failed to load SMS requests:', e);
+    }
+  }
+
+  function renderSmsRequests() {
+    const tbody = document.getElementById('sms-requests-body');
+    const pendingCount = smsRequests.filter(r => r.status === 'pending').length;
+    document.getElementById('sms-pending-count').textContent = pendingCount;
+
+    const badge = document.getElementById('sms-badge');
+    if (pendingCount > 0) {
+      badge.textContent = pendingCount;
+      badge.style.display = '';
+    } else {
+      badge.style.display = 'none';
+    }
+
+    if (smsRequests.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="9" class="empty-state">📭 No SMS requests yet. Guest-submitted notifications will show up here.</td></tr>`;
+      return;
+    }
+
+    const statusColors = { pending: '#F5C400', approved: '#4ADE80', rejected: '#FF6B6B', failed: '#FF6B6B' };
+
+    tbody.innerHTML = smsRequests.map(r => `
+      <tr id="sms-row-${r.id}">
+        <td class="id-cell">${r.id}</td>
+        <td style="font-weight:600;">${esc(r.studentName)}</td>
+        <td style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);">${esc(r.phone)}</td>
+        <td>${esc(r.condition)}</td>
+        <td>${r.severity ? `<span class="severity-pill ${sc(r.severity)}">${esc(r.severity)}</span>` : '—'}</td>
+        <td>${sourceBadge(r.requestedByRole)}</td>
+        <td class="timestamp">${parseTimestamp(r.createdAt).toLocaleString()}</td>
+        <td><span style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:.05em;color:${statusColors[r.status] || 'var(--text-faint)'};">${esc((r.status || '').toUpperCase())}</span></td>
+        <td class="actions">
+          ${r.status === 'pending' ? `
+            <button class="btn-save" onclick="approveSmsRequest(${r.id})">APPROVE</button>
+            <button class="btn-delete" onclick="rejectSmsRequest(${r.id})">REJECT</button>
+          ` : `<span style="color:var(--text-faint);font-size:11px;">—</span>`}
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  window.approveSmsRequest = async (id) => {
+    if (!confirm('Approve this request? The SMS will be sent to the parent immediately.')) return;
+    try {
+      const r = await fetch(`/api/sms-requests/${id}/approve`, { method: 'POST' });
+      const data = await r.json();
+      if (!r.ok || data.success === false) {
+        alert(`❌ Failed to send: ${data.error || 'Unknown error'}`);
+      } else {
+        alert('✅ SMS sent to parent.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Network error while approving request.');
+    }
+    loadSmsRequests();
+  };
+
+  window.rejectSmsRequest = async (id) => {
+    if (!confirm('Reject this SMS request? No message will be sent.')) return;
+    try {
+      const r = await fetch(`/api/sms-requests/${id}/reject`, { method: 'POST' });
+      if (!r.ok) {
+        const data = await r.json();
+        alert(`❌ Failed to reject: ${data.error || 'Unknown error'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Network error while rejecting request.');
+    }
+    loadSmsRequests();
+  };
+
+  document.getElementById('refresh-sms-btn').addEventListener('click', loadSmsRequests);
+
+  // ---------- CONTACTS ----------
+  // A "contact" is derived from scan records that share the same phone number.
+  // There is no separate contacts table in the database — editing/deleting a
+  // contact here applies that change across every scan record tied to that phone.
+  let contactsCache = {};
+
+  function buildContacts() {
+    const map = {};
+    scansData.forEach(s => {
+      const phone = (s.phone || '').trim();
+      if (!phone) return;
+      const ts = parseTimestamp(s.timestamp);
+      if (!map[phone]) map[phone] = { phone, name: s.name, ids: [], lastTs: null };
+      map[phone].ids.push(s.id);
+      if (!map[phone].lastTs || (!isNaN(ts.getTime()) && ts > map[phone].lastTs)) {
+        map[phone].lastTs = isNaN(ts.getTime()) ? map[phone].lastTs : ts;
+        map[phone].name = s.name;
+      }
+    });
+    return map;
+  }
+
+  function renderContacts() {
+    contactsCache = buildContacts();
+    const contacts = Object.values(contactsCache).sort((a, b) => (b.lastTs || 0) - (a.lastTs || 0));
+    const tbody = document.getElementById('contacts-body');
+    document.getElementById('contacts-count').textContent = contacts.length;
+
+    if (contacts.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-state">📇 No contacts on file yet.</td></tr>`;
+      return;
+    }
+
+    const isAdmin = userRole === 'admin';
+    let html = '';
+    contacts.forEach(c => {
+      const key = esc(c.phone);
+      html += `
+        <tr id="contact-row-${key}">
+          <td style="font-weight:600;">${esc(c.name)}</td>
+          <td style="font-family:'Share Tech Mono',monospace;">${key}</td>
+          <td>${c.ids.length}</td>
+          <td class="timestamp">${c.lastTs ? c.lastTs.toLocaleString() : '—'}</td>
+          <td class="actions">
+            ${isAdmin ? `
+              <button class="btn-edit" onclick="editContact('${key}')">EDIT</button>
+              <button class="btn-delete" onclick="deleteContact('${key}')">DELETE</button>
+            ` : `
+              <span style="color:var(--text-faint);font-size:11px;">View only</span>
+            `}
+          </td>
+        </tr>
+        ${isAdmin ? `
+        <tr id="contact-edit-${key}" class="edit-row" style="display:none;">
+          <td><input type="text" id="contact-edit-name-${key}" value="${esc(c.name)}"></td>
+          <td><input type="text" id="contact-edit-phone-${key}" value="${key}"></td>
+          <td colspan="2" style="color:var(--text-faint);font-size:11px;">Applies to ${c.ids.length} record(s)</td>
+          <td class="actions">
+            <button class="btn-save" onclick="saveContact('${key}')">SAVE</button>
+            <button class="btn-cancel" onclick="cancelContactEdit('${key}')">CANCEL</button>
+          </td>
+        </tr>
+        ` : ''}
+      `;
+    });
+    tbody.innerHTML = html;
+  }
+
+  window.editContact = phone => {
+    document.getElementById(`contact-row-${phone}`).style.display = 'none';
+    document.getElementById(`contact-edit-${phone}`).style.display = 'table-row';
+  };
+
+  window.cancelContactEdit = phone => {
+    document.getElementById(`contact-row-${phone}`).style.display = 'table-row';
+    document.getElementById(`contact-edit-${phone}`).style.display = 'none';
+  };
+
+  window.saveContact = async phone => {
+    if (userRole !== 'admin') return;
+    const newName = document.getElementById(`contact-edit-name-${phone}`).value.trim();
+    const newPhone = document.getElementById(`contact-edit-phone-${phone}`).value.trim();
+    if (!newName) return alert('Name required.');
+    if (newPhone && !isValidPhone(newPhone)) {
+      alert('Phone number can only contain digits and the plus sign (+). No letters or special characters allowed.');
+      return;
+    }
+    const contact = contactsCache[phone];
+    if (!contact) return;
+    try {
+      await Promise.all(contact.ids.map(id => {
+        const record = scansData.find(s => s.id === id);
+        if (!record) return Promise.resolve();
+        const body = {
+          name:      newName,
+          phone:     newPhone,
+          condition: record.condition,
+          severity:  record.severity,
+          advice:    record.advice || '',
+          firstAid:  record.firstAid || '',
+        };
+        return fetch(`/api/update-scan/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      }));
+      loadScans();
+    } catch { alert('Update failed.'); }
+  };
+
+  window.deleteContact = async phone => {
+    if (userRole !== 'admin') return;
+    const contact = contactsCache[phone];
+    if (!contact) return;
+    const n = contact.ids.length;
+    if (!confirm(`This will permanently delete ${n} scan record(s) for ${contact.name}. Continue?`)) return;
+    try {
+      await Promise.all(contact.ids.map(id => fetch(`/api/delete-scan/${id}`, { method: 'DELETE' })));
       loadScans();
     } catch { alert('Delete failed.'); }
   };
@@ -1271,6 +1604,8 @@
     if (printDateInput && !printDateInput.value) printDateInput.value = toLocalDateKey(new Date());
     await getUserRole();
     await loadScans();
+    await loadSmsRequests();
+    setInterval(loadSmsRequests, 15000); // keep the pending badge fresh
   })();
 </script>
 </body>
