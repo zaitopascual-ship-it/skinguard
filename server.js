@@ -7,7 +7,22 @@ const fs = require('fs');
 const { ElevenLabsClient } = require('@elevenlabs/elevenlabs-js');
 const { Readable } = require('stream');
 const session = require('express-session');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const bcrypt = require('bcryptjs');
 require('dotenv').config();
+
+// ---------- ENV CHECKS ----------
+const requiredEnvVars = ['ADMIN_PASSWORD_HASH', 'TEACHER_PASSWORD_HASH', 'SESSION_SECRET'];
+const missing = requiredEnvVars.filter(v => !process.env[v]);
+if (missing.length > 0) {
+    if (process.env.NODE_ENV === 'production') {
+        console.error(`FATAL: missing required env vars in production: ${missing.join(', ')}`);
+        process.exit(1);
+    } else {
+        console.warn(`WARNING: using insecure default values for: ${missing.join(', ')} (dev only)`);
+    }
+}
 
 console.log('OpenAI API Key:', process.env.OPENAI_API_KEY ? 'Loaded' : 'Not found');
 console.log('Roboflow API Key:', process.env.ROBOFLOW_API_KEY ? 'Loaded' : 'Not found');
@@ -16,21 +31,94 @@ console.log('ElevenLabs API Key:', process.env.ELEVENLABS_API_KEY ? 'Loaded' : '
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+// ---------- SECURITY HEADERS (helmet) ----------
+app.use(
+  helmet.contentSecurityPolicy({
+    directives: {
+      // Allow scripts from your server, inline scripts, and CDNs
+      "script-src": ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
+      
+      "script-src-attr": ["'unsafe-inline'"],
+      
+      // Styles (Google Fonts + Mapbox)
+      "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://api.mapbox.com"],
+      
+      // Connections (APIs + CDN for source maps)
+      "connect-src": [
+        "'self'",
+        "https://api.mapbox.com",
+        "https://detect.roboflow.com",
+        "https://api.openai.com",
+        "https://unismsapi.com",
+        "https://overpass-api.de",
+        "https://overpass.kumi.systems",
+        "https://cdn.jsdelivr.net"
+      ],
+      
+      "font-src": ["'self'", "https://fonts.gstatic.com"],
+      "img-src": ["'self'", "data:", "https://api.mapbox.com"]
+    }
+  })
+);
+// ---------- CORS (restricted) ----------
+app.use(cors({
+    origin: process.env.NODE_ENV === 'production'
+        ? ['https://skinguard.site']   // Add your domain(s)
+        : true,
+    credentials: true
+}));
+
+// ---------- TRUST PROXY (for secure cookies behind reverse proxy) ----------
+app.set('trust proxy', 1);
+
 app.use(express.json({ limit: '10mb' }));
+
+// ---------- RATE LIMITERS ----------
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    message: { error: 'Too many login attempts, please try again later.' },
+});
+const analyzeLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 10,
+    message: { error: 'Too many analysis requests, please try again later.' },
+});
+const smsLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 5,
+    message: { error: 'Too many SMS requests, please try again later.' },
+});
+const hospitalLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 20,
+    message: { error: 'Too many hospital search requests, please try again later.' },
+});
+const saveScanLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 30,
+    message: { error: 'Too many scan saves, please try again later.' },
+});
+const studentPostLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 20,
+    message: { error: 'Too many student registration attempts, please try again later.' },
+});
 
 // ---------- SESSION SETUP ----------
 app.use(session({
-    secret: process.env.SESSION_SECRET || 'skinguard-secret-key-change-me',
+    secret: process.env.SESSION_SECRET || (process.env.NODE_ENV === 'production' ? undefined : 'dev-secret-change-me'),
     resave: false,
     saveUninitialized: false,
     cookie: {
-        secure: false, // set to true if using HTTPS
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+        secure: process.env.NODE_ENV === 'production',
+        httpOnly: true,
+        sameSite: 'lax',
+        maxAge: 24 * 60 * 60 * 1000
     }
 }));
 
-// ---------- AUTH MIDDLEWARE ----------
+// ---------- AUTH MIDDLEWARES ----------
 function requireAdmin(req, res, next) {
     if (req.session && req.session.isAdmin) {
         return next();
@@ -41,11 +129,67 @@ function requireAdmin(req, res, next) {
     res.redirect('/login');
 }
 
+function requireSession(req, res, next) {
+    if (req.session && (req.session.role === 'teacher' || req.session.role === 'admin' || req.session.role === 'guest')) {
+        return next();
+    }
+    res.status(401).json({ error: 'Unauthorized' });
+}
+
+function requireTeacherOrAdmin(req, res, next) {
+    if (req.session && (req.session.role === 'teacher' || req.session.role === 'admin')) {
+        return next();
+    }
+    res.status(403).json({ error: 'Teacher or admin access required' });
+}
+
 // ---------- PHONE SANITIZER ----------
 function sanitizePhone(phone) {
     if (!phone) return null;
     return phone.replace(/[^\d+]/g, '');
 }
+
+// ---------- SERVER-SIDE MASKING HELPERS ----------
+function maskName(name) {
+    if (!name) return '';
+    const trimmed = name.trim();
+    if (trimmed.length <= 2) return trimmed.charAt(0) + '*';
+    return trimmed.charAt(0) + '*'.repeat(trimmed.length - 2) + trimmed.charAt(trimmed.length - 1);
+}
+
+function maskPhone(phone) {
+    if (!phone) return 'No phone';
+    const cleaned = phone.replace(/[^\d+]/g, '');
+    let prefix = '';
+    let number = cleaned;
+    if (cleaned.startsWith('+')) {
+        prefix = '+';
+        number = cleaned.substring(1);
+    }
+    if (number.length > 4) {
+        const last4 = number.slice(-4);
+        const masked = '*'.repeat(number.length - 4) + last4;
+        return prefix + masked;
+    }
+    return prefix + number;
+}
+
+function maskStudentForRole(student, role) {
+    const masked = { ...student };
+    if (role !== 'teacher' && role !== 'admin') {
+        masked.name = maskName(student.name);
+        masked.phone = maskPhone(student.phone);
+    }
+    return masked;
+}
+
+// ---------- GUEST LOGIN ----------
+app.post('/api/guest-login', (req, res) => {
+    req.session.role = 'guest';
+    req.session.isGuest = true;
+    console.log('👤 Guest session created');
+    res.json({ success: true, role: 'guest' });
+});
 
 // ---------- LOGIN PAGE ----------
 app.get('/login', (req, res) => {
@@ -55,19 +199,25 @@ app.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-// ---------- LOGIN API (public) ----------
-app.post('/api/login', (req, res) => {
+// ---------- LOGIN API (rate-limited) ----------
+app.post('/api/login', loginLimiter, (req, res) => {
     const { username, password } = req.body;
+    if (!username || !password) {
+        return res.status(400).json({ error: 'Username and password required' });
+    }
+
     const adminUser = process.env.ADMIN_USER || 'admin';
-    const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
+    const adminHash = process.env.ADMIN_PASSWORD_HASH;
     const teacherUser = process.env.TEACHER_USER || 'teacher';
-    const teacherPass = process.env.TEACHER_PASSWORD || 'teacher123';
+    const teacherHash = process.env.TEACHER_PASSWORD_HASH;
 
-    let role = null;
+    // No plaintext fallback, ever — if a hash isn't configured, that role
+    // simply can't log in (fail closed instead of falling back to a
+    // hardcoded default password).
+    const isAdminMatch = username === adminUser && adminHash && bcrypt.compareSync(password, adminHash);
+    const isTeacherMatch = username === teacherUser && teacherHash && bcrypt.compareSync(password, teacherHash);
 
-    // Admin login
-    if (username === adminUser && password === adminPass) {
-        role = 'admin';
+    if (isAdminMatch) {
         req.session.isAdmin = true;
         req.session.role = 'admin';
         req.session.username = username;
@@ -75,9 +225,7 @@ app.post('/api/login', (req, res) => {
         return res.json({ success: true, role: 'admin' });
     }
 
-    // Teacher login (does NOT set isAdmin)
-    if (username === teacherUser && password === teacherPass) {
-        role = 'teacher';
+    if (isTeacherMatch) {
         req.session.isTeacher = true;
         req.session.role = 'teacher';
         req.session.username = username;
@@ -89,13 +237,16 @@ app.post('/api/login', (req, res) => {
     res.status(401).json({ error: 'Invalid username or password' });
 });
 
-// ---------- GET CURRENT USER (public, returns 401 if not logged in) ----------
+// ---------- GET CURRENT USER ----------
 app.get('/api/me', (req, res) => {
     if (req.session && req.session.isAdmin) {
         return res.json({ role: 'admin', username: req.session.username });
     }
     if (req.session && req.session.isTeacher) {
         return res.json({ role: 'teacher', username: req.session.username });
+    }
+    if (req.session && req.session.role === 'guest') {
+        return res.json({ role: 'guest' });
     }
     res.status(401).json({ error: 'Not logged in' });
 });
@@ -112,7 +263,7 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'landing.html'));
 });
 
-// ---------- ADMIN PAGE (Protected – Admin only) ----------
+// ---------- ADMIN PAGE ----------
 app.get('/admin', requireAdmin, (req, res) => {
     console.log('✅ Admin page accessed by:', req.session.username);
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
@@ -128,7 +279,18 @@ app.use('/api/add-scan', requireAdmin);
 app.use('/api/update-scan', requireAdmin);
 app.use('/api/delete-scan', requireAdmin);
 
-// ALL OTHER /api/* ROUTES ARE PUBLIC (students, save-scan, analyze, send-sms, hospitals, etc.)
+// ---------- PROTECTED PUBLIC ROUTES (require session) ----------
+app.use('/api/students', requireSession);
+app.use('/api/save-scan', requireSession);
+app.use('/api/analyze', requireSession);
+app.use('/api/send-sms', requireTeacherOrAdmin);
+
+// ---------- RATE LIMITERS (applied after auth) ----------
+app.use('/api/analyze', analyzeLimiter);
+app.use('/api/send-sms', smsLimiter);
+app.use('/api/hospitals', hospitalLimiter);
+app.use('/api/save-scan', saveScanLimiter);
+app.post('/api/students', studentPostLimiter);
 
 // ---------- STATIC FILES ----------
 app.use(express.static('public'));
@@ -179,7 +341,9 @@ app.get('/api/students', (req, res) => {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
         }
-        res.json(rows);
+        const role = req.session.role || 'guest';
+        const maskedRows = rows.map(row => maskStudentForRole(row, role));
+        res.json(maskedRows);
     });
 });
 
@@ -194,25 +358,36 @@ app.post('/api/students', (req, res) => {
             return res.status(500).json({ error: 'Database error' });
         }
         if (row) {
+            // Existing student – require teacher/admin to update
+            const role = req.session.role || 'guest';
+            if (role !== 'teacher' && role !== 'admin') {
+                return res.status(403).json({ error: 'Only teachers or admins can update existing student phone numbers.' });
+            }
             if (sanitizedPhone && sanitizedPhone !== row.phone) {
                 db.run('UPDATE students SET phone = ? WHERE id = ?', [sanitizedPhone, row.id], (updateErr) => {
                     if (updateErr) {
                         console.error(updateErr);
                         return res.status(500).json({ error: 'Failed to update phone' });
                     }
-                    res.json({ id: row.id, name: row.name, phone: sanitizedPhone || row.phone });
+                    const masked = maskStudentForRole({ id: row.id, name: row.name, phone: sanitizedPhone || row.phone }, role);
+                    res.json(masked);
                 });
             } else {
-                res.json({ id: row.id, name: row.name, phone: row.phone });
+                const masked = maskStudentForRole({ id: row.id, name: row.name, phone: row.phone }, role);
+                res.json(masked);
             }
         } else {
+            // New student – allow anyone
             const stmt = db.prepare('INSERT INTO students (name, phone) VALUES (?, ?)');
             stmt.run(name, sanitizedPhone, function(insertErr) {
                 if (insertErr) {
                     console.error(insertErr);
                     return res.status(500).json({ error: 'Database error' });
                 }
-                res.json({ id: this.lastID, name, phone: sanitizedPhone });
+                const newStudent = { id: this.lastID, name, phone: sanitizedPhone };
+                const role = req.session.role || 'guest';
+                const masked = maskStudentForRole(newStudent, role);
+                res.json(masked);
             });
             stmt.finalize();
         }
@@ -225,6 +400,10 @@ app.post('/api/save-scan', (req, res) => {
 
     if (!name || !condition || !severity) {
         return res.status(400).json({ error: 'Missing required fields' });
+    }
+    // Validate image size
+    if (image && typeof image === 'string' && image.length > 2 * 1024 * 1024) {
+        return res.status(400).json({ error: 'Image too large (max 2MB)' });
     }
     const sanitizedPhone = sanitizePhone(phone);
     const stmt = db.prepare('INSERT INTO scans (name, phone, condition, severity, advice, firstAid, image) VALUES (?, ?, ?, ?, ?, ?, ?)');
@@ -389,7 +568,7 @@ async function generateAndSaveAudio(text, fileName = 'analysis_audio.mp3') {
     }
 }
 
-// ---------- MAIN ANALYSIS ENDPOINT (public) ----------
+// ---------- MAIN ANALYSIS ENDPOINT ----------
 app.post('/api/analyze', async (req, res) => {
     const startTime = Date.now();
     console.log('\n📥 [SCAN] Received image from frontend');
@@ -520,7 +699,7 @@ app.post('/api/analyze', async (req, res) => {
     }
 });
 
-// ---------- SMS ENDPOINT (public) ----------
+// ---------- SMS ENDPOINT ----------
 app.post('/api/send-sms', async (req, res) => {
     const { to, studentName, condition, advice, severity } = req.body;
 
@@ -643,25 +822,33 @@ app.post('/api/send-sms', async (req, res) => {
     }
 });
 
-// ---------- HOSPITAL SEARCH (public) ----------
+// ---------- HOSPITAL SEARCH (with input validation) ----------
 app.post('/api/hospitals', async (req, res) => {
     const { lat, lng, radius = 30000 } = req.body;
 
-    if (!lat || !lng) {
-        return res.status(400).json({ error: 'Missing latitude or longitude' });
+    // Validate coordinates
+    if (typeof lat !== 'number' || isNaN(lat) || lat < -90 || lat > 90) {
+        return res.status(400).json({ error: 'Invalid latitude' });
+    }
+    if (typeof lng !== 'number' || isNaN(lng) || lng < -180 || lng > 180) {
+        return res.status(400).json({ error: 'Invalid longitude' });
+    }
+    const radiusNum = Number(radius);
+    if (isNaN(radiusNum) || radiusNum < 100 || radiusNum > 50000) {
+        return res.status(400).json({ error: 'Radius must be between 100 and 50000 meters' });
     }
 
     const query = `
         [out:json];
         (
-            node["amenity"="hospital"](around:${radius},${lat},${lng});
-            node["amenity"="clinic"](around:${radius},${lat},${lng});
-            node["amenity"="doctors"](around:${radius},${lat},${lng});
-            node["healthcare"="hospital"](around:${radius},${lat},${lng});
-            node["healthcare"="clinic"](around:${radius},${lat},${lng});
-            way["amenity"="hospital"](around:${radius},${lat},${lng});
-            way["amenity"="clinic"](around:${radius},${lat},${lng});
-            way["healthcare"="hospital"](around:${radius},${lat},${lng});
+            node["amenity"="hospital"](around:${radiusNum},${lat},${lng});
+            node["amenity"="clinic"](around:${radiusNum},${lat},${lng});
+            node["amenity"="doctors"](around:${radiusNum},${lat},${lng});
+            node["healthcare"="hospital"](around:${radiusNum},${lat},${lng});
+            node["healthcare"="clinic"](around:${radiusNum},${lat},${lng});
+            way["amenity"="hospital"](around:${radiusNum},${lat},${lng});
+            way["amenity"="clinic"](around:${radiusNum},${lat},${lng});
+            way["healthcare"="hospital"](around:${radiusNum},${lat},${lng});
         );
         out;
     `;

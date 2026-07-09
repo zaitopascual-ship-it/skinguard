@@ -58,10 +58,8 @@ const allowedConditions = [
 // ---------- VALIDATORS ----------
 function isValidNamePart(part) {
     if (!part || part.trim().length < 2) return false;
-    // Only letters, spaces, hyphens, apostrophes, dots (for initials)
     const cleaned = part.trim();
     if (!/^[A-Za-z\s\-\.']+$/.test(cleaned)) return false;
-    // Must contain at least one vowel (to avoid gibberish like "qwerty")
     if (!/[aeiouAEIOU]/.test(cleaned)) return false;
     return true;
 }
@@ -72,17 +70,14 @@ function isValidPhone(phone) {
 }
 
 // ---------- MASK FUNCTIONS (Privacy) ----------
+// Note: these are now client-side only for backward compatibility;
+// server also masks but we keep them for consistency.
 function maskName(name) {
     if (!name) return '';
     if (isTeacher) return name;
     const trimmed = name.trim();
-    if (trimmed.length <= 2) {
-        return trimmed.charAt(0) + '*';
-    }
-    const first = trimmed.charAt(0);
-    const last = trimmed.charAt(trimmed.length - 1);
-    const middle = '*'.repeat(trimmed.length - 2);
-    return first + middle + last;
+    if (trimmed.length <= 2) return trimmed.charAt(0) + '*';
+    return trimmed.charAt(0) + '*'.repeat(trimmed.length - 2) + trimmed.charAt(trimmed.length - 1);
 }
 
 function maskPhone(phone) {
@@ -211,13 +206,27 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     }
 });
 
-document.getElementById('guest-btn').addEventListener('click', function() {
-    isTeacher = false;
-    isGuest = true;
-    document.getElementById('login-overlay').classList.add('hidden');
-    document.getElementById('app').style.display = 'block';
-    document.getElementById('logout-btn').style.display = 'flex';
-    loadStudents();
+// Guest mode – create a real guest session
+document.getElementById('guest-btn').addEventListener('click', async function() {
+    try {
+        const response = await fetch('/api/guest-login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        if (!response.ok) throw new Error('Guest login failed');
+        const data = await response.json();
+        if (data.success) {
+            isTeacher = false;
+            isGuest = true;
+            document.getElementById('login-overlay').classList.add('hidden');
+            document.getElementById('app').style.display = 'block';
+            document.getElementById('logout-btn').style.display = 'flex';
+            loadStudents();
+        }
+    } catch (error) {
+        console.error('Guest login error:', error);
+        alert('Could not start guest session. Please try again.');
+    }
 });
 
 // ---------- LOGOUT ----------
@@ -246,6 +255,8 @@ async function loadStudents(searchTerm = '') {
         }
         let html = '';
         students.forEach(s => {
+            // Server already masks data for non-teachers, but we'll use client-side masking as well
+            // (it won't hurt because server data is already masked if not teacher)
             const displayName = maskName(s.name);
             const displayPhone = maskPhone(s.phone);
             html += `
@@ -434,13 +445,16 @@ document.getElementById('confirm-add-student-btn').addEventListener('click', asy
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: fullName, phone: phone || null })
         });
-        if (!response.ok) throw new Error('Failed to add student');
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error || 'Failed to add student');
+        }
         const newStudent = await response.json();
         alert(`Student ${fullName} added!`);
         selectStudent(newStudent);
     } catch (error) {
         console.error('Add student error:', error);
-        alert('Error adding student.');
+        alert('Error adding student: ' + error.message);
     }
 });
 
@@ -769,12 +783,6 @@ function escapeHtml(unsafe) {
         if (m === '>') return '&gt;';
         return m;
     });
-}
-
-// ---------- PHONE VALIDATOR ----------
-function isValidPhone(phone) {
-    if (!phone) return true;
-    return /^[\d+]+$/.test(phone);
 }
 
 // ---------- INIT ----------

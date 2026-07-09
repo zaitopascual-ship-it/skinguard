@@ -707,9 +707,8 @@
       // Populate filter dropdown
       const filterSelect = document.getElementById('filter-condition');
       const conditions = [...new Set(scansData.map(s => s.condition).filter(Boolean))];
-      filterSelect.innerHTML = '<option value="all">All conditions</option>' +
-        conditions.map(c => `<option value="${c}">${c}</option>`).join('');
-      
+      filterSelect.innerHTML = '<option value="all">All conditions</option>' + 
+        conditions.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
       renderTable();
       renderCharts(scansData);
     } catch (error) {
