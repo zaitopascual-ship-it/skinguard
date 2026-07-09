@@ -36,7 +36,7 @@ const PORT = process.env.PORT || 3000;
 app.use(
   helmet.contentSecurityPolicy({
     directives: {
-      "script-src": ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
+      "script-src": ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com", "https://api.mapbox.com"],
       "script-src-attr": ["'unsafe-inline'"],
       "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://api.mapbox.com"],
       "connect-src": [
