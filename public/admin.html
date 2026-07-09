@@ -11,6 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
+    /* (All your existing styles remain the same – keep them) */
     :root {
       --void:       #0A0205;
       --obsidian:   #120408;
@@ -624,11 +625,12 @@
             <th>First Aid</th>
             <th>Logged</th>
             <th>Image</th>
+            <th>Source</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody id="scans-body">
-          <tr><td colspan="10" class="empty-state">loading records…</td></tr>
+          <tr><td colspan="11" class="empty-state">loading records…</td></tr>
         </tbody>
       </table>
     </div>
@@ -641,11 +643,7 @@
   let userRole = 'admin';
   let charts = {};
 
-  // ---------- TIMESTAMP PARSER (cross-browser safe) ----------
-  // SQLite stores "YYYY-MM-DD HH:MM:SS" (UTC, no timezone marker).
-  // Chrome parses that loosely, but Safari/iOS returns Invalid Date for it,
-  // which silently drops the scan out of month-grouped charts. Normalize
-  // to strict ISO-8601 UTC before handing it to `new Date()`.
+  // ---------- TIMESTAMP PARSER ----------
   function parseTimestamp(ts) {
     if (!ts) return new Date(NaN);
     if (ts instanceof Date) return ts;
@@ -655,7 +653,6 @@
     }
     const d = new Date(normalized);
     if (isNaN(d.getTime())) {
-      // Last-resort fallback for any other odd format
       const fallback = new Date(String(ts).replace(' ', 'T'));
       return fallback;
     }
@@ -704,7 +701,6 @@
       statusEl.textContent = `✅ ${scansData.length} records found`;
       document.getElementById('total-count').textContent = scansData.length;
       
-      // Populate filter dropdown
       const filterSelect = document.getElementById('filter-condition');
       const conditions = [...new Set(scansData.map(s => s.condition).filter(Boolean))];
       filterSelect.innerHTML = '<option value="all">All conditions</option>' + 
@@ -715,7 +711,7 @@
       console.error('❌ Load scans error:', error);
       statusEl.textContent = '❌ Connection error: ' + error.message;
       tbody.innerHTML = `
-        <tr><td colspan="10" class="empty-state" style="color:#F87171;">
+        <tr><td colspan="11" class="empty-state" style="color:#F87171;">
           ⚠️ Failed to load records: ${error.message}
         </td></tr>
       `;
@@ -729,6 +725,14 @@
     return u.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
   }
 
+  function sourceBadge(role) {
+    const r = (role || '').toLowerCase();
+    const colors = { guest: '#F5C400', teacher: '#4ADE80', admin: '#60A5FA' };
+    const color = colors[r] || 'var(--text-faint)';
+    const label = r ? r.toUpperCase() : 'UNKNOWN';
+    return `<span style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:.05em;color:${color};">${esc(label)}</span>`;
+  }
+
   function renderTable() {
     const filterValue = document.getElementById('filter-condition').value;
     const filtered = filterValue === 'all' ? scansData : scansData.filter(s => s.condition === filterValue);
@@ -738,7 +742,7 @@
 
     if (filtered.length === 0) {
       tbody.innerHTML = `
-        <tr><td colspan="10" class="empty-state">
+        <tr><td colspan="11" class="empty-state">
           ${scansData.length === 0 ? '📭 No records found. Save your first scan from the scanner app!' : '🔍 No records match this filter.'}
         </td></tr>
       `;
@@ -750,10 +754,6 @@
     let html = '';
     filtered.forEach(s => {
       const phoneDisplay = s.phone && s.phone.trim() !== '' ? esc(s.phone) : '—';
-      // SECURITY: image must be validated as an actual base64 data URI before
-      // being placed in a src="" attribute. Without this check, a malicious
-      // value stored via the API (e.g. `x" onerror="...`) could break out of
-      // the attribute and execute arbitrary JS in the admin's session.
       const rawImage = s.image || '';
       const imageSrc = /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(rawImage)
         ? rawImage
@@ -770,6 +770,7 @@
           <td style="max-width:140px;font-style:italic;">${esc(s.firstAid||'—')}</td>
           <td class="timestamp">${parseTimestamp(s.timestamp).toLocaleString()}</td>
           <td>${imageSrc ? `<img src="${imageSrc}" class="img-preview" onerror="this.style.display='none'" alt="scan image">` : '—'}</td>
+          <td>${sourceBadge(s.submittedRole)}</td>
           <td class="actions">
             ${isAdmin ? `
               <button class="btn-edit" onclick="editScan(${s.id})">EDIT</button>
@@ -796,6 +797,7 @@
           <td><textarea id="edit-firstaid-${s.id}">${esc(s.firstAid||'')}</textarea></td>
           <td></td>
           <td></td>
+          <td></td>
           <td class="actions">
             <button class="btn-save" onclick="saveEdit(${s.id})">SAVE</button>
             <button class="btn-cancel" onclick="cancelEdit(${s.id})">CANCEL</button>
@@ -807,7 +809,7 @@
     tbody.innerHTML = html;
   }
 
-  // ---------- EDIT FUNCTIONS (Admin only) ----------
+  // ---------- EDIT FUNCTIONS ----------
   window.editScan = id => {
     if (userRole !== 'admin') return;
     document.getElementById(`row-${id}`).style.display = 'none';
@@ -850,7 +852,7 @@
     } catch { alert('Delete failed.'); }
   };
 
-  // ---------- ADD SCAN (Admin only) ----------
+  // ---------- ADD SCAN ----------
   document.getElementById('add-scan-btn').addEventListener('click', async () => {
     if (userRole !== 'admin') {
       alert('Only administrators can add records.');
@@ -905,12 +907,6 @@
     }, extra || {});
   }
 
-  // Canonicalizes a severity value regardless of casing/whitespace
-  // (e.g. "green", " Green ", "GREEN" all resolve to "Green"). The severity
-  // pill's CSS class already tolerates this via sc()'s toLowerCase(), but
-  // the chart counts were doing a strict === match, so a scan saved with
-  // slightly different casing could show a correct green pill in the table
-  // yet never get counted in the Green stat/graph.
   function normalizeSeverity(raw) {
     const s = String(raw || 'Green').trim().toLowerCase();
     if (s === 'yellow') return 'Yellow';
@@ -953,15 +949,12 @@
       if (empty) empty.remove();
     });
 
-    // Group by month (YYYY-MM)
     const monthMap = {};
     const severityMonthMap = {};
     const conditionMap = {};
 
     scans.forEach(s => {
       const date = parseTimestamp(s.timestamp);
-      // Skip records whose timestamp still can't be parsed, rather than
-      // dumping them into a bogus "NaN-NaN" bucket that breaks sorting.
       if (isNaN(date.getTime())) return;
       const monthKey = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0');
       monthMap[monthKey] = (monthMap[monthKey] || 0) + 1;
@@ -977,7 +970,7 @@
     const sortedMonths = Object.keys(monthMap).sort();
     const monthLabels = sortedMonths.map(monthLabel);
 
-    // ---- 1. Total scans area chart (gold, glowing) ----
+    // ---- 1. Total scans ----
     const ctx1 = document.getElementById('totalScansChart').getContext('2d');
     const goldFill = ctx1.createLinearGradient(0, 0, 0, 170);
     goldFill.addColorStop(0, 'rgba(245,196,0,0.45)');
@@ -1020,7 +1013,7 @@
       }
     });
 
-    // ---- 2. Severity trend multi-line ----
+    // ---- 2. Severity trend ----
     const ctx2 = document.getElementById('severityTrendChart').getContext('2d');
     const sevSeries = [
       { key: 'Green', color: '#4ADE80' },
@@ -1066,7 +1059,7 @@
       }
     });
 
-    // ---- 3. Severity distribution donut ----
+    // ---- 3. Severity distribution ----
     const ctx3 = document.getElementById('severityDonutChart').getContext('2d');
     charts.donut = new Chart(ctx3, {
       type: 'doughnut',
@@ -1103,7 +1096,7 @@
       }
     });
 
-    // ---- 4. Top conditions horizontal bar ----
+    // ---- 4. Top conditions ----
     const topConditions = Object.entries(conditionMap)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5);

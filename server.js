@@ -10,6 +10,7 @@ const session = require('express-session');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 require('dotenv').config();
 
 // ---------- ENV CHECKS ----------
@@ -35,15 +36,9 @@ const PORT = process.env.PORT || 3000;
 app.use(
   helmet.contentSecurityPolicy({
     directives: {
-      // Allow scripts from your server, inline scripts, and CDNs
       "script-src": ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
-      
       "script-src-attr": ["'unsafe-inline'"],
-      
-      // Styles (Google Fonts + Mapbox)
       "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://api.mapbox.com"],
-      
-      // Connections (APIs + CDN for source maps)
       "connect-src": [
         "'self'",
         "https://api.mapbox.com",
@@ -54,7 +49,6 @@ app.use(
         "https://overpass.kumi.systems",
         "https://cdn.jsdelivr.net"
       ],
-      
       "font-src": ["'self'", "https://fonts.gstatic.com"],
       "img-src": ["'self'", "data:", "https://api.mapbox.com"]
     }
@@ -63,14 +57,12 @@ app.use(
 // ---------- CORS (restricted) ----------
 app.use(cors({
     origin: process.env.NODE_ENV === 'production'
-        ? ['https://skinguard.site']   // Add your domain(s)
+        ? ['https://skinguard.site']
         : true,
     credentials: true
 }));
 
-// ---------- TRUST PROXY (for secure cookies behind reverse proxy) ----------
 app.set('trust proxy', 1);
-
 app.use(express.json({ limit: '10mb' }));
 
 // ---------- RATE LIMITERS ----------
@@ -103,6 +95,11 @@ const studentPostLimiter = rateLimit({
     windowMs: 10 * 60 * 1000,
     max: 20,
     message: { error: 'Too many student registration attempts, please try again later.' },
+});
+const guestLoginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    message: { error: 'Too many guest session requests, please try again later.' },
 });
 
 // ---------- SESSION SETUP ----------
@@ -183,10 +180,48 @@ function maskStudentForRole(student, role) {
     return masked;
 }
 
-// ---------- GUEST LOGIN ----------
-app.post('/api/guest-login', (req, res) => {
+// ---------- SEVERITY WHITELIST ----------
+const ALLOWED_SEVERITIES = ['Green', 'Yellow', 'Red'];
+function normalizeSeverity(raw) {
+    if (!raw) return null;
+    const s = String(raw).trim().toLowerCase();
+    if (s === 'green') return 'Green';
+    if (s === 'yellow') return 'Yellow';
+    if (s === 'red') return 'Red';
+    return null;
+}
+
+// ---------- SCAN TOKENS ----------
+const pendingScans = new Map(); // token -> { condition, severity, advice, firstAid, createdAt }
+const SCAN_TOKEN_TTL_MS = 15 * 60 * 1000;
+
+function createScanToken(data) {
+    const token = crypto.randomBytes(24).toString('hex');
+    pendingScans.set(token, { ...data, createdAt: Date.now() });
+    return token;
+}
+
+function consumeScanToken(token) {
+    if (!token || typeof token !== 'string') return null;
+    const entry = pendingScans.get(token);
+    if (!entry) return null;
+    pendingScans.delete(token);
+    if (Date.now() - entry.createdAt > SCAN_TOKEN_TTL_MS) return null;
+    return entry;
+}
+
+setInterval(() => {
+    const now = Date.now();
+    for (const [token, entry] of pendingScans.entries()) {
+        if (now - entry.createdAt > SCAN_TOKEN_TTL_MS) pendingScans.delete(token);
+    }
+}, 5 * 60 * 1000).unref();
+
+// ---------- GUEST LOGIN (rate-limited, shorter session) ----------
+app.post('/api/guest-login', guestLoginLimiter, (req, res) => {
     req.session.role = 'guest';
     req.session.isGuest = true;
+    req.session.cookie.maxAge = 2 * 60 * 60 * 1000; // 2 hours
     console.log('👤 Guest session created');
     res.json({ success: true, role: 'guest' });
 });
@@ -199,7 +234,7 @@ app.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-// ---------- LOGIN API (rate-limited) ----------
+// ---------- LOGIN API ----------
 app.post('/api/login', loginLimiter, (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) {
@@ -211,9 +246,6 @@ app.post('/api/login', loginLimiter, (req, res) => {
     const teacherUser = process.env.TEACHER_USER || 'teacher';
     const teacherHash = process.env.TEACHER_PASSWORD_HASH;
 
-    // No plaintext fallback, ever — if a hash isn't configured, that role
-    // simply can't log in (fail closed instead of falling back to a
-    // hardcoded default password).
     const isAdminMatch = username === adminUser && adminHash && bcrypt.compareSync(password, adminHash);
     const isTeacherMatch = username === teacherUser && teacherHash && bcrypt.compareSync(password, teacherHash);
 
@@ -258,44 +290,39 @@ app.get('/logout', (req, res) => {
     });
 });
 
-// ---------- LANDING PAGE ----------
+// ---------- LANDING & ADMIN ----------
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'landing.html'));
 });
 
-// ---------- ADMIN PAGE ----------
 app.get('/admin', requireAdmin, (req, res) => {
     console.log('✅ Admin page accessed by:', req.session.username);
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
-
 app.get('/admin.html', requireAdmin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
-// ---------- PROTECTED API ROUTES (Admin only) ----------
+// ---------- PROTECTED API ROUTES ----------
 app.use('/api/get-scans', requireAdmin);
 app.use('/api/add-scan', requireAdmin);
 app.use('/api/update-scan', requireAdmin);
 app.use('/api/delete-scan', requireAdmin);
 
-// ---------- PROTECTED PUBLIC ROUTES (require session) ----------
 app.use('/api/students', requireSession);
 app.use('/api/save-scan', requireSession);
 app.use('/api/analyze', requireSession);
 app.use('/api/send-sms', requireTeacherOrAdmin);
 
-// ---------- RATE LIMITERS (applied after auth) ----------
 app.use('/api/analyze', analyzeLimiter);
 app.use('/api/send-sms', smsLimiter);
 app.use('/api/hospitals', hospitalLimiter);
 app.use('/api/save-scan', saveScanLimiter);
 app.post('/api/students', studentPostLimiter);
 
-// ---------- STATIC FILES ----------
 app.use(express.static('public'));
 
-// ---------- ElevenLabs Client ----------
+// ---------- ElevenLabs ----------
 let elevenLabs = null;
 if (process.env.ELEVENLABS_API_KEY) {
     elevenLabs = new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY });
@@ -325,6 +352,12 @@ db.serialize(() => {
         }
     });
 
+    db.run("ALTER TABLE scans ADD COLUMN submittedRole TEXT", (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+            console.warn('Could not add submittedRole column:', err.message);
+        }
+    });
+
     db.run(`
         CREATE TABLE IF NOT EXISTS students (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -332,6 +365,12 @@ db.serialize(() => {
             phone TEXT
         )
     `);
+
+    db.run("ALTER TABLE students ADD COLUMN addedByRole TEXT", (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+            console.warn('Could not add addedByRole column:', err.message);
+        }
+    });
 });
 
 // ---------- PUBLIC API ENDPOINTS ----------
@@ -358,7 +397,6 @@ app.post('/api/students', (req, res) => {
             return res.status(500).json({ error: 'Database error' });
         }
         if (row) {
-            // Existing student – require teacher/admin to update
             const role = req.session.role || 'guest';
             if (role !== 'teacher' && role !== 'admin') {
                 return res.status(403).json({ error: 'Only teachers or admins can update existing student phone numbers.' });
@@ -377,15 +415,14 @@ app.post('/api/students', (req, res) => {
                 res.json(masked);
             }
         } else {
-            // New student – allow anyone
-            const stmt = db.prepare('INSERT INTO students (name, phone) VALUES (?, ?)');
-            stmt.run(name, sanitizedPhone, function(insertErr) {
+            const role = req.session.role || 'guest';
+            const stmt = db.prepare('INSERT INTO students (name, phone, addedByRole) VALUES (?, ?, ?)');
+            stmt.run(name, sanitizedPhone, role, function(insertErr) {
                 if (insertErr) {
                     console.error(insertErr);
                     return res.status(500).json({ error: 'Database error' });
                 }
-                const newStudent = { id: this.lastID, name, phone: sanitizedPhone };
-                const role = req.session.role || 'guest';
+                const newStudent = { id: this.lastID, name, phone: sanitizedPhone, addedByRole: role };
                 const masked = maskStudentForRole(newStudent, role);
                 res.json(masked);
             });
@@ -395,19 +432,26 @@ app.post('/api/students', (req, res) => {
 });
 
 app.post('/api/save-scan', (req, res) => {
-    const { name, phone, condition, severity, advice, firstAid, image } = req.body;
-    console.log('📥 Saving scan:', { name, phone, condition, severity });
+    const { name, phone, scanToken, image } = req.body;
+    console.log('📥 Saving scan:', { name, phone, scanToken: scanToken ? scanToken.slice(0, 8) + '…' : null });
 
-    if (!name || !condition || !severity) {
-        return res.status(400).json({ error: 'Missing required fields' });
+    if (!name || !scanToken) {
+        return res.status(400).json({ error: 'Missing required fields (name, scanToken)' });
     }
-    // Validate image size
+
+    const pending = consumeScanToken(scanToken);
+    if (!pending) {
+        return res.status(400).json({ error: 'Scan session expired or invalid — please re-scan before saving.' });
+    }
+    const { condition, severity, advice, firstAid } = pending;
+
     if (image && typeof image === 'string' && image.length > 2 * 1024 * 1024) {
         return res.status(400).json({ error: 'Image too large (max 2MB)' });
     }
     const sanitizedPhone = sanitizePhone(phone);
-    const stmt = db.prepare('INSERT INTO scans (name, phone, condition, severity, advice, firstAid, image) VALUES (?, ?, ?, ?, ?, ?, ?)');
-    stmt.run(name, sanitizedPhone, condition, severity, advice, firstAid, image || null, function(err) {
+    const submittedRole = req.session.role || 'guest';
+    const stmt = db.prepare('INSERT INTO scans (name, phone, condition, severity, advice, firstAid, image, submittedRole) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    stmt.run(name, sanitizedPhone, condition, severity, advice, firstAid, image || null, submittedRole, function(err) {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
@@ -434,9 +478,14 @@ app.post('/api/add-scan', (req, res) => {
     if (!name || !condition || !severity) {
         return res.status(400).json({ error: 'Missing required fields' });
     }
+    const normalizedSeverity = normalizeSeverity(severity);
+    if (!normalizedSeverity) {
+        return res.status(400).json({ error: `Severity must be one of: ${ALLOWED_SEVERITIES.join(', ')}` });
+    }
     const sanitizedPhone = sanitizePhone(phone);
-    const stmt = db.prepare('INSERT INTO scans (name, phone, condition, severity, advice, firstAid, image) VALUES (?, ?, ?, ?, ?, ?, ?)');
-    stmt.run(name, sanitizedPhone, condition, severity, advice, firstAid, image || null, function(err) {
+    const submittedRole = req.session.role || 'admin';
+    const stmt = db.prepare('INSERT INTO scans (name, phone, condition, severity, advice, firstAid, image, submittedRole) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    stmt.run(name, sanitizedPhone, condition, normalizedSeverity, advice, firstAid, image || null, submittedRole, function(err) {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
@@ -455,9 +504,13 @@ app.put('/api/update-scan/:id', (req, res) => {
     if (!name || !condition || !severity) {
         return res.status(400).json({ error: 'Missing required fields' });
     }
+    const normalizedSeverity = normalizeSeverity(severity);
+    if (!normalizedSeverity) {
+        return res.status(400).json({ error: `Severity must be one of: ${ALLOWED_SEVERITIES.join(', ')}` });
+    }
     const sanitizedPhone = sanitizePhone(phone);
     const stmt = db.prepare('UPDATE scans SET name = ?, phone = ?, condition = ?, severity = ?, advice = ?, firstAid = ? WHERE id = ?');
-    stmt.run(name, sanitizedPhone, condition, severity, advice, firstAid, id, function(err) {
+    stmt.run(name, sanitizedPhone, condition, normalizedSeverity, advice, firstAid, id, function(err) {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
@@ -610,6 +663,12 @@ app.post('/api/analyze', async (req, res) => {
                 bboxes: [],
                 imageSize: imageSize
             };
+            noIssueResult.scanToken = createScanToken({
+                condition: noIssueResult.condition,
+                severity: noIssueResult.severity,
+                advice: noIssueResult.advice,
+                firstAid: noIssueResult.firstAid
+            });
             console.log(`⏱️ Total time: ${Date.now() - startTime}ms\n`);
             return res.json({ choices: [{ message: { content: JSON.stringify(noIssueResult) } }] });
         }
@@ -634,6 +693,12 @@ app.post('/api/analyze', async (req, res) => {
                 bboxes: valid.map(p => ({ class: p.class, confidence: p.confidence, x: p.x, y: p.y, width: p.width, height: p.height })),
                 imageSize: imageSize
             };
+            fallbackResult.scanToken = createScanToken({
+                condition: fallbackResult.condition,
+                severity: fallbackResult.severity,
+                advice: fallbackResult.advice,
+                firstAid: fallbackResult.firstAid
+            });
             console.log(`⏱️ Total time: ${Date.now() - startTime}ms\n`);
             return res.json({ choices: [{ message: { content: JSON.stringify(fallbackResult) } }] });
         }
@@ -668,6 +733,12 @@ app.post('/api/analyze', async (req, res) => {
             bboxes: allBoxes,
             imageSize: imageSize
         };
+        result.scanToken = createScanToken({
+            condition: result.condition,
+            severity: result.severity,
+            advice: result.advice,
+            firstAid: result.firstAid
+        });
 
         if (elevenLabs) {
             const textForAudio = `Result: ${displayCondition}. ${advice} ${firstAid}`;
@@ -695,6 +766,12 @@ app.post('/api/analyze', async (req, res) => {
             bboxes: [],
             imageSize: { width: 0, height: 0 }
         };
+        fallbackResult.scanToken = createScanToken({
+            condition: fallbackResult.condition,
+            severity: fallbackResult.severity,
+            advice: fallbackResult.advice,
+            firstAid: fallbackResult.firstAid
+        });
         res.json({ choices: [{ message: { content: JSON.stringify(fallbackResult) } }] });
     }
 });
@@ -822,11 +899,10 @@ app.post('/api/send-sms', async (req, res) => {
     }
 });
 
-// ---------- HOSPITAL SEARCH (with input validation) ----------
+// ---------- HOSPITAL SEARCH ----------
 app.post('/api/hospitals', async (req, res) => {
     const { lat, lng, radius = 30000 } = req.body;
 
-    // Validate coordinates
     if (typeof lat !== 'number' || isNaN(lat) || lat < -90 || lat > 90) {
         return res.status(400).json({ error: 'Invalid latitude' });
     }

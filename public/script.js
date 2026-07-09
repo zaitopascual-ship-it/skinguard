@@ -69,9 +69,7 @@ function isValidPhone(phone) {
     return /^[\d+]+$/.test(phone);
 }
 
-// ---------- MASK FUNCTIONS (Privacy) ----------
-// Note: these are now client-side only for backward compatibility;
-// server also masks but we keep them for consistency.
+// ---------- MASK FUNCTIONS ----------
 function maskName(name) {
     if (!name) return '';
     if (isTeacher) return name;
@@ -206,7 +204,6 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     }
 });
 
-// Guest mode – create a real guest session
 document.getElementById('guest-btn').addEventListener('click', async function() {
     try {
         const response = await fetch('/api/guest-login', {
@@ -229,7 +226,6 @@ document.getElementById('guest-btn').addEventListener('click', async function() 
     }
 });
 
-// ---------- LOGOUT ----------
 document.getElementById('logout-btn').addEventListener('click', async function() {
     if (isTeacher) {
         try {
@@ -255,8 +251,6 @@ async function loadStudents(searchTerm = '') {
         }
         let html = '';
         students.forEach(s => {
-            // Server already masks data for non-teachers, but we'll use client-side masking as well
-            // (it won't hurt because server data is already masked if not teacher)
             const displayName = maskName(s.name);
             const displayPhone = maskPhone(s.phone);
             html += `
@@ -296,14 +290,15 @@ async function performSave() {
         alert('No student selected.');
         return;
     }
+    if (!lastResult.scanToken) {
+        alert('This result came from the offline demo fallback, not a real scan, so it can\'t be saved to records. Please try scanning again.');
+        return;
+    }
     console.log('📞 Phone number being saved:', selectedStudent.phone);
     const payload = {
         name: selectedStudent.name,
         phone: selectedStudent.phone || null,
-        condition: lastResult.condition || lastResult.name,
-        severity: lastResult.severity,
-        advice: lastResult.advice,
-        firstAid: lastResult.firstAid,
+        scanToken: lastResult.scanToken,
         image: capturedImage
     };
     console.log('performSave: sending image, length:', capturedImage ? capturedImage.length : 0);
@@ -376,13 +371,14 @@ async function performNotify() {
 
 // ---------- AUTO-SAVE SCAN ----------
 async function autoSaveScan(result) {
+    if (!result.scanToken) {
+        console.warn('Skipping auto-save: no scanToken (offline/demo fallback result).');
+        return;
+    }
     const payload = {
         name: selectedStudent ? selectedStudent.name : 'Auto-saved (Unknown)',
         phone: selectedStudent ? selectedStudent.phone : null,
-        condition: result.condition,
-        severity: result.severity,
-        advice: result.advice,
-        firstAid: result.firstAid,
+        scanToken: result.scanToken,
         image: capturedImage
     };
     try {
@@ -529,7 +525,6 @@ document.getElementById('flash-btn').addEventListener('click', async () => {
     }
 });
 
-// Capture photo
 document.getElementById('capture-btn').addEventListener('click', () => {
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
@@ -726,7 +721,6 @@ function displayResults(result) {
         }
     }
 
-    // ---------- AUDIO PLAYBACK ----------
     if (result.audioUrl) {
         const oldAudio = document.getElementById('skinguard-audio');
         if (oldAudio) oldAudio.remove();
@@ -735,7 +729,6 @@ function displayResults(result) {
         audio.play().catch(e => console.log('Audio play failed:', e));
     }
 
-    // ---------- AUTO-SAVE IF SKIN ISSUE ----------
     if (result.condition && result.condition !== 'No issue detected') {
         autoSaveScan(result);
     }
@@ -761,7 +754,6 @@ document.getElementById('notify-parent-btn').addEventListener('click', () => {
     loadStudents();
 });
 
-// ---------- SCAN AGAIN ----------
 document.getElementById('scan-again-btn').addEventListener('click', async () => {
     const audio = document.getElementById('skinguard-audio');
     if (audio) {
@@ -774,7 +766,6 @@ document.getElementById('scan-again-btn').addEventListener('click', async () => 
     showScreen('camera-screen');
 });
 
-// ---------- UTILITY ----------
 function escapeHtml(unsafe) {
     if (!unsafe) return '';
     return unsafe.replace(/[&<>]/g, function(m) {
@@ -785,7 +776,6 @@ function escapeHtml(unsafe) {
     });
 }
 
-// ---------- INIT ----------
 window.addEventListener('load', async () => {
     await checkLoginStatus();
     if (!isGuest && !isTeacher) {
@@ -799,7 +789,7 @@ window.addEventListener('beforeunload', () => {
     if (videoStream) videoStream.getTracks().forEach(track => track.stop());
 });
 
-// ---------- HOSPITAL FINDER (Mapbox) — STATIC LIST ----------
+// ---------- HOSPITAL FINDER ----------
 let hospitalMap;
 let hospitalMarkers = [];
 
