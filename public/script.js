@@ -12,6 +12,26 @@ let isGuest = true;
 const SCHOOL_LAT = 16.688356;
 const SCHOOL_LNG = 121.550856;
 
+// ---------- ENSURE MAPBOX IS LOADED ----------
+function ensureMapboxLoaded(callback) {
+    if (typeof mapboxgl !== 'undefined') {
+        callback();
+        return;
+    }
+    console.log('🔄 Loading Mapbox GL JS...');
+    const script = document.createElement('script');
+    script.src = 'https://api.mapbox.com/mapbox-gl-js/v3.10.0/mapbox-gl.js';
+    script.onload = () => {
+        console.log('✅ Mapbox GL JS loaded');
+        callback();
+    };
+    script.onerror = () => {
+        console.error('❌ Failed to load Mapbox GL JS');
+        alert('Could not load the map. Please check your internet connection and try again.');
+    };
+    document.head.appendChild(script);
+}
+
 // ---------- MAPBOX TOKEN ----------
 const MAPBOX_TOKEN = 'pk.eyJ1IjoiYWFyb25wb2dpMDYiLCJhIjoiY21xcThtcmN3MGczODJ3c2J3Y2Viem1pNSJ9.Sscnjo8gxhVt2C2Gbitxgg';
 
@@ -795,14 +815,16 @@ let hospitalMap;
 let hospitalMarkers = [];
 
 function initHospitalMap() {
-    mapboxgl.accessToken = MAPBOX_TOKEN;
-    hospitalMap = new mapboxgl.Map({
-        container: 'hospital-map',
-        style: 'mapbox://styles/mapbox/streets-v12',
-        center: [SCHOOL_LNG, SCHOOL_LAT],
-        zoom: 14
+    ensureMapboxLoaded(() => {
+        mapboxgl.accessToken = MAPBOX_TOKEN;
+        hospitalMap = new mapboxgl.Map({
+            container: 'hospital-map',
+            style: 'mapbox://styles/mapbox/streets-v12',
+            center: [SCHOOL_LNG, SCHOOL_LAT],
+            zoom: 14
+        });
+        hospitalMap.addControl(new mapboxgl.NavigationControl());
     });
-    hospitalMap.addControl(new mapboxgl.NavigationControl());
 }
 
 function displayHospitalsOnMap(hospitals, userLat, userLng) {
