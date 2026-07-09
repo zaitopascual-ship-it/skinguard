@@ -50,7 +50,8 @@ const conditions = [
 ];
 
 const allowedConditions = [
-    'Bug bite', 'Rash', 'Chickenpox', 'Sunburn', 'Lice',
+    'Bug bite', 'Bugbites', 'Bugbite',
+    'Rash', 'Chickenpox', 'Sunburn', 'Lice',
     'Eczema', 'Ringworm', 'Hives', 'Impetigo', 'Cold sore',
     'Scabies', 'Molluscum', 'Warts', 'Heat rash', 'No issue detected'
 ];
