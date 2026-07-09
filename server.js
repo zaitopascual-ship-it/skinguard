@@ -38,11 +38,17 @@ app.use(
     directives: {
       "script-src": ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com", "https://api.mapbox.com"],
       "script-src-attr": ["'unsafe-inline'"],
+      
+      // ✅ Add worker-src to allow Mapbox web workers
+      "worker-src": ["'self'", "blob:", "https://api.mapbox.com"],
+      
       "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://api.mapbox.com"],
+      
+      // ✅ Make sure events.mapbox.com is included
       "connect-src": [
         "'self'",
         "https://api.mapbox.com",
-        "https://events.mapbox.com",   // added
+        "https://events.mapbox.com",
         "https://detect.roboflow.com",
         "https://api.openai.com",
         "https://unismsapi.com",
