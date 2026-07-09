@@ -704,3 +704,187 @@ input:focus, textarea:focus {
   border-color: var(--gold);
   transform: scale(1.02);
 }
+
+/* ── NOTIFICATION OPTIONS SCREEN ── */
+#notify-options-screen {
+  background: var(--obsidian);
+  border: 1px solid var(--gold-line);
+  border-radius: var(--radius-lg);
+  padding: 28px 24px 32px;
+  max-width: 480px;
+  margin: 0 auto;
+  box-shadow: 0 8px 40px rgba(0,0,0,.7);
+  position: relative;
+  overflow: hidden;
+}
+
+#notify-options-screen::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 5%;
+  right: 5%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold), var(--accent), var(--gold), transparent);
+  opacity: .7;
+}
+
+#notify-options-screen h2 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 32px;
+  letter-spacing: .06em;
+  color: var(--gold);
+  text-shadow: 0 0 30px rgba(196,18,48,.3);
+  margin-bottom: 6px;
+}
+
+#notify-options-screen p {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 18px;
+  color: var(--text-dim);
+  margin-bottom: 20px;
+}
+
+#notify-options-screen .section-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: .25em;
+  text-transform: uppercase;
+  color: var(--accent-dim);
+  margin-top: 6px;
+  margin-bottom: 8px;
+  display: block;
+}
+
+/* Custom checkboxes */
+#notify-options-screen label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--text);
+  padding: 8px 14px;
+  background: var(--charcoal);
+  border: 1px solid var(--steel);
+  border-radius: var(--radius);
+  transition: border-color .2s, background .2s;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+#notify-options-screen label:hover {
+  border-color: var(--gold-dim);
+  background: var(--iron);
+}
+
+#notify-options-screen label input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  background: var(--void);
+  border: 2px solid var(--steel);
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: all .15s;
+  position: relative;
+  cursor: pointer;
+}
+
+#notify-options-screen label input[type="checkbox"]:checked {
+  background: var(--gold);
+  border-color: var(--gold);
+}
+
+#notify-options-screen label input[type="checkbox"]:checked::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+#notify-options-screen label input[type="checkbox"]:disabled {
+  opacity: .3;
+  cursor: not-allowed;
+}
+
+#notify-options-screen label .channel-hint {
+  font-size: 12px;
+  color: var(--text-faint);
+  font-weight: 400;
+  margin-left: auto;
+}
+
+#notify-options-screen .btn {
+  width: 100%;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+#notify-options-screen .btn-outline {
+  width: 100%;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+#notify-options-screen .rule {
+  margin: 18px 0 16px;
+}
+
+/* ── THEMED INPUTS FOR ALL SCREENS ── */
+.screen input[type="text"],
+.screen input[type="tel"],
+.screen input[type="email"],
+.screen input[type="search"],
+.screen input[type="password"],
+.screen input[type="number"],
+.screen select,
+.screen textarea {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 500;
+  font-size: 16px;
+  padding: 12px 15px;
+  background: var(--iron);
+  border: 1px solid var(--steel);
+  border-radius: var(--radius);
+  color: var(--text);
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.screen input:focus,
+.screen select:focus,
+.screen textarea:focus {
+  border-color: var(--gold-dim);
+  box-shadow: 0 0 0 2px var(--gold-glow);
+}
+
+.screen input::placeholder,
+.screen textarea::placeholder {
+  color: var(--text-faint);
+}
+
+.screen select option {
+  background: var(--iron);
+}
+
+/* ── SECTION LABELS ── */
+.screen .section-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: .25em;
+  text-transform: uppercase;
+  color: var(--accent-dim);
+  display: block;
+  margin-top: 14px;
+  margin-bottom: 6px;
+}

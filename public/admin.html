@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    /* (All your existing styles remain the same – keep them) */
+    /* ── YOUR EXISTING STYLES – KEEP THEM UNCHANGED ── */
     :root {
       --void:       #0A0205;
       --obsidian:   #120408;
@@ -633,26 +633,12 @@
   <!-- Charts Panel -->
   <div class="panel">
     <div class="panel-title">◆ &nbsp; Scan Trends</div>
-
     <div class="stat-strip" id="stat-strip">
-      <div class="stat-card total">
-        <div class="stat-num" id="stat-total">0</div>
-        <div class="stat-label"><span class="dot"></span>Total Scans</div>
-      </div>
-      <div class="stat-card green">
-        <div class="stat-num" id="stat-green">0</div>
-        <div class="stat-label"><span class="dot"></span>Green — Clear</div>
-      </div>
-      <div class="stat-card yellow">
-        <div class="stat-num" id="stat-yellow">0</div>
-        <div class="stat-label"><span class="dot"></span>Yellow — Moderate</div>
-      </div>
-      <div class="stat-card red">
-        <div class="stat-num" id="stat-red">0</div>
-        <div class="stat-label"><span class="dot"></span>Red — Urgent</div>
-      </div>
+      <div class="stat-card total"><div class="stat-num" id="stat-total">0</div><div class="stat-label"><span class="dot"></span>Total Scans</div></div>
+      <div class="stat-card green"><div class="stat-num" id="stat-green">0</div><div class="stat-label"><span class="dot"></span>Green — Clear</div></div>
+      <div class="stat-card yellow"><div class="stat-num" id="stat-yellow">0</div><div class="stat-label"><span class="dot"></span>Yellow — Moderate</div></div>
+      <div class="stat-card red"><div class="stat-num" id="stat-red">0</div><div class="stat-label"><span class="dot"></span>Red — Urgent</div></div>
     </div>
-
     <div class="chart-grid">
       <div class="chart-box"><canvas id="totalScansChart" height="150"></canvas></div>
       <div class="chart-box"><canvas id="severityTrendChart" height="150"></canvas></div>
@@ -672,13 +658,12 @@
 
   <!-- ============ RECORDS VIEW ============ -->
   <div id="records-view">
-
-    <!-- Add form -->
     <div class="panel">
       <div class="panel-title">◆ &nbsp; New Incident Record</div>
       <div class="form-grid">
         <input type="text" id="new-name" placeholder="Full name *">
         <input type="text" id="new-phone" placeholder="Parent contact">
+        <input type="email" id="new-email" placeholder="Parent email (optional)">
         <input type="text" id="new-condition" placeholder="Condition *">
         <select id="new-severity">
           <option value="Green">◆ Green — Clear</option>
@@ -691,86 +676,48 @@
       </div>
     </div>
 
-    <!-- Filter panel -->
     <div class="filter-panel">
       <span class="filter-label">◆ FILTER BY CONDITION</span>
-      <select id="filter-condition">
-        <option value="all">All conditions</option>
-      </select>
+      <select id="filter-condition"><option value="all">All conditions</option></select>
       <span class="filter-label">◆ PRINT BY DAY</span>
       <input type="date" id="print-date-input">
       <button class="btn-print" id="print-day-btn">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
         PRINT DAY
       </button>
-      <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-faint);">
-        Total: <span id="total-count">0</span> records
-      </span>
+      <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-faint);">Total: <span id="total-count">0</span> records</span>
     </div>
 
-    <!-- Print-only report (populated by JS, hidden on screen, shown via @media print) -->
     <div id="print-report"></div>
 
-    <!-- Table -->
     <div class="table-panel">
       <div class="table-wrap">
         <table id="scans-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>Contact</th>
-              <th>Condition</th>
-              <th>Level</th>
-              <th>Advice</th>
-              <th>First Aid</th>
-              <th>Logged</th>
-              <th>Image</th>
-              <th>Source</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="scans-body">
-            <tr><td colspan="11" class="empty-state">loading records…</td></tr>
-          </tbody>
+          <thead><tr><th>ID</th><th>Name</th><th>Contact</th><th>Email</th><th>Condition</th><th>Level</th><th>Advice</th><th>First Aid</th><th>Logged</th><th>Image</th><th>Source</th><th>Actions</th></tr></thead>
+          <tbody id="scans-body"><tr><td colspan="12" class="empty-state">loading records…</td></tr></tbody>
         </table>
       </div>
     </div>
-
   </div>
 
   <!-- ============ CONTACTS VIEW ============ -->
   <div id="contacts-view" style="display:none;">
-
     <div class="filter-panel">
       <span class="filter-label">◆ CONTACT DIRECTORY</span>
       <span class="contact-count">Total: <span id="contacts-count">0</span> contacts</span>
     </div>
-
     <div class="table-panel">
       <div class="table-wrap">
         <table id="contacts-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Phone</th>
-              <th>Scans on File</th>
-              <th>Last Logged</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="contacts-body">
-            <tr><td colspan="5" class="empty-state">loading contacts…</td></tr>
-          </tbody>
+          <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Scans on File</th><th>Last Logged</th><th>Actions</th></tr></thead>
+          <tbody id="contacts-body"><tr><td colspan="6" class="empty-state">loading contacts…</td></tr></tbody>
         </table>
       </div>
     </div>
-
   </div>
 
   <!-- ============ SMS APPROVALS VIEW ============ -->
   <div id="sms-view" style="display:none;">
-
     <div class="filter-panel">
       <span class="filter-label">◆ PARENT NOTIFICATION REQUESTS</span>
       <span class="contact-count">Pending: <span id="sms-pending-count">0</span></span>
@@ -779,48 +726,47 @@
         REFRESH
       </button>
     </div>
-
     <div class="table-panel">
       <div class="table-wrap">
         <table id="sms-requests-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Student</th>
-              <th>Parent Phone</th>
-              <th>Condition</th>
-              <th>Level</th>
-              <th>Requested By</th>
-              <th>Requested</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="sms-requests-body">
-            <tr><td colspan="9" class="empty-state">loading requests…</td></tr>
-          </tbody>
+          <thead><tr><th>ID</th><th>Student</th><th>Parent Phone</th><th>Condition</th><th>Level</th><th>Requested By</th><th>Requested</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="sms-requests-body"><tr><td colspan="9" class="empty-state">loading requests…</td></tr></tbody>
         </table>
       </div>
     </div>
-
   </div>
 
 </div>
 
 <script>
   let scansData = [];
+  let allStudents = [];
   let smsRequests = [];
   let userRole = 'admin';
   let charts = {};
+  let contactsCache = {};
+
+  // ---------- EMAIL MASKING FUNCTION ----------
+  function maskEmail(email) {
+    if (!email || !email.includes('@')) return email || '—';
+    const parts = email.split('@');
+    const local = parts[0];
+    const domain = parts.slice(1).join('@');
+    if (local.length <= 6) {
+      return email; // short local part – show as is
+    }
+    const first3 = local.substring(0, 3);
+    const last3 = local.substring(local.length - 3);
+    const masked = first3 + '***' + last3;
+    return masked + '@' + domain;
+  }
 
   // ---------- TIMESTAMP PARSER ----------
   function parseTimestamp(ts) {
     if (!ts) return new Date(NaN);
     if (ts instanceof Date) return ts;
     let normalized = String(ts).trim();
-    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(normalized)) {
-      normalized = normalized.replace(' ', 'T') + 'Z';
-    }
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(normalized)) normalized = normalized.replace(' ', 'T') + 'Z';
     const d = new Date(normalized);
     if (isNaN(d.getTime())) {
       const fallback = new Date(String(ts).replace(' ', 'T'));
@@ -852,7 +798,7 @@
     }
   }
 
-  // ---------- LOAD SCANS ----------
+  // ---------- LOAD SCANS + STUDENTS ----------
   async function loadScans() {
     const statusEl = document.getElementById('db-status');
     const tbody = document.getElementById('scans-body');
@@ -860,36 +806,33 @@
     try {
       statusEl.textContent = 'Fetching...';
       const r = await fetch('/api/get-scans');
-      
-      if (!r.ok) {
-        throw new Error(`HTTP ${r.status}: ${r.statusText}`);
-      }
-      
+      if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`);
       scansData = await r.json();
       console.log('✅ Loaded scans:', scansData.length, 'records');
-      
+
+      const studentsRes = await fetch('/api/students');
+      if (studentsRes.ok) {
+        allStudents = await studentsRes.json();
+        console.log('✅ Loaded students:', allStudents.length);
+      } else {
+        allStudents = [];
+      }
+
       statusEl.textContent = `✅ ${scansData.length} records found`;
       document.getElementById('total-count').textContent = scansData.length;
-      
+
       const filterSelect = document.getElementById('filter-condition');
       const conditions = [...new Set(scansData.map(s => s.condition).filter(Boolean))];
       filterSelect.innerHTML = '<option value="all">All conditions</option>' + 
         conditions.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+
       renderTable();
-      try {
-        renderCharts(scansData);
-      } catch (chartError) {
-        console.error('❌ Chart rendering error (table/contacts will still load):', chartError);
-      }
+      try { renderCharts(scansData); } catch (e) { console.error('Chart error:', e); }
       renderContacts();
     } catch (error) {
       console.error('❌ Load scans error:', error);
       statusEl.textContent = '❌ Connection error: ' + error.message;
-      tbody.innerHTML = `
-        <tr><td colspan="11" class="empty-state" style="color:#F87171;">
-          ⚠️ Failed to load records: ${error.message}
-        </td></tr>
-      `;
+      tbody.innerHTML = `<tr><td colspan="12" class="empty-state" style="color:#F87171;">⚠️ Failed to load records: ${error.message}</td></tr>`;
     }
   }
 
@@ -908,37 +851,33 @@
     return `<span style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:.05em;color:${color};">${esc(label)}</span>`;
   }
 
+  // ---------- RENDER SCANS TABLE (with masked email) ----------
   function renderTable() {
     const filterValue = document.getElementById('filter-condition').value;
     const filtered = filterValue === 'all' ? scansData : scansData.filter(s => s.condition === filterValue);
-
     const tbody = document.getElementById('scans-body');
     document.getElementById('total-count').textContent = scansData.length;
 
     if (filtered.length === 0) {
-      tbody.innerHTML = `
-        <tr><td colspan="11" class="empty-state">
-          ${scansData.length === 0 ? '📭 No records found. Save your first scan from the scanner app!' : '🔍 No records match this filter.'}
-        </td></tr>
-      `;
+      tbody.innerHTML = `<tr><td colspan="12" class="empty-state">${scansData.length === 0 ? '📭 No records found.' : '🔍 No records match this filter.'}</td></tr>`;
       return;
     }
 
     const isAdmin = userRole === 'admin';
-
     let html = '';
     filtered.forEach(s => {
       const phoneDisplay = s.phone && s.phone.trim() !== '' ? esc(s.phone) : '—';
+      const rawEmail = s.email && s.email.trim() !== '' ? s.email.trim() : null;
+      const emailDisplay = rawEmail ? esc(maskEmail(rawEmail)) : '—';
       const rawImage = s.image || '';
-      const imageSrc = /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(rawImage)
-        ? rawImage
-        : '';
+      const imageSrc = /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(rawImage) ? rawImage : '';
       
       html += `
         <tr id="row-${s.id}" class="view-row">
           <td class="id-cell">${s.id}</td>
           <td style="font-weight:600;">${esc(s.name)}</td>
           <td style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);">${phoneDisplay}</td>
+          <td style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);">${emailDisplay}</td>
           <td>${esc(s.condition)}</td>
           <td><span class="severity-pill ${sc(s.severity)}">${s.severity}</span></td>
           <td style="max-width:160px;font-style:italic;">${esc(s.advice||'—')}</td>
@@ -950,9 +889,7 @@
             ${isAdmin ? `
               <button class="btn-edit" onclick="editScan(${s.id})">EDIT</button>
               <button class="btn-delete" onclick="deleteScan(${s.id})">DELETE</button>
-            ` : `
-              <span style="color:var(--text-faint);font-size:11px;">View only</span>
-            `}
+            ` : `<span style="color:var(--text-faint);font-size:11px;">View only</span>`}
           </td>
         </tr>
         ${isAdmin ? `
@@ -960,6 +897,7 @@
           <td class="id-cell">${s.id}</td>
           <td><input type="text" id="edit-name-${s.id}" value="${esc(s.name)}"></td>
           <td><input type="text" id="edit-phone-${s.id}" value="${esc(s.phone||'')}"></td>
+          <td><input type="text" id="edit-email-${s.id}" value="${esc(s.email||'')}"></td>
           <td><input type="text" id="edit-condition-${s.id}" value="${esc(s.condition)}"></td>
           <td>
             <select id="edit-severity-${s.id}">
@@ -970,9 +908,7 @@
           </td>
           <td><textarea id="edit-advice-${s.id}">${esc(s.advice||'')}</textarea></td>
           <td><textarea id="edit-firstaid-${s.id}">${esc(s.firstAid||'')}</textarea></td>
-          <td></td>
-          <td></td>
-          <td></td>
+          <td></td><td></td><td></td>
           <td class="actions">
             <button class="btn-save" onclick="saveEdit(${s.id})">SAVE</button>
             <button class="btn-cancel" onclick="cancelEdit(${s.id})">CANCEL</button>
@@ -984,27 +920,18 @@
     tbody.innerHTML = html;
   }
 
-  // ---------- EDIT FUNCTIONS ----------
-  window.editScan = id => {
-    if (userRole !== 'admin') return;
-    document.getElementById(`row-${id}`).style.display = 'none';
-    document.getElementById(`edit-${id}`).style.display = 'table-row';
-  };
-  window.cancelEdit = id => {
-    if (userRole !== 'admin') return;
-    document.getElementById(`row-${id}`).style.display = 'table-row';
-    document.getElementById(`edit-${id}`).style.display = 'none';
-  };
+  // ---------- EDIT/DELETE SCANS ----------
+  window.editScan = id => { if (userRole !== 'admin') return; document.getElementById(`row-${id}`).style.display = 'none'; document.getElementById(`edit-${id}`).style.display = 'table-row'; };
+  window.cancelEdit = id => { if (userRole !== 'admin') return; document.getElementById(`row-${id}`).style.display = 'table-row'; document.getElementById(`edit-${id}`).style.display = 'none'; };
   window.saveEdit = async id => {
     if (userRole !== 'admin') return;
     const phone = document.getElementById(`edit-phone-${id}`).value.trim();
-    if (phone && !isValidPhone(phone)) {
-      alert('Phone number can only contain digits and the plus sign (+). No letters or special characters allowed.');
-      return;
-    }
+    if (phone && !isValidPhone(phone)) { alert('Phone number can only contain digits and the plus sign (+).'); return; }
+    const email = document.getElementById(`edit-email-${id}`).value.trim();
     const body = {
       name:      document.getElementById(`edit-name-${id}`).value.trim(),
       phone:     phone,
+      email:     email,
       condition: document.getElementById(`edit-condition-${id}`).value.trim(),
       severity:  document.getElementById(`edit-severity-${id}`).value,
       advice:    document.getElementById(`edit-advice-${id}`).value.trim(),
@@ -1045,31 +972,17 @@
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       smsRequests = await r.json();
       renderSmsRequests();
-    } catch (e) {
-      console.error('Failed to load SMS requests:', e);
-    }
+    } catch (e) { console.error('Failed to load SMS requests:', e); }
   }
 
   function renderSmsRequests() {
     const tbody = document.getElementById('sms-requests-body');
     const pendingCount = smsRequests.filter(r => r.status === 'pending').length;
     document.getElementById('sms-pending-count').textContent = pendingCount;
-
     const badge = document.getElementById('sms-badge');
-    if (pendingCount > 0) {
-      badge.textContent = pendingCount;
-      badge.style.display = '';
-    } else {
-      badge.style.display = 'none';
-    }
-
-    if (smsRequests.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="9" class="empty-state">📭 No SMS requests yet. Guest-submitted notifications will show up here.</td></tr>`;
-      return;
-    }
-
+    if (pendingCount > 0) { badge.textContent = pendingCount; badge.style.display = ''; } else { badge.style.display = 'none'; }
+    if (smsRequests.length === 0) { tbody.innerHTML = `<tr><td colspan="9" class="empty-state">📭 No SMS requests yet.</td></tr>`; return; }
     const statusColors = { pending: '#F5C400', approved: '#4ADE80', rejected: '#FF6B6B', failed: '#FF6B6B' };
-
     tbody.innerHTML = smsRequests.map(r => `
       <tr id="sms-row-${r.id}">
         <td class="id-cell">${r.id}</td>
@@ -1095,15 +1008,9 @@
     try {
       const r = await fetch(`/api/sms-requests/${id}/approve`, { method: 'POST' });
       const data = await r.json();
-      if (!r.ok || data.success === false) {
-        alert(`❌ Failed to send: ${data.error || 'Unknown error'}`);
-      } else {
-        alert('✅ SMS sent to parent.');
-      }
-    } catch (e) {
-      console.error(e);
-      alert('Network error while approving request.');
-    }
+      if (!r.ok || data.success === false) alert(`❌ Failed to send: ${data.error || 'Unknown error'}`);
+      else alert('✅ SMS sent to parent.');
+    } catch (e) { console.error(e); alert('Network error while approving request.'); }
     loadSmsRequests();
   };
 
@@ -1111,41 +1018,47 @@
     if (!confirm('Reject this SMS request? No message will be sent.')) return;
     try {
       const r = await fetch(`/api/sms-requests/${id}/reject`, { method: 'POST' });
-      if (!r.ok) {
-        const data = await r.json();
-        alert(`❌ Failed to reject: ${data.error || 'Unknown error'}`);
-      }
-    } catch (e) {
-      console.error(e);
-      alert('Network error while rejecting request.');
-    }
+      if (!r.ok) { const data = await r.json(); alert(`❌ Failed to reject: ${data.error || 'Unknown error'}`); }
+    } catch (e) { console.error(e); alert('Network error while rejecting request.'); }
     loadSmsRequests();
   };
 
   document.getElementById('refresh-sms-btn').addEventListener('click', loadSmsRequests);
 
-  // ---------- CONTACTS ----------
-  // A "contact" is derived from scan records that share the same phone number.
-  // There is no separate contacts table in the database — editing/deleting a
-  // contact here applies that change across every scan record tied to that phone.
-  let contactsCache = {};
-
+  // ---------- CONTACTS (MERGE STUDENTS + SCANS) ----------
   function buildContacts() {
     const map = {};
+
+    allStudents.forEach(st => {
+      const phone = (st.phone || '').trim();
+      if (!phone) return;
+      if (!map[phone]) {
+        map[phone] = { phone, name: st.name, ids: [], lastTs: null, email: st.email || null };
+      } else {
+        if (st.name && !map[phone].name) map[phone].name = st.name;
+        if (st.email && !map[phone].email) map[phone].email = st.email;
+      }
+    });
+
     scansData.forEach(s => {
       const phone = (s.phone || '').trim();
       if (!phone) return;
-      const ts = parseTimestamp(s.timestamp);
-      if (!map[phone]) map[phone] = { phone, name: s.name, ids: [], lastTs: null };
+      if (!map[phone]) {
+        map[phone] = { phone, name: s.name, ids: [], lastTs: null, email: s.email || null };
+      }
       map[phone].ids.push(s.id);
+      const ts = parseTimestamp(s.timestamp);
       if (!map[phone].lastTs || (!isNaN(ts.getTime()) && ts > map[phone].lastTs)) {
         map[phone].lastTs = isNaN(ts.getTime()) ? map[phone].lastTs : ts;
-        map[phone].name = s.name;
+        if (s.name) map[phone].name = s.name;
+        if (s.email) map[phone].email = s.email;
       }
     });
+
     return map;
   }
 
+  // ---------- RENDER CONTACTS (with masked email) ----------
   function renderContacts() {
     contactsCache = buildContacts();
     const contacts = Object.values(contactsCache).sort((a, b) => (b.lastTs || 0) - (a.lastTs || 0));
@@ -1153,7 +1066,7 @@
     document.getElementById('contacts-count').textContent = contacts.length;
 
     if (contacts.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="5" class="empty-state">📇 No contacts on file yet.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-state">📇 No contacts on file yet.</td></tr>`;
       return;
     }
 
@@ -1161,25 +1074,29 @@
     let html = '';
     contacts.forEach(c => {
       const key = esc(c.phone);
+      const lastLogged = c.lastTs ? c.lastTs.toLocaleString() : '—';
+      const rawEmail = c.email && c.email.trim() !== '' ? c.email.trim() : null;
+      const emailDisplay = rawEmail ? esc(maskEmail(rawEmail)) : '—';
+
       html += `
         <tr id="contact-row-${key}">
           <td style="font-weight:600;">${esc(c.name)}</td>
           <td style="font-family:'Share Tech Mono',monospace;">${key}</td>
+          <td style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);">${emailDisplay}</td>
           <td>${c.ids.length}</td>
-          <td class="timestamp">${c.lastTs ? c.lastTs.toLocaleString() : '—'}</td>
+          <td class="timestamp">${lastLogged}</td>
           <td class="actions">
             ${isAdmin ? `
               <button class="btn-edit" onclick="editContact('${key}')">EDIT</button>
               <button class="btn-delete" onclick="deleteContact('${key}')">DELETE</button>
-            ` : `
-              <span style="color:var(--text-faint);font-size:11px;">View only</span>
-            `}
+            ` : `<span style="color:var(--text-faint);font-size:11px;">View only</span>`}
           </td>
         </tr>
         ${isAdmin ? `
         <tr id="contact-edit-${key}" class="edit-row" style="display:none;">
           <td><input type="text" id="contact-edit-name-${key}" value="${esc(c.name)}"></td>
           <td><input type="text" id="contact-edit-phone-${key}" value="${key}"></td>
+          <td><input type="text" id="contact-edit-email-${key}" value="${esc(c.email||'')}"></td>
           <td colspan="2" style="color:var(--text-faint);font-size:11px;">Applies to ${c.ids.length} record(s)</td>
           <td class="actions">
             <button class="btn-save" onclick="saveContact('${key}')">SAVE</button>
@@ -1192,6 +1109,7 @@
     tbody.innerHTML = html;
   }
 
+  // ---------- CONTACT EDIT / DELETE ----------
   window.editContact = phone => {
     document.getElementById(`contact-row-${phone}`).style.display = 'none';
     document.getElementById(`contact-edit-${phone}`).style.display = 'table-row';
@@ -1206,29 +1124,49 @@
     if (userRole !== 'admin') return;
     const newName = document.getElementById(`contact-edit-name-${phone}`).value.trim();
     const newPhone = document.getElementById(`contact-edit-phone-${phone}`).value.trim();
+    const newEmail = document.getElementById(`contact-edit-email-${phone}`).value.trim();
     if (!newName) return alert('Name required.');
     if (newPhone && !isValidPhone(newPhone)) {
-      alert('Phone number can only contain digits and the plus sign (+). No letters or special characters allowed.');
+      alert('Phone number can only contain digits and the plus sign (+).');
       return;
     }
     const contact = contactsCache[phone];
     if (!contact) return;
-    try {
-      await Promise.all(contact.ids.map(id => {
-        const record = scansData.find(s => s.id === id);
-        if (!record) return Promise.resolve();
-        const body = {
-          name:      newName,
-          phone:     newPhone,
-          condition: record.condition,
-          severity:  record.severity,
-          advice:    record.advice || '',
-          firstAid:  record.firstAid || '',
-        };
-        return fetch(`/api/update-scan/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      }));
-      loadScans();
-    } catch { alert('Update failed.'); }
+
+    if (contact.ids.length > 0) {
+      try {
+        await Promise.all(contact.ids.map(id => {
+          const record = scansData.find(s => s.id === id);
+          if (!record) return Promise.resolve();
+          const body = {
+            name:      newName,
+            phone:     newPhone,
+            email:     newEmail,
+            condition: record.condition,
+            severity:  record.severity,
+            advice:    record.advice || '',
+            firstAid:  record.firstAid || '',
+          };
+          return fetch(`/api/update-scan/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        }));
+        loadScans();
+      } catch { alert('Update failed.'); }
+    } else {
+      const studentToUpdate = allStudents.find(st => st.phone === phone);
+      if (studentToUpdate) {
+        try {
+          const res = await fetch('/api/students', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: newName, phone: newPhone, email: newEmail })
+          });
+          if (!res.ok) throw new Error('Failed to update student');
+          loadScans();
+        } catch (e) { alert('Error updating student: ' + e.message); }
+      } else {
+        alert('No student or scan found for this contact – cannot update.');
+      }
+    }
   };
 
   window.deleteContact = async phone => {
@@ -1236,27 +1174,35 @@
     const contact = contactsCache[phone];
     if (!contact) return;
     const n = contact.ids.length;
-    if (!confirm(`This will permanently delete ${n} scan record(s) for ${contact.name}. Continue?`)) return;
-    try {
-      await Promise.all(contact.ids.map(id => fetch(`/api/delete-scan/${id}`, { method: 'DELETE' })));
-      loadScans();
-    } catch { alert('Delete failed.'); }
+
+    if (n > 0) {
+      if (!confirm(`This will permanently delete ${n} scan record(s) for ${contact.name}. Continue?`)) return;
+      try {
+        await Promise.all(contact.ids.map(id => fetch(`/api/delete-scan/${id}`, { method: 'DELETE' })));
+        loadScans();
+      } catch { alert('Delete failed.'); }
+    } else {
+      if (!confirm(`This will permanently delete the student "${contact.name}" from the directory. Continue?`)) return;
+      try {
+        const res = await fetch(`/api/students/by-phone/${encodeURIComponent(phone)}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Failed to delete student');
+        loadScans();
+      } catch (e) {
+        alert('Error deleting student: ' + e.message);
+      }
+    }
   };
 
   // ---------- ADD SCAN ----------
   document.getElementById('add-scan-btn').addEventListener('click', async () => {
-    if (userRole !== 'admin') {
-      alert('Only administrators can add records.');
-      return;
-    }
+    if (userRole !== 'admin') { alert('Only administrators can add records.'); return; }
     const phone = document.getElementById('new-phone').value.trim();
-    if (phone && !isValidPhone(phone)) {
-      alert('Phone number can only contain digits and the plus sign (+). No letters or special characters allowed.');
-      return;
-    }
+    if (phone && !isValidPhone(phone)) { alert('Phone number can only contain digits and the plus sign (+).'); return; }
+    const email = document.getElementById('new-email').value.trim();
     const body = {
       name:      document.getElementById('new-name').value.trim(),
       phone:     phone,
+      email:     email,
       condition: document.getElementById('new-condition').value.trim(),
       severity:  document.getElementById('new-severity').value,
       advice:    document.getElementById('new-advice').value.trim(),
@@ -1266,7 +1212,7 @@
     try {
       const r = await fetch('/api/add-scan', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
       if (!r.ok) throw new Error();
-      ['new-name','new-phone','new-condition','new-advice','new-firstaid'].forEach(i => document.getElementById(i).value='');
+      ['new-name','new-phone','new-email','new-condition','new-advice','new-firstaid'].forEach(i => document.getElementById(i).value='');
       document.getElementById('new-severity').value = 'Green';
       loadScans();
     } catch { alert('Failed to add record.'); }
@@ -1276,7 +1222,6 @@
 
   // ---------- PRINT BY DAY ----------
   function toLocalDateKey(date) {
-    // Local (not UTC) Y-M-D key, so "today" means the clinic's local day.
     return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
   }
 
@@ -1291,7 +1236,6 @@
     });
 
     const reportEl = document.getElementById('print-report');
-
     if (dayScans.length === 0) {
       reportEl.innerHTML = `
         <h1>SKINGUARD · DAILY RECORD REPORT</h1>
@@ -1306,11 +1250,14 @@
     const sevClass = { Green: 'sev-green', Yellow: 'sev-yellow', Red: 'sev-red' };
     const rows = dayScans.map(s => {
       const sev = normalizeSeverity(s.severity);
+      const rawEmail = s.email && s.email.trim() !== '' ? s.email.trim() : null;
+      const emailDisplay = rawEmail ? esc(maskEmail(rawEmail)) : '—';
       return `
         <tr>
           <td>${s.id}</td>
           <td>${esc(s.name)}</td>
           <td>${s.phone ? esc(s.phone) : '—'}</td>
+          <td>${emailDisplay}</td>
           <td>${esc(s.condition)}</td>
           <td class="${sevClass[sev]}">${esc(sev)}</td>
           <td>${esc(s.advice || '—')}</td>
@@ -1326,19 +1273,14 @@
       <div class="print-sub">AMA Computer College Santiago Campus — Clinic Records</div>
       <div class="print-meta">Date: ${esc(dayKey)} &nbsp;·&nbsp; Records: ${dayScans.length} &nbsp;·&nbsp; Generated: ${esc(new Date().toLocaleString())}</div>
       <table>
-        <thead>
-          <tr>
-            <th>ID</th><th>Name</th><th>Contact</th><th>Condition</th><th>Level</th>
-            <th>Advice</th><th>First Aid</th><th>Logged</th><th>Source</th>
-          </tr>
-        </thead>
+        <thead><tr><th>ID</th><th>Name</th><th>Contact</th><th>Email</th><th>Condition</th><th>Level</th><th>Advice</th><th>First Aid</th><th>Logged</th><th>Source</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     `;
     window.print();
   });
 
-  // ---------- RENDER CHARTS ----------
+  // ---------- CHARTS ----------
   const HUD_FONT = "'Share Tech Mono', monospace";
 
   function monthLabel(key) {
@@ -1413,11 +1355,9 @@
       if (isNaN(date.getTime())) return;
       const monthKey = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0');
       monthMap[monthKey] = (monthMap[monthKey] || 0) + 1;
-
       const sev = normalizeSeverity(s.severity);
       if (!severityMonthMap[monthKey]) severityMonthMap[monthKey] = { Green: 0, Yellow: 0, Red: 0 };
       severityMonthMap[monthKey][sev]++;
-
       const cond = s.condition || 'Unspecified';
       conditionMap[cond] = (conditionMap[cond] || 0) + 1;
     });
@@ -1425,12 +1365,11 @@
     const sortedMonths = Object.keys(monthMap).sort();
     const monthLabels = sortedMonths.map(monthLabel);
 
-    // ---- 1. Total scans ----
+    // Total
     const ctx1 = document.getElementById('totalScansChart').getContext('2d');
     const goldFill = ctx1.createLinearGradient(0, 0, 0, 170);
     goldFill.addColorStop(0, 'rgba(245,196,0,0.45)');
     goldFill.addColorStop(1, 'rgba(245,196,0,0.01)');
-
     charts.total = new Chart(ctx1, {
       type: 'line',
       data: {
@@ -1468,14 +1407,13 @@
       }
     });
 
-    // ---- 2. Severity trend ----
+    // Severity trend
     const ctx2 = document.getElementById('severityTrendChart').getContext('2d');
     const sevSeries = [
       { key: 'Green', color: '#4ADE80' },
       { key: 'Yellow', color: '#F5C400' },
       { key: 'Red', color: '#FF4D4D' }
     ];
-
     charts.severity = new Chart(ctx2, {
       type: 'line',
       data: {
@@ -1500,10 +1438,7 @@
         maintainAspectRatio: true,
         interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: {
-            position: 'bottom',
-            labels: { color: '#A0888A', font: { size: 9, family: HUD_FONT }, boxWidth: 8, boxHeight: 8, usePointStyle: true, pointStyle: 'circle', padding: 12 }
-          },
+          legend: { position: 'bottom', labels: { color: '#A0888A', font: { size: 9, family: HUD_FONT }, boxWidth: 8, boxHeight: 8, usePointStyle: true, pointStyle: 'circle', padding: 12 } },
           title: { display: true, text: '◆ SEVERITY TRENDS', color: '#F5C400', font: { size: 10, family: HUD_FONT }, padding: { bottom: 10 } },
           tooltip: hudTooltip()
         },
@@ -1514,7 +1449,7 @@
       }
     });
 
-    // ---- 3. Severity distribution ----
+    // Donut
     const ctx3 = document.getElementById('severityDonutChart').getContext('2d');
     charts.donut = new Chart(ctx3, {
       type: 'doughnut',
@@ -1533,34 +1468,19 @@
         maintainAspectRatio: true,
         cutout: '68%',
         plugins: {
-          legend: {
-            position: 'bottom',
-            labels: { color: '#A0888A', font: { size: 9, family: HUD_FONT }, boxWidth: 8, boxHeight: 8, usePointStyle: true, pointStyle: 'circle', padding: 12 }
-          },
+          legend: { position: 'bottom', labels: { color: '#A0888A', font: { size: 9, family: HUD_FONT }, boxWidth: 8, boxHeight: 8, usePointStyle: true, pointStyle: 'circle', padding: 12 } },
           title: { display: true, text: '◆ SEVERITY DISTRIBUTION', color: '#F5C400', font: { size: 10, family: HUD_FONT }, padding: { bottom: 10 } },
-          tooltip: hudTooltip({
-            callbacks: {
-              label: (ctx) => {
-                const val = ctx.parsed;
-                const pct = total ? Math.round((val / total) * 100) : 0;
-                return `${ctx.label}: ${val} (${pct}%)`;
-              }
-            }
-          })
+          tooltip: hudTooltip({ callbacks: { label: (ctx) => { const val = ctx.parsed; const pct = total ? Math.round((val / total) * 100) : 0; return `${ctx.label}: ${val} (${pct}%)`; } } })
         }
       }
     });
 
-    // ---- 4. Top conditions ----
-    const topConditions = Object.entries(conditionMap)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5);
-
+    // Top conditions
+    const topConditions = Object.entries(conditionMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
     const ctx4 = document.getElementById('topConditionsChart').getContext('2d');
     const barFill = ctx4.createLinearGradient(0, 0, 260, 0);
     barFill.addColorStop(0, '#8B0D22');
     barFill.addColorStop(1, '#F5C400');
-
     charts.topConditions = new Chart(ctx4, {
       type: 'bar',
       data: {
@@ -1592,20 +1512,15 @@
 
   // ---------- INIT ----------
   (async function init() {
-    // Guarantee #print-report is a direct child of <body> — the print
-    // stylesheet hides every other body>* element, so if this stays
-    // nested inside .container it gets hidden along with everything else.
     const reportEl = document.getElementById('print-report');
-    if (reportEl && reportEl.parentElement !== document.body) {
-      document.body.appendChild(reportEl);
-    }
+    if (reportEl && reportEl.parentElement !== document.body) document.body.appendChild(reportEl);
 
     const printDateInput = document.getElementById('print-date-input');
     if (printDateInput && !printDateInput.value) printDateInput.value = toLocalDateKey(new Date());
     await getUserRole();
     await loadScans();
     await loadSmsRequests();
-    setInterval(loadSmsRequests, 15000); // keep the pending badge fresh
+    setInterval(loadSmsRequests, 15000);
   })();
 </script>
 </body>

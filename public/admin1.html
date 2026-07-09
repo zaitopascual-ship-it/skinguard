@@ -11,6 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
+    /* ── YOUR EXISTING STYLES – KEEP THEM UNCHANGED ── */
     :root {
       --void:       #0A0205;
       --obsidian:   #120408;
@@ -90,7 +91,7 @@
 
     .wordmark-wrap { display: flex; align-items: center; gap: 12px; }
 
-    .wordmark-crest { width: 32px; height: 41px; object-fit: contain; flex-shrink: 0; filter: drop-shadow(0 4px 14px rgba(196,18,48,.35)); }
+    .wordmark-crest { width: 60px; height: 66px; object-fit: contain; flex-shrink: 0; filter: drop-shadow(0 4px 14px rgba(196,18,48,.35)); }
 
     .wordmark {
       font-family: 'Bebas Neue', sans-serif;
@@ -156,21 +157,163 @@
       margin-bottom: 12px;
     }
 
+    /* ---------- VIEW TABS ---------- */
+    .view-tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .view-tab {
+      background: var(--obsidian);
+      border: 1px solid var(--gold-line);
+      color: var(--text-dim);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      padding: 10px 20px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .view-tab:hover { color: var(--text); border-color: var(--accent-line); }
+    .view-tab.active {
+      color: var(--accent);
+      border-color: var(--accent-line);
+      background: var(--accent-glow);
+    }
+    .contact-count {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--text-faint);
+      align-self: center;
+      margin-left: 4px;
+    }
+
+    /* ---------- STAT STRIP ---------- */
+    .stat-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .stat-card {
+      position: relative;
+      background: linear-gradient(160deg, var(--iron), var(--charcoal));
+      border: 1px solid var(--mist);
+      border-radius: var(--radius);
+      padding: 12px 14px 11px;
+      overflow: hidden;
+      transition: border-color .2s, transform .2s;
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--stat-color, var(--gold));
+      box-shadow: 0 0 10px var(--stat-color, var(--gold));
+      opacity: .85;
+    }
+
+    .stat-card::after {
+      content: '';
+      position: absolute;
+      top: -30%; right: -20%;
+      width: 90px; height: 90px;
+      background: radial-gradient(circle, var(--stat-color, var(--gold)), transparent 70%);
+      opacity: .08;
+      pointer-events: none;
+    }
+
+    .stat-card:hover { border-color: var(--stat-color, var(--gold-dim)); transform: translateY(-1px); }
+
+    .stat-card.total   { --stat-color: var(--accent); }
+    .stat-card.green   { --stat-color: #4ADE80; }
+    .stat-card.yellow  { --stat-color: #F5C400; }
+    .stat-card.red     { --stat-color: #FF4D4D; }
+
+    .stat-num {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 30px;
+      letter-spacing: .04em;
+      color: var(--text);
+      line-height: 1;
+      text-shadow: 0 0 18px var(--stat-color, transparent);
+    }
+
+    .stat-label {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 8.5px;
+      letter-spacing: .22em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-top: 5px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .stat-label .dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--stat-color, var(--gold));
+      box-shadow: 0 0 6px var(--stat-color, var(--gold));
+      flex-shrink: 0;
+    }
+
+    /* ---------- CHART GRID ---------- */
     .chart-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      max-width: 640px;
-      margin: 0 auto;
+      gap: 14px;
     }
 
-    .chart-grid canvas {
-      max-height: 120px;
+    .chart-grid.chart-grid-secondary { margin-top: 14px; }
+
+    .chart-box {
+      position: relative;
+      background: radial-gradient(ellipse 120% 100% at 50% 0%, rgba(196,18,48,.08), transparent 65%), var(--void);
+      border: 1px solid var(--gold-line);
+      border-radius: var(--radius);
+      padding: 14px 12px 8px;
+      overflow: hidden;
+    }
+
+    .chart-box::before,
+    .chart-box::after {
+      content: '';
+      position: absolute;
+      width: 9px; height: 9px;
+      border: 1px solid var(--accent-line);
+      opacity: .8;
+      pointer-events: none;
+    }
+    .chart-box::before { top: 5px; left: 5px; border-right: none; border-bottom: none; }
+    .chart-box::after  { bottom: 5px; right: 5px; border-left: none; border-top: none; }
+
+    .chart-box canvas {
+      max-height: 150px;
       width: 100% !important;
     }
 
+    .chart-box-small canvas { max-height: 160px; }
+
+    .chart-empty {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      text-align: center;
+      padding: 30px 10px;
+    }
+
     @media (max-width: 760px) {
-      .chart-grid { grid-template-columns: 1fr; max-width: 100%; }
+      .chart-grid, .chart-grid.chart-grid-secondary { grid-template-columns: 1fr; }
+      .stat-strip { grid-template-columns: repeat(2, 1fr); }
       .panel { padding: 14px 16px; }
     }
 
@@ -252,6 +395,55 @@
       color: var(--text);
       min-width: 160px;
       cursor: pointer;
+    }
+
+    #print-date-input {
+      background: var(--iron);
+      border: 1px solid var(--steel);
+      border-radius: var(--radius);
+      padding: 7px 12px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 12px;
+      color: var(--text);
+      cursor: pointer;
+      color-scheme: dark;
+    }
+    #print-date-input:focus { border-color: var(--gold-dim); box-shadow: 0 0 0 2px var(--gold-glow); outline: none; }
+
+    .btn-print {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 13px;
+      letter-spacing: .1em;
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--accent-line);
+      padding: 7px 14px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background .15s, border-color .15s;
+    }
+    .btn-print:hover { background: var(--accent-glow); border-color: var(--accent-dim); }
+
+    #print-report { display: none; }
+
+    @media print {
+      body > *:not(#print-report) { display: none !important; }
+      body::after { display: none !important; }
+      body { background: #fff; padding: 0; color: #000; }
+      #print-report { display: block !important; font-family: Arial, Helvetica, sans-serif; color: #000; padding: 24px; }
+      #print-report h1 { font-size: 36px; margin-bottom: 8px; }
+      #print-report * { color: #000 !important; }
+      #print-report .print-sub { font-size: 19px; margin-bottom: 6px; }
+      #print-report .print-meta { font-size: 17px; margin-bottom: 26px; }
+      #print-report table { width: 100%; border-collapse: collapse; font-size: 17px; }
+      #print-report th, #print-report td { border: 1px solid #999; padding: 12px 14px; text-align: left; vertical-align: top; }
+      #print-report th { background: #eee; text-transform: uppercase; font-size: 14px; letter-spacing: .05em; }
+      #print-report .sev-green  { color: #15803d !important; font-weight: 700; }
+      #print-report .sev-yellow { color: #a16207 !important; font-weight: 700; }
+      #print-report .sev-red    { color: #b91c1c !important; font-weight: 700; }
     }
 
     .table-panel {
@@ -402,7 +594,6 @@
       .img-preview { max-width: 50px; max-height: 50px; }
       .actions { flex-direction: column; }
       .btn-edit, .btn-delete, .btn-save, .btn-cancel { width: 100%; text-align: center; }
-      .chart-grid { grid-template-columns: 1fr; max-width: 100%; }
     }
 
     @media (max-width: 480px) {
@@ -439,66 +630,153 @@
     <strong>📊 Database Status:</strong> <span id="db-status">Loading...</span>
   </div>
 
-  <!-- Charts Panel -->
+  <!-- Charts Panel (unchanged) -->
   <div class="panel">
     <div class="panel-title">◆ &nbsp; Scan Trends</div>
+    <div class="stat-strip" id="stat-strip">
+      <div class="stat-card total">
+        <div class="stat-num" id="stat-total">0</div>
+        <div class="stat-label"><span class="dot"></span>Total Scans</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-num" id="stat-green">0</div>
+        <div class="stat-label"><span class="dot"></span>Green — Clear</div>
+      </div>
+      <div class="stat-card yellow">
+        <div class="stat-num" id="stat-yellow">0</div>
+        <div class="stat-label"><span class="dot"></span>Yellow — Moderate</div>
+      </div>
+      <div class="stat-card red">
+        <div class="stat-num" id="stat-red">0</div>
+        <div class="stat-label"><span class="dot"></span>Red — Urgent</div>
+      </div>
+    </div>
     <div class="chart-grid">
-      <canvas id="totalScansChart" height="110"></canvas>
-      <canvas id="severityTrendChart" height="110"></canvas>
+      <div class="chart-box"><canvas id="totalScansChart" height="150"></canvas></div>
+      <div class="chart-box"><canvas id="severityTrendChart" height="150"></canvas></div>
+    </div>
+    <div class="chart-grid chart-grid-secondary">
+      <div class="chart-box chart-box-small"><canvas id="severityDonutChart" height="160"></canvas></div>
+      <div class="chart-box chart-box-small"><canvas id="topConditionsChart" height="160"></canvas></div>
     </div>
   </div>
 
-  <!-- Add form -->
-  <div class="panel">
-    <div class="panel-title">◆ &nbsp; New Incident Record</div>
-    <div class="form-grid">
-      <input type="text" id="new-name" placeholder="Full name *">
-      <input type="text" id="new-phone" placeholder="Parent contact">
-      <input type="text" id="new-condition" placeholder="Condition *">
-      <select id="new-severity">
-        <option value="Green">◆ Green — Clear</option>
-        <option value="Yellow">◆ Yellow — Moderate</option>
-        <option value="Red">◆ Red — Critical</option>
-      </select>
-      <textarea id="new-advice" placeholder="Advice…"></textarea>
-      <textarea id="new-firstaid" placeholder="First Aid protocol…"></textarea>
-      <button id="add-scan-btn" class="btn-add span-all">◆ &nbsp; LOG INCIDENT</button>
+  <!-- View tabs -->
+  <div class="view-tabs">
+    <button class="view-tab active" id="tab-records" onclick="switchView('records')">◆ &nbsp; Scan Records</button>
+    <button class="view-tab" id="tab-contacts" onclick="switchView('contacts')">◆ &nbsp; Contacts</button>
+    <button class="view-tab" id="tab-sms" onclick="switchView('sms')">◆ &nbsp; SMS Approvals <span id="sms-badge" style="display:none;background:#C41230;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;margin-left:6px;font-family:'Share Tech Mono',monospace;"></span></button>
+  </div>
+
+  <!-- ============ RECORDS VIEW ============ -->
+  <div id="records-view">
+
+    <!-- Add form (with email) -->
+    <div class="panel">
+      <div class="panel-title">◆ &nbsp; New Incident Record</div>
+      <div class="form-grid">
+        <input type="text" id="new-name" placeholder="Full name *">
+        <input type="text" id="new-phone" placeholder="Parent contact">
+        <input type="email" id="new-email" placeholder="Parent email (optional)">
+        <input type="text" id="new-condition" placeholder="Condition *">
+        <select id="new-severity">
+          <option value="Green">◆ Green — Clear</option>
+          <option value="Yellow">◆ Yellow — Moderate</option>
+          <option value="Red">◆ Red — Critical</option>
+        </select>
+        <textarea id="new-advice" placeholder="Advice…"></textarea>
+        <textarea id="new-firstaid" placeholder="First Aid protocol…"></textarea>
+        <button id="add-scan-btn" class="btn-add span-all">◆ &nbsp; LOG INCIDENT</button>
+      </div>
+    </div>
+
+    <!-- Filter panel -->
+    <div class="filter-panel">
+      <span class="filter-label">◆ FILTER BY CONDITION</span>
+      <select id="filter-condition"><option value="all">All conditions</option></select>
+      <span class="filter-label">◆ PRINT BY DAY</span>
+      <input type="date" id="print-date-input">
+      <button class="btn-print" id="print-day-btn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
+        PRINT DAY
+      </button>
+      <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-faint);">
+        Total: <span id="total-count">0</span> records
+      </span>
+    </div>
+
+    <!-- Print report -->
+    <div id="print-report"></div>
+
+    <!-- Scan table (with email column) -->
+    <div class="table-panel">
+      <div class="table-wrap">
+        <table id="scans-table">
+          <thead>
+            <tr>
+              <th>ID</th><th>Name</th><th>Contact</th><th>Email</th><th>Condition</th>
+              <th>Level</th><th>Advice</th><th>First Aid</th><th>Logged</th><th>Image</th><th>Source</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="scans-body">
+            <tr><td colspan="12" class="empty-state">loading records…</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
-  <!-- Filter panel -->
-  <div class="filter-panel">
-    <span class="filter-label">◆ FILTER BY CONDITION</span>
-    <select id="filter-condition">
-      <option value="all">All conditions</option>
-    </select>
-    <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-faint);">
-      Total: <span id="total-count">0</span> records
-    </span>
+  <!-- ============ CONTACTS VIEW (updated) ============ -->
+  <div id="contacts-view" style="display:none;">
+    <div class="filter-panel">
+      <span class="filter-label">◆ CONTACT DIRECTORY</span>
+      <span class="contact-count">Total: <span id="contacts-count">0</span> contacts</span>
+    </div>
+    <div class="table-panel">
+      <div class="table-wrap">
+        <table id="contacts-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Email</th>
+              <th>Scans on File</th>
+              <th>Last Logged</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="contacts-body">
+            <tr><td colspan="6" class="empty-state">loading contacts…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
-  <!-- Table -->
-  <div class="table-panel">
-    <div class="table-wrap">
-      <table id="scans-table">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Name</th>
-            <th>Contact</th>
-            <th>Condition</th>
-            <th>Level</th>
-            <th>Advice</th>
-            <th>First Aid</th>
-            <th>Logged</th>
-            <th>Image</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="scans-body">
-          <tr><td colspan="10" class="empty-state">loading records…</td></tr>
-        </tbody>
-      </table>
+  <!-- ============ SMS APPROVALS VIEW (unchanged) ============ -->
+  <div id="sms-view" style="display:none;">
+    <div class="filter-panel">
+      <span class="filter-label">◆ PARENT NOTIFICATION REQUESTS</span>
+      <span class="contact-count">Pending: <span id="sms-pending-count">0</span></span>
+      <button class="btn-print" id="refresh-sms-btn" style="margin-left:auto;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.1 21 6l-4 3.9"/><path d="M3 12.5a9 9 0 0 1 15-6.7l3 .2"/><path d="M7 21.9 3 18l4-3.9"/><path d="M21 11.5a9 9 0 0 1-15 6.7l-3-.2"/></svg>
+        REFRESH
+      </button>
+    </div>
+    <div class="table-panel">
+      <div class="table-wrap">
+        <table id="sms-requests-table">
+          <thead>
+            <tr>
+              <th>ID</th><th>Student</th><th>Parent Phone</th><th>Condition</th><th>Level</th>
+              <th>Requested By</th><th>Requested</th><th>Status</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="sms-requests-body">
+            <tr><td colspan="9" class="empty-state">loading requests…</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -506,8 +784,27 @@
 
 <script>
   let scansData = [];
+  let allStudents = [];       // <-- NEW: store students
+  let smsRequests = [];
   let userRole = 'admin';
   let charts = {};
+  let contactsCache = {};
+
+  // ---------- TIMESTAMP PARSER ----------
+  function parseTimestamp(ts) {
+    if (!ts) return new Date(NaN);
+    if (ts instanceof Date) return ts;
+    let normalized = String(ts).trim();
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(normalized)) {
+      normalized = normalized.replace(' ', 'T') + 'Z';
+    }
+    const d = new Date(normalized);
+    if (isNaN(d.getTime())) {
+      const fallback = new Date(String(ts).replace(' ', 'T'));
+      return fallback;
+    }
+    return d;
+  }
 
   // ---------- PHONE VALIDATOR ----------
   function isValidPhone(phone) {
@@ -532,38 +829,45 @@
     }
   }
 
-  // ---------- LOAD SCANS ----------
+  // ---------- LOAD SCANS + STUDENTS ----------
   async function loadScans() {
     const statusEl = document.getElementById('db-status');
     const tbody = document.getElementById('scans-body');
     
     try {
       statusEl.textContent = 'Fetching...';
+      // 1. Load scans
       const r = await fetch('/api/get-scans');
-      
-      if (!r.ok) {
-        throw new Error(`HTTP ${r.status}: ${r.statusText}`);
-      }
-      
+      if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`);
       scansData = await r.json();
       console.log('✅ Loaded scans:', scansData.length, 'records');
-      
+
+      // 2. Load students
+      const studentsRes = await fetch('/api/students');
+      if (studentsRes.ok) {
+        allStudents = await studentsRes.json();
+        console.log('✅ Loaded students:', allStudents.length);
+      } else {
+        allStudents = [];
+      }
+
       statusEl.textContent = `✅ ${scansData.length} records found`;
       document.getElementById('total-count').textContent = scansData.length;
-      
-      // Populate filter dropdown
+
+      // Update filter dropdown
       const filterSelect = document.getElementById('filter-condition');
       const conditions = [...new Set(scansData.map(s => s.condition).filter(Boolean))];
-      filterSelect.innerHTML = '<option value="all">All conditions</option>' +
-        conditions.map(c => `<option value="${c}">${c}</option>`).join('');
-      
+      filterSelect.innerHTML = '<option value="all">All conditions</option>' + 
+        conditions.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+
       renderTable();
-      renderCharts(scansData);
+      try { renderCharts(scansData); } catch (e) { console.error('Chart error:', e); }
+      renderContacts();  // now uses both scans and students
     } catch (error) {
       console.error('❌ Load scans error:', error);
       statusEl.textContent = '❌ Connection error: ' + error.message;
       tbody.innerHTML = `
-        <tr><td colspan="10" class="empty-state" style="color:#F87171;">
+        <tr><td colspan="12" class="empty-state" style="color:#F87171;">
           ⚠️ Failed to load records: ${error.message}
         </td></tr>
       `;
@@ -577,47 +881,56 @@
     return u.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
   }
 
+  function sourceBadge(role) {
+    const r = (role || '').toLowerCase();
+    const colors = { guest: '#F5C400', teacher: '#4ADE80', admin: '#60A5FA' };
+    const color = colors[r] || 'var(--text-faint)';
+    const label = r ? r.toUpperCase() : 'UNKNOWN';
+    return `<span style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:.05em;color:${color};">${esc(label)}</span>`;
+  }
+
+  // ---------- RENDER TABLE (unchanged, already has email) ----------
   function renderTable() {
     const filterValue = document.getElementById('filter-condition').value;
     const filtered = filterValue === 'all' ? scansData : scansData.filter(s => s.condition === filterValue);
-
     const tbody = document.getElementById('scans-body');
     document.getElementById('total-count').textContent = scansData.length;
 
     if (filtered.length === 0) {
       tbody.innerHTML = `
-        <tr><td colspan="10" class="empty-state">
-          ${scansData.length === 0 ? '📭 No records found. Save your first scan from the scanner app!' : '🔍 No records match this filter.'}
+        <tr><td colspan="12" class="empty-state">
+          ${scansData.length === 0 ? '📭 No records found.' : '🔍 No records match this filter.'}
         </td></tr>
       `;
       return;
     }
 
     const isAdmin = userRole === 'admin';
-
     let html = '';
     filtered.forEach(s => {
       const phoneDisplay = s.phone && s.phone.trim() !== '' ? esc(s.phone) : '—';
-      const imageSrc = s.image || '';
+      const emailDisplay = s.email && s.email.trim() !== '' ? esc(s.email) : '—';
+      const rawImage = s.image || '';
+      const imageSrc = /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(rawImage) ? rawImage : '';
       
       html += `
         <tr id="row-${s.id}" class="view-row">
           <td class="id-cell">${s.id}</td>
           <td style="font-weight:600;">${esc(s.name)}</td>
           <td style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);">${phoneDisplay}</td>
+          <td style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);">${emailDisplay}</td>
           <td>${esc(s.condition)}</td>
           <td><span class="severity-pill ${sc(s.severity)}">${s.severity}</span></td>
           <td style="max-width:160px;font-style:italic;">${esc(s.advice||'—')}</td>
           <td style="max-width:140px;font-style:italic;">${esc(s.firstAid||'—')}</td>
-          <td class="timestamp">${new Date(s.timestamp).toLocaleString()}</td>
+          <td class="timestamp">${parseTimestamp(s.timestamp).toLocaleString()}</td>
           <td>${imageSrc ? `<img src="${imageSrc}" class="img-preview" onerror="this.style.display='none'" alt="scan image">` : '—'}</td>
+          <td>${sourceBadge(s.submittedRole)}</td>
           <td class="actions">
             ${isAdmin ? `
               <button class="btn-edit" onclick="editScan(${s.id})">EDIT</button>
               <button class="btn-delete" onclick="deleteScan(${s.id})">DELETE</button>
-            ` : `
-              <span style="color:var(--text-faint);font-size:11px;">View only</span>
-            `}
+            ` : `<span style="color:var(--text-faint);font-size:11px;">View only</span>`}
           </td>
         </tr>
         ${isAdmin ? `
@@ -625,6 +938,7 @@
           <td class="id-cell">${s.id}</td>
           <td><input type="text" id="edit-name-${s.id}" value="${esc(s.name)}"></td>
           <td><input type="text" id="edit-phone-${s.id}" value="${esc(s.phone||'')}"></td>
+          <td><input type="text" id="edit-email-${s.id}" value="${esc(s.email||'')}"></td>
           <td><input type="text" id="edit-condition-${s.id}" value="${esc(s.condition)}"></td>
           <td>
             <select id="edit-severity-${s.id}">
@@ -635,8 +949,7 @@
           </td>
           <td><textarea id="edit-advice-${s.id}">${esc(s.advice||'')}</textarea></td>
           <td><textarea id="edit-firstaid-${s.id}">${esc(s.firstAid||'')}</textarea></td>
-          <td></td>
-          <td></td>
+          <td></td><td></td><td></td>
           <td class="actions">
             <button class="btn-save" onclick="saveEdit(${s.id})">SAVE</button>
             <button class="btn-cancel" onclick="cancelEdit(${s.id})">CANCEL</button>
@@ -648,7 +961,7 @@
     tbody.innerHTML = html;
   }
 
-  // ---------- EDIT FUNCTIONS (Admin only) ----------
+  // ---------- EDIT FUNCTIONS (unchanged) ----------
   window.editScan = id => {
     if (userRole !== 'admin') return;
     document.getElementById(`row-${id}`).style.display = 'none';
@@ -663,12 +976,14 @@
     if (userRole !== 'admin') return;
     const phone = document.getElementById(`edit-phone-${id}`).value.trim();
     if (phone && !isValidPhone(phone)) {
-      alert('Phone number can only contain digits and the plus sign (+). No letters or special characters allowed.');
+      alert('Phone number can only contain digits and the plus sign (+).');
       return;
     }
+    const email = document.getElementById(`edit-email-${id}`).value.trim();
     const body = {
       name:      document.getElementById(`edit-name-${id}`).value.trim(),
       phone:     phone,
+      email:     email,
       condition: document.getElementById(`edit-condition-${id}`).value.trim(),
       severity:  document.getElementById(`edit-severity-${id}`).value,
       advice:    document.getElementById(`edit-advice-${id}`).value.trim(),
@@ -691,7 +1006,268 @@
     } catch { alert('Delete failed.'); }
   };
 
-  // ---------- ADD SCAN (Admin only) ----------
+  // ---------- VIEW SWITCHING ----------
+  window.switchView = view => {
+    document.getElementById('records-view').style.display = view === 'records' ? '' : 'none';
+    document.getElementById('contacts-view').style.display = view === 'contacts' ? '' : 'none';
+    document.getElementById('sms-view').style.display = view === 'sms' ? '' : 'none';
+    document.getElementById('tab-records').classList.toggle('active', view === 'records');
+    document.getElementById('tab-contacts').classList.toggle('active', view === 'contacts');
+    document.getElementById('tab-sms').classList.toggle('active', view === 'sms');
+    if (view === 'sms') loadSmsRequests();
+  };
+
+  // ---------- SMS APPROVAL QUEUE (unchanged) ----------
+  async function loadSmsRequests() {
+    try {
+      const r = await fetch('/api/sms-requests');
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      smsRequests = await r.json();
+      renderSmsRequests();
+    } catch (e) {
+      console.error('Failed to load SMS requests:', e);
+    }
+  }
+
+  function renderSmsRequests() {
+    const tbody = document.getElementById('sms-requests-body');
+    const pendingCount = smsRequests.filter(r => r.status === 'pending').length;
+    document.getElementById('sms-pending-count').textContent = pendingCount;
+
+    const badge = document.getElementById('sms-badge');
+    if (pendingCount > 0) {
+      badge.textContent = pendingCount;
+      badge.style.display = '';
+    } else {
+      badge.style.display = 'none';
+    }
+
+    if (smsRequests.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="9" class="empty-state">📭 No SMS requests yet.</td></tr>`;
+      return;
+    }
+
+    const statusColors = { pending: '#F5C400', approved: '#4ADE80', rejected: '#FF6B6B', failed: '#FF6B6B' };
+
+    tbody.innerHTML = smsRequests.map(r => `
+      <tr id="sms-row-${r.id}">
+        <td class="id-cell">${r.id}</td>
+        <td style="font-weight:600;">${esc(r.studentName)}</td>
+        <td style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);">${esc(r.phone)}</td>
+        <td>${esc(r.condition)}</td>
+        <td>${r.severity ? `<span class="severity-pill ${sc(r.severity)}">${esc(r.severity)}</span>` : '—'}</td>
+        <td>${sourceBadge(r.requestedByRole)}</td>
+        <td class="timestamp">${parseTimestamp(r.createdAt).toLocaleString()}</td>
+        <td><span style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:.05em;color:${statusColors[r.status] || 'var(--text-faint)'};">${esc((r.status || '').toUpperCase())}</span></td>
+        <td class="actions">
+          ${r.status === 'pending' ? `
+            <button class="btn-save" onclick="approveSmsRequest(${r.id})">APPROVE</button>
+            <button class="btn-delete" onclick="rejectSmsRequest(${r.id})">REJECT</button>
+          ` : `<span style="color:var(--text-faint);font-size:11px;">—</span>`}
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  window.approveSmsRequest = async (id) => {
+    if (!confirm('Approve this request? The SMS will be sent to the parent immediately.')) return;
+    try {
+      const r = await fetch(`/api/sms-requests/${id}/approve`, { method: 'POST' });
+      const data = await r.json();
+      if (!r.ok || data.success === false) {
+        alert(`❌ Failed to send: ${data.error || 'Unknown error'}`);
+      } else {
+        alert('✅ SMS sent to parent.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Network error while approving request.');
+    }
+    loadSmsRequests();
+  };
+
+  window.rejectSmsRequest = async (id) => {
+    if (!confirm('Reject this SMS request? No message will be sent.')) return;
+    try {
+      const r = await fetch(`/api/sms-requests/${id}/reject`, { method: 'POST' });
+      if (!r.ok) {
+        const data = await r.json();
+        alert(`❌ Failed to reject: ${data.error || 'Unknown error'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Network error while rejecting request.');
+    }
+    loadSmsRequests();
+  };
+
+  document.getElementById('refresh-sms-btn').addEventListener('click', loadSmsRequests);
+
+  // ---------- CONTACTS (UPDATED: merges students + scans) ----------
+  function buildContacts() {
+    const map = {};
+
+    // 1. Start with all students that have a phone number
+    allStudents.forEach(st => {
+      const phone = (st.phone || '').trim();
+      if (!phone) return;
+      if (!map[phone]) {
+        map[phone] = { phone, name: st.name, ids: [], lastTs: null, email: st.email || null };
+      } else {
+        // update name/email if better
+        if (st.name && !map[phone].name) map[phone].name = st.name;
+        if (st.email && !map[phone].email) map[phone].email = st.email;
+      }
+    });
+
+    // 2. Merge scans – add scan IDs and update lastTs/name/email
+    scansData.forEach(s => {
+      const phone = (s.phone || '').trim();
+      if (!phone) return;
+      if (!map[phone]) {
+        map[phone] = { phone, name: s.name, ids: [], lastTs: null, email: s.email || null };
+      }
+      map[phone].ids.push(s.id);
+      const ts = parseTimestamp(s.timestamp);
+      if (!map[phone].lastTs || (!isNaN(ts.getTime()) && ts > map[phone].lastTs)) {
+        map[phone].lastTs = isNaN(ts.getTime()) ? map[phone].lastTs : ts;
+        if (s.name) map[phone].name = s.name;
+        if (s.email) map[phone].email = s.email;
+      }
+    });
+
+    return map;
+  }
+
+  function renderContacts() {
+    contactsCache = buildContacts();
+    const contacts = Object.values(contactsCache).sort((a, b) => (b.lastTs || 0) - (a.lastTs || 0));
+    const tbody = document.getElementById('contacts-body');
+    document.getElementById('contacts-count').textContent = contacts.length;
+
+    if (contacts.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-state">📇 No contacts on file yet.</td></tr>`;
+      return;
+    }
+
+    const isAdmin = userRole === 'admin';
+    let html = '';
+    contacts.forEach(c => {
+      const key = esc(c.phone);
+      const lastLogged = c.lastTs ? c.lastTs.toLocaleString() : '—';
+      html += `
+        <tr id="contact-row-${key}">
+          <td style="font-weight:600;">${esc(c.name)}</td>
+          <td style="font-family:'Share Tech Mono',monospace;">${key}</td>
+          <td style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);">${esc(c.email||'—')}</td>
+          <td>${c.ids.length}</td>
+          <td class="timestamp">${lastLogged}</td>
+          <td class="actions">
+            ${isAdmin ? `
+              <button class="btn-edit" onclick="editContact('${key}')">EDIT</button>
+              <button class="btn-delete" onclick="deleteContact('${key}')">DELETE</button>
+            ` : `<span style="color:var(--text-faint);font-size:11px;">View only</span>`}
+          </td>
+        </tr>
+        ${isAdmin ? `
+        <tr id="contact-edit-${key}" class="edit-row" style="display:none;">
+          <td><input type="text" id="contact-edit-name-${key}" value="${esc(c.name)}"></td>
+          <td><input type="text" id="contact-edit-phone-${key}" value="${key}"></td>
+          <td><input type="text" id="contact-edit-email-${key}" value="${esc(c.email||'')}"></td>
+          <td colspan="2" style="color:var(--text-faint);font-size:11px;">Applies to ${c.ids.length} record(s)</td>
+          <td class="actions">
+            <button class="btn-save" onclick="saveContact('${key}')">SAVE</button>
+            <button class="btn-cancel" onclick="cancelContactEdit('${key}')">CANCEL</button>
+          </td>
+        </tr>
+        ` : ''}
+      `;
+    });
+    tbody.innerHTML = html;
+  }
+
+  // ---------- CONTACT EDIT/DELETE (updated to handle no‑scan contacts) ----------
+  window.editContact = phone => {
+    document.getElementById(`contact-row-${phone}`).style.display = 'none';
+    document.getElementById(`contact-edit-${phone}`).style.display = 'table-row';
+  };
+
+  window.cancelContactEdit = phone => {
+    document.getElementById(`contact-row-${phone}`).style.display = 'table-row';
+    document.getElementById(`contact-edit-${phone}`).style.display = 'none';
+  };
+
+  window.saveContact = async phone => {
+    if (userRole !== 'admin') return;
+    const newName = document.getElementById(`contact-edit-name-${phone}`).value.trim();
+    const newPhone = document.getElementById(`contact-edit-phone-${phone}`).value.trim();
+    const newEmail = document.getElementById(`contact-edit-email-${phone}`).value.trim();
+    if (!newName) return alert('Name required.');
+    if (newPhone && !isValidPhone(newPhone)) {
+      alert('Phone number can only contain digits and the plus sign (+).');
+      return;
+    }
+    const contact = contactsCache[phone];
+    if (!contact) return;
+
+    // If there are scan IDs, update all those scans
+    if (contact.ids.length > 0) {
+      try {
+        await Promise.all(contact.ids.map(id => {
+          const record = scansData.find(s => s.id === id);
+          if (!record) return Promise.resolve();
+          const body = {
+            name:      newName,
+            phone:     newPhone,
+            email:     newEmail,
+            condition: record.condition,
+            severity:  record.severity,
+            advice:    record.advice || '',
+            firstAid:  record.firstAid || '',
+          };
+          return fetch(`/api/update-scan/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        }));
+        loadScans();
+      } catch { alert('Update failed.'); }
+    } else {
+      // No scans – update the student record directly (by name or phone)
+      // We'll update the first student found with this phone
+      const studentToUpdate = allStudents.find(st => st.phone === phone);
+      if (studentToUpdate) {
+        try {
+          const res = await fetch('/api/students', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: newName, phone: newPhone, email: newEmail })
+          });
+          if (!res.ok) throw new Error('Failed to update student');
+          loadScans(); // refresh
+        } catch (e) {
+          alert('Error updating student: ' + e.message);
+        }
+      } else {
+        alert('No student or scan found for this contact – cannot update.');
+      }
+    }
+  };
+
+  window.deleteContact = async phone => {
+    if (userRole !== 'admin') return;
+    const contact = contactsCache[phone];
+    if (!contact) return;
+    const n = contact.ids.length;
+    if (n === 0) {
+      alert('This contact has no scans. To remove the student, go to the student directory (not yet implemented).');
+      return;
+    }
+    if (!confirm(`This will permanently delete ${n} scan record(s) for ${contact.name}. Continue?`)) return;
+    try {
+      await Promise.all(contact.ids.map(id => fetch(`/api/delete-scan/${id}`, { method: 'DELETE' })));
+      loadScans();
+    } catch { alert('Delete failed.'); }
+  };
+
+  // ---------- ADD SCAN (with email) ----------
   document.getElementById('add-scan-btn').addEventListener('click', async () => {
     if (userRole !== 'admin') {
       alert('Only administrators can add records.');
@@ -699,12 +1275,14 @@
     }
     const phone = document.getElementById('new-phone').value.trim();
     if (phone && !isValidPhone(phone)) {
-      alert('Phone number can only contain digits and the plus sign (+). No letters or special characters allowed.');
+      alert('Phone number can only contain digits and the plus sign (+).');
       return;
     }
+    const email = document.getElementById('new-email').value.trim();
     const body = {
       name:      document.getElementById('new-name').value.trim(),
       phone:     phone,
+      email:     email,
       condition: document.getElementById('new-condition').value.trim(),
       severity:  document.getElementById('new-severity').value,
       advice:    document.getElementById('new-advice').value.trim(),
@@ -714,7 +1292,7 @@
     try {
       const r = await fetch('/api/add-scan', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
       if (!r.ok) throw new Error();
-      ['new-name','new-phone','new-condition','new-advice','new-firstaid'].forEach(i => document.getElementById(i).value='');
+      ['new-name','new-phone','new-email','new-condition','new-advice','new-firstaid'].forEach(i => document.getElementById(i).value='');
       document.getElementById('new-severity').value = 'Green';
       loadScans();
     } catch { alert('Failed to add record.'); }
@@ -722,119 +1300,315 @@
 
   document.getElementById('filter-condition').addEventListener('change', () => renderTable());
 
-  // ---------- RENDER SMALL LINE CHARTS ----------
-  function renderCharts(scans) {
-    if (charts.total) { charts.total.destroy(); }
-    if (charts.severity) { charts.severity.destroy(); }
+  // ---------- PRINT BY DAY (updated to include email) ----------
+  function toLocalDateKey(date) {
+    return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+  }
 
-    if (scans.length === 0) {
-      document.getElementById('totalScansChart').getContext('2d').clearRect(0,0,400,200);
-      document.getElementById('severityTrendChart').getContext('2d').clearRect(0,0,400,200);
+  document.getElementById('print-day-btn').addEventListener('click', () => {
+    const dateInput = document.getElementById('print-date-input');
+    const dayKey = dateInput.value || toLocalDateKey(new Date());
+    if (!dateInput.value) dateInput.value = dayKey;
+
+    const dayScans = scansData.filter(s => {
+      const d = parseTimestamp(s.timestamp);
+      return !isNaN(d.getTime()) && toLocalDateKey(d) === dayKey;
+    });
+
+    const reportEl = document.getElementById('print-report');
+
+    if (dayScans.length === 0) {
+      reportEl.innerHTML = `
+        <h1>SKINGUARD · DAILY RECORD REPORT</h1>
+        <div class="print-sub">AMA Computer College Santiago Campus</div>
+        <div class="print-meta">Date: ${esc(dayKey)} &nbsp;·&nbsp; Generated: ${esc(new Date().toLocaleString())}</div>
+        <p>No scan records were logged on this date.</p>
+      `;
+      window.print();
       return;
     }
 
-    // Group by month (YYYY-MM)
+    const sevClass = { Green: 'sev-green', Yellow: 'sev-yellow', Red: 'sev-red' };
+    const rows = dayScans.map(s => {
+      const sev = normalizeSeverity(s.severity);
+      return `
+        <tr>
+          <td>${s.id}</td>
+          <td>${esc(s.name)}</td>
+          <td>${s.phone ? esc(s.phone) : '—'}</td>
+          <td>${s.email ? esc(s.email) : '—'}</td>
+          <td>${esc(s.condition)}</td>
+          <td class="${sevClass[sev]}">${esc(sev)}</td>
+          <td>${esc(s.advice || '—')}</td>
+          <td>${esc(s.firstAid || '—')}</td>
+          <td>${parseTimestamp(s.timestamp).toLocaleString()}</td>
+          <td>${esc((s.submittedRole || '').toUpperCase() || '—')}</td>
+        </tr>
+      `;
+    }).join('');
+
+    reportEl.innerHTML = `
+      <h1>SKINGUARD · DAILY RECORD REPORT</h1>
+      <div class="print-sub">AMA Computer College Santiago Campus — Clinic Records</div>
+      <div class="print-meta">Date: ${esc(dayKey)} &nbsp;·&nbsp; Records: ${dayScans.length} &nbsp;·&nbsp; Generated: ${esc(new Date().toLocaleString())}</div>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th><th>Name</th><th>Contact</th><th>Email</th><th>Condition</th><th>Level</th>
+            <th>Advice</th><th>First Aid</th><th>Logged</th><th>Source</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+    window.print();
+  });
+
+  // ---------- RENDER CHARTS (unchanged) ----------
+  const HUD_FONT = "'Share Tech Mono', monospace";
+
+  function monthLabel(key) {
+    const [y, m] = key.split('-');
+    const monthName = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'short' });
+    return `${monthName} '${String(y).slice(-2)}`;
+  }
+
+  function hudTooltip(extra) {
+    return Object.assign({
+      backgroundColor: 'rgba(18,4,8,0.95)',
+      titleColor: '#F5C400',
+      bodyColor: '#F5EEE8',
+      borderColor: 'rgba(196,18,48,.5)',
+      borderWidth: 1,
+      titleFont: { family: HUD_FONT, size: 10 },
+      bodyFont: { family: 'Rajdhani', size: 12, weight: '600' },
+      padding: 10,
+      cornerRadius: 3,
+      displayColors: true
+    }, extra || {});
+  }
+
+  function normalizeSeverity(raw) {
+    const s = String(raw || 'Green').trim().toLowerCase();
+    if (s === 'yellow') return 'Yellow';
+    if (s === 'red') return 'Red';
+    return 'Green';
+  }
+
+  function renderCharts(scans) {
+    Object.values(charts).forEach(c => c && c.destroy());
+    charts = {};
+
+    const total = scans.length;
+    const green = scans.filter(s => normalizeSeverity(s.severity) === 'Green').length;
+    const yellow = scans.filter(s => normalizeSeverity(s.severity) === 'Yellow').length;
+    const red = scans.filter(s => normalizeSeverity(s.severity) === 'Red').length;
+
+    document.getElementById('stat-total').textContent = total;
+    document.getElementById('stat-green').textContent = green;
+    document.getElementById('stat-yellow').textContent = yellow;
+    document.getElementById('stat-red').textContent = red;
+
+    const boxes = ['totalScansChart','severityTrendChart','severityDonutChart','topConditionsChart']
+      .map(id => document.getElementById(id).closest('.chart-box'));
+
+    if (scans.length === 0) {
+      boxes.forEach(box => {
+        box.querySelector('canvas').style.display = 'none';
+        if (!box.querySelector('.chart-empty')) {
+          const empty = document.createElement('div');
+          empty.className = 'chart-empty';
+          empty.textContent = '◆ No scan data yet ◆';
+          box.appendChild(empty);
+        }
+      });
+      return;
+    }
+    boxes.forEach(box => {
+      box.querySelector('canvas').style.display = 'block';
+      const empty = box.querySelector('.chart-empty');
+      if (empty) empty.remove();
+    });
+
     const monthMap = {};
     const severityMonthMap = {};
+    const conditionMap = {};
 
     scans.forEach(s => {
-      const date = new Date(s.timestamp);
+      const date = parseTimestamp(s.timestamp);
+      if (isNaN(date.getTime())) return;
       const monthKey = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0');
       monthMap[monthKey] = (monthMap[monthKey] || 0) + 1;
 
-      const sev = s.severity || 'Green';
-      if (!severityMonthMap[monthKey]) {
-        severityMonthMap[monthKey] = { Green: 0, Yellow: 0, Red: 0 };
-      }
-      if (severityMonthMap[monthKey][sev] !== undefined) {
-        severityMonthMap[monthKey][sev]++;
-      }
+      const sev = normalizeSeverity(s.severity);
+      if (!severityMonthMap[monthKey]) severityMonthMap[monthKey] = { Green: 0, Yellow: 0, Red: 0 };
+      severityMonthMap[monthKey][sev]++;
+
+      const cond = s.condition || 'Unspecified';
+      conditionMap[cond] = (conditionMap[cond] || 0) + 1;
     });
 
     const sortedMonths = Object.keys(monthMap).sort();
+    const monthLabels = sortedMonths.map(monthLabel);
 
+    // Total scans
     const ctx1 = document.getElementById('totalScansChart').getContext('2d');
+    const goldFill = ctx1.createLinearGradient(0, 0, 0, 170);
+    goldFill.addColorStop(0, 'rgba(245,196,0,0.45)');
+    goldFill.addColorStop(1, 'rgba(245,196,0,0.01)');
     charts.total = new Chart(ctx1, {
       type: 'line',
       data: {
-        labels: sortedMonths,
+        labels: monthLabels,
         datasets: [{
-          label: 'Scans per Month',
+          label: 'Scans',
           data: sortedMonths.map(m => monthMap[m]),
           borderColor: '#F5C400',
-          backgroundColor: 'rgba(245,196,0,0.08)',
+          borderWidth: 2.5,
+          backgroundColor: goldFill,
           fill: true,
-          tension: 0.3,
-          pointBackgroundColor: '#F5C400',
-          pointBorderColor: '#C41230',
-          pointRadius: 3
+          tension: 0.35,
+          pointBackgroundColor: '#0A0205',
+          pointBorderColor: '#F5C400',
+          pointBorderWidth: 2,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointHoverBackgroundColor: '#F5C400',
+          pointHoverBorderColor: '#C41230'
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: true,
+        interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { labels: { color: '#A0888A', font: { size: 9 } } },
-          title: { display: true, text: 'Total Scans', color: '#A0888A', font: { size: 10 } }
+          legend: { display: false },
+          title: { display: true, text: '◆ TOTAL SCANS / MONTH', color: '#F5C400', font: { size: 10, family: HUD_FONT }, padding: { bottom: 10 } },
+          tooltip: hudTooltip()
         },
         scales: {
-          y: { beginAtZero: true, ticks: { color: '#6A5A5A', font: { size: 8 } } },
-          x: { ticks: { color: '#6A5A5A', font: { size: 8 } } }
+          y: { beginAtZero: true, grid: { color: 'rgba(196,18,48,.12)', drawBorder: false }, ticks: { color: '#6A5A5A', font: { size: 9, family: 'Rajdhani' }, precision: 0 } },
+          x: { grid: { display: false }, ticks: { color: '#6A5A5A', font: { size: 9, family: 'Rajdhani' } } }
         }
       }
     });
 
+    // Severity trend
     const ctx2 = document.getElementById('severityTrendChart').getContext('2d');
+    const sevSeries = [
+      { key: 'Green', color: '#4ADE80' },
+      { key: 'Yellow', color: '#F5C400' },
+      { key: 'Red', color: '#FF4D4D' }
+    ];
     charts.severity = new Chart(ctx2, {
       type: 'line',
       data: {
-        labels: sortedMonths,
-        datasets: [
-          {
-            label: 'Green',
-            data: sortedMonths.map(m => severityMonthMap[m]?.Green || 0),
-            borderColor: '#4ADE80',
-            backgroundColor: 'rgba(74,222,128,0.05)',
-            fill: false,
-            tension: 0.3,
-            pointBackgroundColor: '#4ADE80',
-            pointBorderColor: '#4ADE80',
-            pointRadius: 3
-          },
-          {
-            label: 'Yellow',
-            data: sortedMonths.map(m => severityMonthMap[m]?.Yellow || 0),
-            borderColor: '#F5C400',
-            backgroundColor: 'rgba(245,196,0,0.05)',
-            fill: false,
-            tension: 0.3,
-            pointBackgroundColor: '#F5C400',
-            pointBorderColor: '#F5C400',
-            pointRadius: 3
-          },
-          {
-            label: 'Red',
-            data: sortedMonths.map(m => severityMonthMap[m]?.Red || 0),
-            borderColor: '#FF6B6B',
-            backgroundColor: 'rgba(255,107,107,0.05)',
-            fill: false,
-            tension: 0.3,
-            pointBackgroundColor: '#FF6B6B',
-            pointBorderColor: '#FF6B6B',
-            pointRadius: 3
-          }
-        ]
+        labels: monthLabels,
+        datasets: sevSeries.map(({ key, color }) => ({
+          label: key,
+          data: sortedMonths.map(m => severityMonthMap[m]?.[key] || 0),
+          borderColor: color,
+          backgroundColor: color + '14',
+          borderWidth: 2,
+          fill: false,
+          tension: 0.35,
+          pointBackgroundColor: '#0A0205',
+          pointBorderColor: color,
+          pointBorderWidth: 2,
+          pointRadius: 3,
+          pointHoverRadius: 5
+        }))
       },
       options: {
         responsive: true,
         maintainAspectRatio: true,
+        interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { labels: { color: '#A0888A', font: { size: 9 } } },
-          title: { display: true, text: 'Severity Trends', color: '#A0888A', font: { size: 10 } }
+          legend: {
+            position: 'bottom',
+            labels: { color: '#A0888A', font: { size: 9, family: HUD_FONT }, boxWidth: 8, boxHeight: 8, usePointStyle: true, pointStyle: 'circle', padding: 12 }
+          },
+          title: { display: true, text: '◆ SEVERITY TRENDS', color: '#F5C400', font: { size: 10, family: HUD_FONT }, padding: { bottom: 10 } },
+          tooltip: hudTooltip()
         },
         scales: {
-          y: { beginAtZero: true, ticks: { color: '#6A5A5A', font: { size: 8 } } },
-          x: { ticks: { color: '#6A5A5A', font: { size: 8 } } }
+          y: { beginAtZero: true, grid: { color: 'rgba(196,18,48,.12)', drawBorder: false }, ticks: { color: '#6A5A5A', font: { size: 9, family: 'Rajdhani' }, precision: 0 } },
+          x: { grid: { display: false }, ticks: { color: '#6A5A5A', font: { size: 9, family: 'Rajdhani' } } }
+        }
+      }
+    });
+
+    // Donut
+    const ctx3 = document.getElementById('severityDonutChart').getContext('2d');
+    charts.donut = new Chart(ctx3, {
+      type: 'doughnut',
+      data: {
+        labels: ['Green', 'Yellow', 'Red'],
+        datasets: [{
+          data: [green, yellow, red],
+          backgroundColor: ['#4ADE80', '#F5C400', '#FF4D4D'],
+          borderColor: '#0A0205',
+          borderWidth: 3,
+          hoverOffset: 8
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        cutout: '68%',
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { color: '#A0888A', font: { size: 9, family: HUD_FONT }, boxWidth: 8, boxHeight: 8, usePointStyle: true, pointStyle: 'circle', padding: 12 }
+          },
+          title: { display: true, text: '◆ SEVERITY DISTRIBUTION', color: '#F5C400', font: { size: 10, family: HUD_FONT }, padding: { bottom: 10 } },
+          tooltip: hudTooltip({
+            callbacks: {
+              label: (ctx) => {
+                const val = ctx.parsed;
+                const pct = total ? Math.round((val / total) * 100) : 0;
+                return `${ctx.label}: ${val} (${pct}%)`;
+              }
+            }
+          })
+        }
+      }
+    });
+
+    // Top conditions
+    const topConditions = Object.entries(conditionMap)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+
+    const ctx4 = document.getElementById('topConditionsChart').getContext('2d');
+    const barFill = ctx4.createLinearGradient(0, 0, 260, 0);
+    barFill.addColorStop(0, '#8B0D22');
+    barFill.addColorStop(1, '#F5C400');
+
+    charts.topConditions = new Chart(ctx4, {
+      type: 'bar',
+      data: {
+        labels: topConditions.map(([name]) => name),
+        datasets: [{
+          label: 'Cases',
+          data: topConditions.map(([, count]) => count),
+          backgroundColor: barFill,
+          borderRadius: 4,
+          barThickness: 16
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: { display: false },
+          title: { display: true, text: '◆ TOP CONDITIONS', color: '#F5C400', font: { size: 10, family: HUD_FONT }, padding: { bottom: 10 } },
+          tooltip: hudTooltip()
+        },
+        scales: {
+          x: { beginAtZero: true, grid: { color: 'rgba(196,18,48,.12)', drawBorder: false }, ticks: { color: '#6A5A5A', font: { size: 9, family: 'Rajdhani' }, precision: 0 } },
+          y: { grid: { display: false }, ticks: { color: '#A0888A', font: { size: 10, family: 'Rajdhani', weight: '600' } } }
         }
       }
     });
@@ -842,8 +1616,17 @@
 
   // ---------- INIT ----------
   (async function init() {
+    const reportEl = document.getElementById('print-report');
+    if (reportEl && reportEl.parentElement !== document.body) {
+      document.body.appendChild(reportEl);
+    }
+
+    const printDateInput = document.getElementById('print-date-input');
+    if (printDateInput && !printDateInput.value) printDateInput.value = toLocalDateKey(new Date());
     await getUserRole();
     await loadScans();
+    await loadSmsRequests();
+    setInterval(loadSmsRequests, 15000);
   })();
 </script>
 </body>

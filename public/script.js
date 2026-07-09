@@ -297,12 +297,29 @@ async function loadStudents(searchTerm = '') {
 
 function selectStudent(student) {
     selectedStudent = student;
-    showScreen('results-screen');
-    if (pendingAction) {
-        if (pendingAction === 'save') performSave();
-        else if (pendingAction === 'notify') performNotify();
-        pendingAction = null;
+    if (pendingAction === 'notify') {
+        showNotifyOptions(student);
+        return;
     }
+    showScreen('results-screen');
+    if (pendingAction === 'save') performSave();
+    else if (pendingAction === 'notify') performNotifyWithChannels(['sms', 'email']);
+    pendingAction = null;
+}
+
+function showNotifyOptions(student) {
+    document.getElementById('notify-student-name').textContent = student.name;
+    const smsCheck = document.getElementById('notify-channel-sms');
+    const emailCheck = document.getElementById('notify-channel-email');
+    smsCheck.checked = !!(student.phone && student.phone.trim() !== '');
+    emailCheck.checked = !!(student.email && student.email.trim() !== '');
+    smsCheck.disabled = !smsCheck.checked;
+    emailCheck.disabled = !emailCheck.checked;
+    if (!smsCheck.checked) smsCheck.parentElement.style.opacity = '0.5';
+    else smsCheck.parentElement.style.opacity = '1';
+    if (!emailCheck.checked) emailCheck.parentElement.style.opacity = '0.5';
+    else emailCheck.parentElement.style.opacity = '1';
+    showScreen('notify-options-screen');
 }
 
 // ---------- PERFORM SAVE ----------
@@ -311,46 +328,69 @@ async function performSave() {
         alert('No student selected.');
         return;
     }
-    if (!lastResult.scanToken) {
-        alert('This result came from the offline demo fallback, not a real scan, so it can\'t be saved to records. Please try scanning again.');
+    if (!lastResult || !lastResult.scanToken) {
+        alert('No valid scan result to save. Please scan again.');
         return;
     }
-    console.log('📞 Phone number being saved:', selectedStudent.phone);
-    const payload = {
-        name: selectedStudent.name,
-        phone: selectedStudent.phone || null,
-        scanToken: lastResult.scanToken,
-        image: capturedImage
-    };
-    console.log('performSave: sending image, length:', capturedImage ? capturedImage.length : 0);
+
     try {
+        const payload = {
+            name: selectedStudent.name,
+            phone: selectedStudent.phone || null,
+            scanToken: lastResult.scanToken,
+            image: capturedImage
+        };
+        console.log('📤 Sending save request with payload:', { name: payload.name, phone: payload.phone, scanToken: payload.scanToken ? payload.scanToken.substring(0, 10) + '…' : null, imageSize: payload.image ? payload.image.length : 0 });
+
         const response = await fetch('/api/save-scan', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        if (!response.ok) throw new Error('Failed to save');
-        alert(`Scan saved for ${selectedStudent.name}!`);
+
+        console.log('📥 Response status:', response.status, response.statusText);
+        const responseText = await response.text();
+        console.log('📥 Response body:', responseText);
+
+        let data;
+        try {
+            data = JSON.parse(responseText);
+        } catch (e) {
+            throw new Error(`Server returned invalid JSON: ${responseText.substring(0, 100)}`);
+        }
+
+        if (!response.ok) {
+            throw new Error(data.error || `Server error (${response.status})`);
+        }
+
+        alert(`✅ Scan saved for ${selectedStudent.name}!`);
         selectedStudent = null;
+        pendingAction = null;
         showScreen('camera-screen');
     } catch (error) {
-        console.error('Save error:', error);
-        alert('Error saving scan.');
+        console.error('❌ Save error:', error);
+        alert('❌ Error saving scan: ' + error.message);
     }
 }
 
-// ---------- PERFORM NOTIFY ----------
-async function performNotify() {
+// ---------- PERFORM NOTIFY WITH CHANNELS ----------
+async function performNotifyWithChannels(channels) {
     if (!selectedStudent) {
         alert('No student selected.');
         return;
     }
-    if (!selectedStudent.phone) {
-        alert('No phone number saved for this student. Please add a phone number.');
+    const hasPhone = selectedStudent.phone && selectedStudent.phone.trim() !== '';
+    const hasEmail = selectedStudent.email && selectedStudent.email.trim() !== '';
+    if (channels.includes('sms') && !hasPhone) {
+        alert('SMS requested but student has no phone number.');
+        return;
+    }
+    if (channels.includes('email') && !hasEmail) {
+        alert('Email requested but student has no email address.');
         return;
     }
 
-    const btn = document.getElementById('notify-parent-btn');
+    const btn = document.getElementById('send-notification-btn');
     const originalText = btn.textContent;
     btn.textContent = 'Sending...';
     btn.disabled = true;
@@ -363,34 +403,34 @@ async function performNotify() {
                 studentId: selectedStudent.id,
                 condition: lastResult.condition || lastResult.name,
                 advice: lastResult.advice,
-                severity: lastResult.severity
+                severity: lastResult.severity,
+                channels: channels
             })
         });
         const data = await response.json();
         if (response.ok && data.pending) {
-            // Guest flow: the request needs an admin's approval before the SMS
-            // actually goes out. Let the guest know, then watch for the outcome.
-            alert(`📨 Sent to admin for approval. ${selectedStudent.name}'s parent will only be notified once an admin approves the request.`);
+            alert(`📨 Sent to admin for approval. ${selectedStudent.name}'s parent will be notified via ${channels.join(' and ')} once approved.`);
             pollSmsRequestStatus(data.requestId, selectedStudent.name);
         } else if (response.ok) {
-            alert(`✅ SMS sent to ${selectedStudent.name}'s parent!`);
+            alert(`✅ Notification sent via ${channels.join(' and ')} to ${selectedStudent.name}'s parent!`);
         } else {
             alert(`❌ Failed: ${data.error}`);
         }
     } catch (error) {
-        console.error('SMS error:', error);
-        alert('Error sending SMS.');
+        console.error('Notification error:', error);
+        alert('Error sending notification.');
     } finally {
         btn.textContent = originalText;
         btn.disabled = false;
         selectedStudent = null;
+        pendingAction = null;
         showScreen('results-screen');
     }
 }
 
-// ---------- POLL SMS APPROVAL STATUS (guest requests only) ----------
+// ---------- POLL SMS APPROVAL STATUS ----------
 function pollSmsRequestStatus(requestId, studentName) {
-    const maxAttempts = 40; // roughly 5 minutes at 7.5s intervals
+    const maxAttempts = 40;
     let attempts = 0;
 
     async function check() {
@@ -400,24 +440,24 @@ function pollSmsRequestStatus(requestId, studentName) {
             if (res.ok) {
                 const data = await res.json();
                 if (data.status === 'approved') {
-                    alert(`✅ Admin approved it — SMS sent to ${studentName}'s parent.`);
+                    alert(`✅ Admin approved it — notification sent to ${studentName}'s parent.`);
                     return;
                 }
                 if (data.status === 'rejected') {
-                    alert(`❌ An admin rejected the SMS request for ${studentName}.`);
+                    alert(`❌ An admin rejected the request for ${studentName}.`);
                     return;
                 }
                 if (data.status === 'failed') {
-                    alert(`⚠️ Admin approved, but the SMS failed to send for ${studentName}.`);
+                    alert(`⚠️ Admin approved, but sending failed for ${studentName}.`);
                     return;
                 }
             }
         } catch (e) {
-            console.warn('SMS status check failed:', e);
+            console.warn('Status check failed:', e);
         }
 
         if (attempts >= maxAttempts) {
-            console.warn(`Gave up polling SMS request #${requestId} after ${attempts} attempts.`);
+            console.warn(`Gave up polling request #${requestId} after ${attempts} attempts.`);
             return;
         }
         setTimeout(check, 7500);
@@ -451,9 +491,12 @@ async function autoSaveScan(result) {
             notify.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#4ADE80;color:#000;padding:10px 20px;border-radius:8px;font-family:sans-serif;z-index:9999;font-weight:bold;';
             document.body.appendChild(notify);
             setTimeout(() => notify.remove(), 3000);
+        } else {
+            const text = await response.text();
+            console.warn('Auto-save failed:', response.status, text);
         }
     } catch (e) {
-        console.warn('Auto-save failed:', e);
+        console.warn('Auto-save error:', e);
     }
 }
 
@@ -462,6 +505,7 @@ document.getElementById('add-new-student-btn').addEventListener('click', () => {
     document.getElementById('new-student-firstname').value = '';
     document.getElementById('new-student-lastname').value = '';
     document.getElementById('new-student-phone').value = '';
+    document.getElementById('new-student-email').value = '';
     showScreen('add-student-screen');
 });
 
@@ -469,6 +513,7 @@ document.getElementById('confirm-add-student-btn').addEventListener('click', asy
     const firstName = document.getElementById('new-student-firstname').value.trim();
     const lastName = document.getElementById('new-student-lastname').value.trim();
     const phone = document.getElementById('new-student-phone').value.trim();
+    const email = document.getElementById('new-student-email').value.trim();
 
     if (!firstName || !lastName) {
         alert('Please enter both first name and last name.');
@@ -490,13 +535,18 @@ document.getElementById('confirm-add-student-btn').addEventListener('click', asy
         return;
     }
 
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        alert('Please enter a valid email address.');
+        return;
+    }
+
     const fullName = firstName + ' ' + lastName;
 
     try {
         const response = await fetch('/api/students', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: fullName, phone: phone || null })
+            body: JSON.stringify({ name: fullName, phone: phone || null, email: email || null })
         });
         if (!response.ok) {
             const err = await response.json();
@@ -523,6 +573,34 @@ document.getElementById('cancel-student-select-btn').addEventListener('click', (
 
 document.getElementById('student-search').addEventListener('input', (e) => {
     loadStudents(e.target.value);
+});
+
+// ---------- NOTIFICATION OPTIONS EVENTS ----------
+document.getElementById('send-notification-btn').addEventListener('click', () => {
+    const smsChecked = document.getElementById('notify-channel-sms').checked;
+    const emailChecked = document.getElementById('notify-channel-email').checked;
+    const channels = [];
+    if (smsChecked) channels.push('sms');
+    if (emailChecked) channels.push('email');
+    if (channels.length === 0) {
+        alert('Please select at least one notification channel.');
+        return;
+    }
+    if (channels.includes('sms') && (!selectedStudent.phone || selectedStudent.phone.trim() === '')) {
+        alert('SMS selected but no phone number is available for this student.');
+        return;
+    }
+    if (channels.includes('email') && (!selectedStudent.email || selectedStudent.email.trim() === '')) {
+        alert('Email selected but no email address is available for this student.');
+        return;
+    }
+    performNotifyWithChannels(channels);
+});
+
+document.getElementById('cancel-notify-btn').addEventListener('click', () => {
+    pendingAction = null;
+    selectedStudent = null;
+    showScreen('results-screen');
 });
 
 // ---------- CAMERA ----------
@@ -740,6 +818,7 @@ function useFallback() {
     displayResults(conditions[randomIndex]);
 }
 
+// ---------- DISPLAY RESULTS (with auto-save only for guests) ----------
 function displayResults(result) {
     lastResult = result;
     const img = document.getElementById('result-image');
@@ -786,7 +865,8 @@ function displayResults(result) {
         audio.play().catch(e => console.log('Audio play failed:', e));
     }
 
-    if (result.condition && result.condition !== 'No issue detected') {
+    // ─── AUTO‑SAVE ONLY FOR GUESTS ───
+    if (result.condition && result.condition !== 'No issue detected' && isGuest) {
         autoSaveScan(result);
     }
 

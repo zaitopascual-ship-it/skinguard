@@ -11,6 +11,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 // ---------- ENV CHECKS ----------
@@ -29,37 +30,79 @@ console.log('OpenAI API Key:', process.env.OPENAI_API_KEY ? 'Loaded' : 'Not foun
 console.log('Roboflow API Key:', process.env.ROBOFLOW_API_KEY ? 'Loaded' : 'Not found');
 console.log('ElevenLabs API Key:', process.env.ELEVENLABS_API_KEY ? 'Loaded' : 'Not found');
 
+// ---------- EMAIL TRANSPORT ----------
+let emailTransporter = null;
+if (process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+    emailTransporter = nodemailer.createTransport({
+        host: process.env.EMAIL_HOST,
+        port: parseInt(process.env.EMAIL_PORT || '587'),
+        secure: process.env.EMAIL_PORT === '465',
+        auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS,
+        },
+    });
+    console.log('📧 Email transport configured');
+} else {
+    console.warn('⚠️ Email not configured – skipping email notifications');
+}
+
+async function sendEmailViaProvider(toEmail, studentName, condition, advice) {
+    if (!emailTransporter) {
+        console.warn('📧 Email transport not available – skipping');
+        return { ok: false, error: 'Email not configured' };
+    }
+    const subject = `SkinGuard Alert for ${studentName}`;
+    const text = `Dear parent/guardian of ${studentName},\n\nYour child was assessed with: ${condition}.\n${advice}\n\nPlease take appropriate action.\n\n— AMA Santiago Campus Clinic`;
+    const html = `<p><strong>SkinGuard Alert</strong></p>
+    <p>Dear parent/guardian of <strong>${studentName}</strong>,</p>
+    <p>Your child was assessed with: <strong>${condition}</strong>.</p>
+    <p>${advice}</p>
+    <p>Please take appropriate action.</p>
+    <p>— AMA Santiago Campus Clinic</p>`;
+    try {
+        const info = await emailTransporter.sendMail({
+            from: process.env.EMAIL_FROM || 'SkinGuard <noreply@skinguard.site>',
+            to: toEmail,
+            subject,
+            text,
+            html,
+        });
+        console.log(`📧 Email sent to ${toEmail} (${info.messageId})`);
+        return { ok: true, messageId: info.messageId };
+    } catch (err) {
+        console.error('❌ Email sending failed:', err.message);
+        return { ok: false, error: err.message };
+    }
+}
+
+// ---------- APP SETUP ----------
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ---------- SECURITY HEADERS (helmet) ----------
 app.use(
-  helmet.contentSecurityPolicy({
-    directives: {
-      "script-src": ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com", "https://api.mapbox.com"],
-      "script-src-attr": ["'unsafe-inline'"],
-      
-      // ✅ Add worker-src to allow Mapbox web workers
-      "worker-src": ["'self'", "blob:", "https://api.mapbox.com"],
-      
-      "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://api.mapbox.com"],
-      
-      // ✅ Make sure events.mapbox.com is included
-      "connect-src": [
-        "'self'",
-        "https://api.mapbox.com",
-        "https://events.mapbox.com",
-        "https://detect.roboflow.com",
-        "https://api.openai.com",
-        "https://unismsapi.com",
-        "https://overpass-api.de",
-        "https://overpass.kumi.systems",
-        "https://cdn.jsdelivr.net"
-      ],
-      "font-src": ["'self'", "https://fonts.gstatic.com"],
-      "img-src": ["'self'", "data:", "https://api.mapbox.com"]
-    }
-  })
+    helmet.contentSecurityPolicy({
+        directives: {
+            "script-src": ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com", "https://api.mapbox.com"],
+            "script-src-attr": ["'unsafe-inline'"],
+            "worker-src": ["'self'", "blob:", "https://api.mapbox.com"],
+            "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://api.mapbox.com"],
+            "connect-src": [
+                "'self'",
+                "https://api.mapbox.com",
+                "https://events.mapbox.com",
+                "https://detect.roboflow.com",
+                "https://api.openai.com",
+                "https://unismsapi.com",
+                "https://overpass-api.de",
+                "https://overpass.kumi.systems",
+                "https://cdn.jsdelivr.net"
+            ],
+            "font-src": ["'self'", "https://fonts.gstatic.com"],
+            "img-src": ["'self'", "data:", "https://api.mapbox.com"]
+        }
+    })
 );
 // ---------- CORS (restricted) ----------
 app.use(cors({
@@ -158,9 +201,6 @@ function requireTeacherOrAdmin(req, res, next) {
 }
 
 // ---------- PHONE SANITIZER / VALIDATOR ----------
-// Returns null if no phone was given (phone is optional), a normalized
-// +63XXXXXXXXXX string if valid, or false if a phone was given but is
-// not a valid PH mobile number (caller should reject the request).
 function sanitizePhone(phone) {
     if (!phone) return null;
     const cleaned = phone.replace(/[^\d+]/g, '');
@@ -223,7 +263,7 @@ function normalizeSeverity(raw) {
 }
 
 // ---------- SCAN TOKENS ----------
-const pendingScans = new Map(); // token -> { condition, severity, advice, firstAid, createdAt }
+const pendingScans = new Map();
 const SCAN_TOKEN_TTL_MS = 15 * 60 * 1000;
 
 function createScanToken(data) {
@@ -248,11 +288,11 @@ setInterval(() => {
     }
 }, 5 * 60 * 1000).unref();
 
-// ---------- GUEST LOGIN (rate-limited, shorter session) ----------
+// ---------- GUEST LOGIN ----------
 app.post('/api/guest-login', guestLoginLimiter, (req, res) => {
     req.session.role = 'guest';
     req.session.isGuest = true;
-    req.session.cookie.maxAge = 2 * 60 * 60 * 1000; // 2 hours
+    req.session.cookie.maxAge = 2 * 60 * 60 * 1000;
     console.log('👤 Guest session created');
     res.json({ success: true, role: 'guest' });
 });
@@ -390,11 +430,18 @@ db.serialize(() => {
         }
     });
 
+    db.run("ALTER TABLE scans ADD COLUMN email TEXT", (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+            console.warn('Could not add email to scans:', err.message);
+        }
+    });
+
     db.run(`
         CREATE TABLE IF NOT EXISTS students (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE,
-            phone TEXT
+            phone TEXT,
+            email TEXT
         )
     `);
 
@@ -404,13 +451,12 @@ db.serialize(() => {
         }
     });
 
-    // Guest-initiated parent notifications sit here awaiting admin approval
-    // before an actual SMS is sent. Teacher/admin sends bypass this table.
     db.run(`
         CREATE TABLE IF NOT EXISTS sms_requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             studentName TEXT NOT NULL,
             phone TEXT NOT NULL,
+            email TEXT,
             condition TEXT NOT NULL,
             advice TEXT,
             severity TEXT,
@@ -418,14 +464,21 @@ db.serialize(() => {
             status TEXT NOT NULL DEFAULT 'pending',
             resolvedBy TEXT,
             createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-            resolvedAt DATETIME
+            resolvedAt DATETIME,
+            channels TEXT
         )
     `);
+
+    db.run("ALTER TABLE sms_requests ADD COLUMN channels TEXT", (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+            console.warn('Could not add channels to sms_requests:', err.message);
+        }
+    });
 });
 
 // ---------- PUBLIC API ENDPOINTS ----------
 app.get('/api/students', (req, res) => {
-    db.all('SELECT id, name, phone FROM students ORDER BY name', (err, rows) => {
+    db.all('SELECT id, name, phone, email FROM students ORDER BY name', (err, rows) => {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
@@ -437,14 +490,17 @@ app.get('/api/students', (req, res) => {
 });
 
 app.post('/api/students', (req, res) => {
-    const { name, phone } = req.body;
+    const { name, phone, email } = req.body;
     if (!name) return res.status(400).json({ error: 'Name required' });
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ error: 'Invalid email address' });
+    }
     const sanitizedPhone = sanitizePhone(phone);
     if (sanitizedPhone === false) {
         return res.status(400).json({ error: 'Invalid phone number format. Use a PH mobile number, e.g. 09XXXXXXXXX or +639XXXXXXXXX.' });
     }
 
-    db.get('SELECT id, name, phone FROM students WHERE name = ?', [name], (err, row) => {
+    db.get('SELECT id, name, phone, email FROM students WHERE name = ?', [name], (err, row) => {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
@@ -452,30 +508,46 @@ app.post('/api/students', (req, res) => {
         if (row) {
             const role = req.session.role || 'guest';
             if (role !== 'teacher' && role !== 'admin') {
-                return res.status(403).json({ error: 'Only teachers or admins can update existing student phone numbers.' });
+                return res.status(403).json({ error: 'Only teachers or admins can update existing student records.' });
             }
+            const updates = [];
+            const params = [];
             if (sanitizedPhone && sanitizedPhone !== row.phone) {
-                db.run('UPDATE students SET phone = ? WHERE id = ?', [sanitizedPhone, row.id], (updateErr) => {
-                    if (updateErr) {
-                        console.error(updateErr);
-                        return res.status(500).json({ error: 'Failed to update phone' });
+                updates.push('phone = ?');
+                params.push(sanitizedPhone);
+            }
+            if (email && email !== row.email) {
+                updates.push('email = ?');
+                params.push(email);
+            }
+            if (updates.length === 0) {
+                const masked = maskStudentForRole(row, role);
+                return res.json(masked);
+            }
+            params.push(row.id);
+            db.run(`UPDATE students SET ${updates.join(', ')} WHERE id = ?`, params, (updateErr) => {
+                if (updateErr) {
+                    console.error(updateErr);
+                    return res.status(500).json({ error: 'Failed to update student' });
+                }
+                db.get('SELECT id, name, phone, email FROM students WHERE id = ?', [row.id], (err2, updatedRow) => {
+                    if (err2) {
+                        console.error(err2);
+                        return res.status(500).json({ error: 'Database error' });
                     }
-                    const masked = maskStudentForRole({ id: row.id, name: row.name, phone: sanitizedPhone || row.phone }, role);
+                    const masked = maskStudentForRole(updatedRow, role);
                     res.json(masked);
                 });
-            } else {
-                const masked = maskStudentForRole({ id: row.id, name: row.name, phone: row.phone }, role);
-                res.json(masked);
-            }
+            });
         } else {
             const role = req.session.role || 'guest';
-            const stmt = db.prepare('INSERT INTO students (name, phone, addedByRole) VALUES (?, ?, ?)');
-            stmt.run(name, sanitizedPhone, role, function(insertErr) {
+            const stmt = db.prepare('INSERT INTO students (name, phone, email, addedByRole) VALUES (?, ?, ?, ?)');
+            stmt.run(name, sanitizedPhone, email || null, role, function(insertErr) {
                 if (insertErr) {
                     console.error(insertErr);
                     return res.status(500).json({ error: 'Database error' });
                 }
-                const newStudent = { id: this.lastID, name, phone: sanitizedPhone, addedByRole: role };
+                const newStudent = { id: this.lastID, name, phone: sanitizedPhone, email: email || null, addedByRole: role };
                 const masked = maskStudentForRole(newStudent, role);
                 res.json(masked);
             });
@@ -530,7 +602,7 @@ app.get('/api/get-scans', (req, res) => {
 });
 
 app.post('/api/add-scan', (req, res) => {
-    const { name, phone, condition, severity, advice, firstAid, image } = req.body;
+    const { name, phone, condition, severity, advice, firstAid, image, email } = req.body;
     if (!name || !condition || !severity) {
         return res.status(400).json({ error: 'Missing required fields' });
     }
@@ -542,9 +614,10 @@ app.post('/api/add-scan', (req, res) => {
     if (sanitizedPhone === false) {
         return res.status(400).json({ error: 'Invalid phone number format. Use a PH mobile number, e.g. 09XXXXXXXXX or +639XXXXXXXXX.' });
     }
+    const sanitizedEmail = email && email.trim() ? email.trim() : null;
     const submittedRole = req.session.role || 'admin';
-    const stmt = db.prepare('INSERT INTO scans (name, phone, condition, severity, advice, firstAid, image, submittedRole) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-    stmt.run(name, sanitizedPhone, condition, normalizedSeverity, advice, firstAid, image || null, submittedRole, function(err) {
+    const stmt = db.prepare('INSERT INTO scans (name, phone, condition, severity, advice, firstAid, image, submittedRole, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    stmt.run(name, sanitizedPhone, condition, normalizedSeverity, advice, firstAid, image || null, submittedRole, sanitizedEmail, function(err) {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
@@ -559,7 +632,7 @@ app.put('/api/update-scan/:id', (req, res) => {
         return res.status(403).json({ error: 'Admin access required' });
     }
     const { id } = req.params;
-    const { name, phone, condition, severity, advice, firstAid } = req.body;
+    const { name, phone, condition, severity, advice, firstAid, email } = req.body;
     if (!name || !condition || !severity) {
         return res.status(400).json({ error: 'Missing required fields' });
     }
@@ -571,8 +644,9 @@ app.put('/api/update-scan/:id', (req, res) => {
     if (sanitizedPhone === false) {
         return res.status(400).json({ error: 'Invalid phone number format. Use a PH mobile number, e.g. 09XXXXXXXXX or +639XXXXXXXXX.' });
     }
-    const stmt = db.prepare('UPDATE scans SET name = ?, phone = ?, condition = ?, severity = ?, advice = ?, firstAid = ? WHERE id = ?');
-    stmt.run(name, sanitizedPhone, condition, normalizedSeverity, advice, firstAid, id, function(err) {
+    const sanitizedEmail = email && email.trim() ? email.trim() : null;
+    const stmt = db.prepare('UPDATE scans SET name = ?, phone = ?, condition = ?, severity = ?, advice = ?, firstAid = ?, email = ? WHERE id = ?');
+    stmt.run(name, sanitizedPhone, condition, normalizedSeverity, advice, firstAid, sanitizedEmail, id, function(err) {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
@@ -942,17 +1016,9 @@ async function sendSmsViaProvider(validatedPhone, studentName, condition, advice
     }
 }
 
-// ---------- SMS ENDPOINT ----------
-// Teachers/admins: sends immediately, as before.
-// Guests: queued into sms_requests for an admin to approve/reject — the SMS
-// only actually goes out once an admin approves it.
-//
-// The phone number is always looked up server-side by studentId rather than
-// trusted from the client: guests only ever see a masked phone number
-// (e.g. "+63*******1234"), so passing that straight through would fail
-// validation (and would also let a client claim any arbitrary "to" number).
+// ---------- SMS ENDPOINT (with channel selection) ----------
 app.post('/api/send-sms', async (req, res) => {
-    const { studentId, condition, advice, severity } = req.body;
+    const { studentId, condition, advice, severity, channels } = req.body;
 
     if (!studentId || !condition) {
         return res.status(400).json({ error: 'Missing required fields: studentId, condition' });
@@ -962,7 +1028,17 @@ app.post('/api/send-sms', async (req, res) => {
         return res.status(400).json({ error: 'Invalid studentId' });
     }
 
-    db.get('SELECT id, name, phone FROM students WHERE id = ?', [id], async (err, student) => {
+    let channelsArray = channels;
+    if (!channelsArray || !Array.isArray(channelsArray) || channelsArray.length === 0) {
+        channelsArray = ['sms', 'email'];
+    }
+    const validChannels = ['sms', 'email'];
+    const filteredChannels = channelsArray.filter(ch => validChannels.includes(ch));
+    if (filteredChannels.length === 0) {
+        return res.status(400).json({ error: 'No valid channels selected. Choose sms and/or email.' });
+    }
+
+    db.get('SELECT id, name, phone, email FROM students WHERE id = ?', [id], async (err, student) => {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
@@ -970,18 +1046,23 @@ app.post('/api/send-sms', async (req, res) => {
         if (!student) return res.status(404).json({ error: 'Student not found' });
 
         const validatedPhone = sanitizePhone(student.phone);
-        if (validatedPhone === false || !validatedPhone) {
-            return res.status(400).json({ error: 'No valid phone number on file for this student. Ask a teacher or admin to add one.' });
+        if (filteredChannels.includes('sms') && (validatedPhone === false || !validatedPhone)) {
+            return res.status(400).json({ error: 'SMS requested but no valid phone number on file for this student.' });
         }
         const studentName = student.name;
+        const email = student.email || null;
+        if (filteredChannels.includes('email') && !email) {
+            return res.status(400).json({ error: 'Email requested but no email address on file for this student.' });
+        }
+
         const role = req.session.role;
 
         if (role === 'guest') {
             const stmt = db.prepare(`
-                INSERT INTO sms_requests (studentName, phone, condition, advice, severity, requestedByRole, status)
-                VALUES (?, ?, ?, ?, ?, ?, 'pending')
+                INSERT INTO sms_requests (studentName, phone, email, condition, advice, severity, requestedByRole, status, channels)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)
             `);
-            stmt.run(studentName, validatedPhone, condition, advice || '', normalizeSeverity(severity) || null, role, function(insertErr) {
+            stmt.run(studentName, validatedPhone, email, condition, advice || '', normalizeSeverity(severity) || null, role, filteredChannels.join(','), function(insertErr) {
                 if (insertErr) {
                     console.error(insertErr);
                     return res.status(500).json({ error: 'Database error while creating SMS request' });
@@ -991,15 +1072,29 @@ app.post('/api/send-sms', async (req, res) => {
                     success: true,
                     pending: true,
                     requestId: this.lastID,
-                    message: 'Request sent to an admin for approval. The SMS will be sent once approved.'
+                    message: `Request sent to an admin for approval. The parent will be notified via ${filteredChannels.join(' and ')} once approved.`
                 });
             });
             stmt.finalize();
             return;
         }
 
-        const result = await sendSmsViaProvider(validatedPhone, studentName, condition, advice);
-        res.status(result.statusCode).json(result.body);
+        let smsResult = { ok: false, error: 'SMS not requested' };
+        let emailResult = { ok: false, error: 'Email not requested' };
+        if (filteredChannels.includes('sms') && validatedPhone) {
+            smsResult = await sendSmsViaProvider(validatedPhone, studentName, condition, advice);
+        }
+        if (filteredChannels.includes('email') && email) {
+            emailResult = await sendEmailViaProvider(email, studentName, condition, advice);
+        }
+        const allOk = (filteredChannels.includes('sms') ? smsResult.ok : true) &&
+                      (filteredChannels.includes('email') ? emailResult.ok : true);
+        res.json({
+            success: allOk,
+            sms: smsResult,
+            email: emailResult,
+            channels: filteredChannels
+        });
     });
 });
 
@@ -1026,8 +1121,22 @@ app.post('/api/sms-requests/:id/approve', requireAdmin, smsQueueLimiter, async (
         if (!row) return res.status(404).json({ error: 'Request not found' });
         if (row.status !== 'pending') return res.status(409).json({ error: `Request already ${row.status}` });
 
-        const result = await sendSmsViaProvider(row.phone, row.studentName, row.condition, row.advice);
-        const newStatus = result.ok ? 'approved' : 'failed';
+        const storedChannels = row.channels ? row.channels.split(',') : ['sms', 'email'];
+        const smsRequested = storedChannels.includes('sms');
+        const emailRequested = storedChannels.includes('email');
+
+        let smsResult = { ok: false, error: 'SMS not requested' };
+        let emailResult = { ok: false, error: 'Email not requested' };
+        if (smsRequested && row.phone) {
+            smsResult = await sendSmsViaProvider(row.phone, row.studentName, row.condition, row.advice);
+        }
+        if (emailRequested && row.email) {
+            emailResult = await sendEmailViaProvider(row.email, row.studentName, row.condition, row.advice);
+        }
+
+        const allOk = (smsRequested ? smsResult.ok : true) &&
+                      (emailRequested ? emailResult.ok : true);
+        const newStatus = allOk ? 'approved' : 'failed';
 
         db.run(
             'UPDATE sms_requests SET status = ?, resolvedBy = ?, resolvedAt = CURRENT_TIMESTAMP WHERE id = ?',
@@ -1037,8 +1146,13 @@ app.post('/api/sms-requests/:id/approve', requireAdmin, smsQueueLimiter, async (
             }
         );
 
-        console.log(`${result.ok ? '✅' : '❌'} SMS request #${id} ${newStatus} by ${req.session.username}`);
-        res.status(result.statusCode).json({ ...result.body, requestStatus: newStatus });
+        console.log(`${newStatus === 'approved' ? '✅' : '❌'} SMS request #${id} ${newStatus} by ${req.session.username}`);
+        res.status(allOk ? 200 : 500).json({
+            success: newStatus === 'approved',
+            requestStatus: newStatus,
+            sms: smsResult,
+            email: emailResult,
+        });
     });
 });
 
@@ -1069,7 +1183,6 @@ app.post('/api/sms-requests/:id/reject', requireAdmin, smsQueueLimiter, (req, re
     });
 });
 
-// Guest (or anyone with a session) polls the status of a request by id.
 app.get('/api/sms-requests/:id/status', requireSession, smsStatusLimiter, (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid request id' });
@@ -1185,6 +1298,27 @@ app.post('/api/hospitals', async (req, res) => {
 
     console.log(`✅ Returning ${unique.length} unique hospitals/clinics`);
     res.json({ hospitals: unique });
+});
+
+// ---------- DELETE STUDENT BY PHONE ----------
+app.delete('/api/students/by-phone/:phone', requireAdmin, (req, res) => {
+  const phone = req.params.phone;
+  db.get('SELECT id FROM students WHERE phone = ?', [phone], (err, row) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+    if (!row) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+    db.run('DELETE FROM students WHERE id = ?', [row.id], function(deleteErr) {
+      if (deleteErr) {
+        console.error(deleteErr);
+        return res.status(500).json({ error: 'Failed to delete student' });
+      }
+      res.json({ message: 'Student deleted successfully' });
+    });
+  });
 });
 
 // ---------- START SERVER ----------
