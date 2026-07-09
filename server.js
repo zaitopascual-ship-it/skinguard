@@ -795,7 +795,7 @@ app.post('/api/send-sms', async (req, res) => {
         });
     }
 
-    let messageText = `AMA SKINGUARD ALERT\nDear parent/guardian of ${studentName}, your child was assessed with ${condition}. ${advice}. Please take appropriate action.`;
+    let messageText = `AMA SKINGUARD ALERT\nPARENT NOTIFICATION\nDear parent/guardian of ${studentName}, your child was assessed with ${condition}. ${advice}. Please take appropriate action.`;
     messageText = messageText.replace(/[^\x00-\x7F]/g, '');
 
     let senderId = process.env.UNISMS_SENDER_ID;
