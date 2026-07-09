@@ -147,10 +147,24 @@ function requireTeacherOrAdmin(req, res, next) {
     res.status(403).json({ error: 'Teacher or admin access required' });
 }
 
-// ---------- PHONE SANITIZER ----------
+// ---------- PHONE SANITIZER / VALIDATOR ----------
+// Returns null if no phone was given (phone is optional), a normalized
+// +63XXXXXXXXXX string if valid, or false if a phone was given but is
+// not a valid PH mobile number (caller should reject the request).
 function sanitizePhone(phone) {
     if (!phone) return null;
-    return phone.replace(/[^\d+]/g, '');
+    const cleaned = phone.replace(/[^\d+]/g, '');
+
+    if (/^09\d{9}$/.test(cleaned)) {
+        return '+63' + cleaned.slice(1);
+    }
+    if (/^639\d{9}$/.test(cleaned)) {
+        return '+' + cleaned;
+    }
+    if (/^\+639\d{9}$/.test(cleaned)) {
+        return cleaned;
+    }
+    return false;
 }
 
 // ---------- SERVER-SIDE MASKING HELPERS ----------
@@ -397,6 +411,9 @@ app.post('/api/students', (req, res) => {
     const { name, phone } = req.body;
     if (!name) return res.status(400).json({ error: 'Name required' });
     const sanitizedPhone = sanitizePhone(phone);
+    if (sanitizedPhone === false) {
+        return res.status(400).json({ error: 'Invalid phone number format. Use a PH mobile number, e.g. 09XXXXXXXXX or +639XXXXXXXXX.' });
+    }
 
     db.get('SELECT id, name, phone FROM students WHERE name = ?', [name], (err, row) => {
         if (err) {
@@ -456,6 +473,9 @@ app.post('/api/save-scan', (req, res) => {
         return res.status(400).json({ error: 'Image too large (max 2MB)' });
     }
     const sanitizedPhone = sanitizePhone(phone);
+    if (sanitizedPhone === false) {
+        return res.status(400).json({ error: 'Invalid phone number format. Use a PH mobile number, e.g. 09XXXXXXXXX or +639XXXXXXXXX.' });
+    }
     const submittedRole = req.session.role || 'guest';
     const stmt = db.prepare('INSERT INTO scans (name, phone, condition, severity, advice, firstAid, image, submittedRole) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     stmt.run(name, sanitizedPhone, condition, severity, advice, firstAid, image || null, submittedRole, function(err) {
@@ -490,6 +510,9 @@ app.post('/api/add-scan', (req, res) => {
         return res.status(400).json({ error: `Severity must be one of: ${ALLOWED_SEVERITIES.join(', ')}` });
     }
     const sanitizedPhone = sanitizePhone(phone);
+    if (sanitizedPhone === false) {
+        return res.status(400).json({ error: 'Invalid phone number format. Use a PH mobile number, e.g. 09XXXXXXXXX or +639XXXXXXXXX.' });
+    }
     const submittedRole = req.session.role || 'admin';
     const stmt = db.prepare('INSERT INTO scans (name, phone, condition, severity, advice, firstAid, image, submittedRole) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     stmt.run(name, sanitizedPhone, condition, normalizedSeverity, advice, firstAid, image || null, submittedRole, function(err) {
@@ -516,6 +539,9 @@ app.put('/api/update-scan/:id', (req, res) => {
         return res.status(400).json({ error: `Severity must be one of: ${ALLOWED_SEVERITIES.join(', ')}` });
     }
     const sanitizedPhone = sanitizePhone(phone);
+    if (sanitizedPhone === false) {
+        return res.status(400).json({ error: 'Invalid phone number format. Use a PH mobile number, e.g. 09XXXXXXXXX or +639XXXXXXXXX.' });
+    }
     const stmt = db.prepare('UPDATE scans SET name = ?, phone = ?, condition = ?, severity = ?, advice = ?, firstAid = ? WHERE id = ?');
     stmt.run(name, sanitizedPhone, condition, normalizedSeverity, advice, firstAid, id, function(err) {
         if (err) {
@@ -791,14 +817,21 @@ app.post('/api/send-sms', async (req, res) => {
         return res.status(400).json({ error: 'Missing required fields: to, studentName, condition' });
     }
 
+    const validatedPhone = sanitizePhone(to);
+    if (validatedPhone === false) {
+        return res.status(400).json({ error: 'Invalid phone number format. Use a PH mobile number, e.g. 09XXXXXXXXX or +639XXXXXXXXX.' });
+    }
+    if (!validatedPhone) {
+        return res.status(400).json({ error: 'Recipient phone number is required to send an SMS.' });
+    }
+
     const apiSecretKey = process.env.UNISMS_API_SECRET;
 
     if (!apiSecretKey) {
-        console.warn('⚠️ UNISMS_API_SECRET not set in .env – simulating SMS send');
-        return res.json({
-            success: true,
-            simulated: true,
-            message: 'SMS simulated (no API key configured). Add UNISMS_API_SECRET to .env'
+        console.error('❌ UNISMS_API_SECRET not set in .env – cannot send SMS');
+        return res.status(500).json({
+            success: false,
+            error: 'SMS is not configured on the server. Add UNISMS_API_SECRET to .env'
         });
     }
 
@@ -808,14 +841,14 @@ app.post('/api/send-sms', async (req, res) => {
     let senderId = process.env.UNISMS_SENDER_ID;
     const useSenderId = senderId && senderId.trim().length > 0;
 
-    console.log(`📤 Sending SMS to ${to} via UniSMS...`);
+    console.log(`📤 Sending SMS to ${validatedPhone} via UniSMS...`);
     console.log(`📝 Message: ${messageText}`);
     if (useSenderId) console.log(`📤 Sender ID: ${senderId}`);
     else console.log('📤 No sender ID provided – will omit field');
 
     try {
         const requestBody = {
-            recipient: to,
+            recipient: validatedPhone,
             content: messageText
         };
         if (useSenderId) {
@@ -852,10 +885,9 @@ app.post('/api/send-sms', async (req, res) => {
                     referenceId: null
                 });
             }
-            return res.json({
-                success: true,
-                simulated: true,
-                message: 'SMS sent (simulated – parse error)',
+            return res.status(502).json({
+                success: false,
+                error: 'SMS provider returned an unparsable response',
                 rawResponse: responseText
             });
         }
@@ -886,22 +918,17 @@ app.post('/api/send-sms', async (req, res) => {
             }
         }
 
-        console.warn('⚠️ SMS sending failed – simulating success for demo');
-        res.json({
-            success: true,
-            simulated: true,
-            message: 'SMS sent (simulated)',
-            error: data.message || data.error || 'Unknown error',
-            code: response.status
+        console.error('❌ SMS sending failed');
+        res.status(response.status && response.status >= 400 ? response.status : 502).json({
+            success: false,
+            error: data.message || data.error || 'Unknown error from SMS provider',
+            details: data.errors || null
         });
     } catch (error) {
         console.error('❌ SMS sending error:', error.message);
-        console.warn('⚠️ Network error – simulating SMS success for demo');
-        res.json({
-            success: true,
-            simulated: true,
-            message: 'SMS sent (simulated)',
-            error: error.message
+        res.status(502).json({
+            success: false,
+            error: 'Network error while sending SMS: ' + error.message
         });
     }
 });
