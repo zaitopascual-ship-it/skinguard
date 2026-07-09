@@ -42,6 +42,7 @@ app.use(
       "connect-src": [
         "'self'",
         "https://api.mapbox.com",
+        "https://events.mapbox.com",   // added
         "https://detect.roboflow.com",
         "https://api.openai.com",
         "https://unismsapi.com",
