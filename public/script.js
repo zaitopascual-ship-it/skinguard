@@ -408,10 +408,13 @@ async function performNotifyWithChannels(channels) {
             })
         });
         const data = await response.json();
+
         if (response.ok && data.pending) {
+            // Only guests get this
             alert(`📨 Sent to admin for approval. ${selectedStudent.name}'s parent will be notified via ${channels.join(' and ')} once approved.`);
             pollSmsRequestStatus(data.requestId, selectedStudent.name);
         } else if (response.ok) {
+            // Teachers/admins – immediate success
             alert(`✅ Notification sent via ${channels.join(' and ')} to ${selectedStudent.name}'s parent!`);
         } else {
             alert(`❌ Failed: ${data.error}`);

@@ -41,6 +41,8 @@ if (process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS) 
             user: process.env.EMAIL_USER,
             pass: process.env.EMAIL_PASS,
         },
+        debug: true,
+        logger: true,
     });
     console.log('📧 Email transport configured');
 } else {
@@ -80,7 +82,7 @@ async function sendEmailViaProvider(toEmail, studentName, condition, advice) {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ---------- SECURITY HEADERS (helmet) ----------
+// ---------- SECURITY HEADERS ----------
 app.use(
     helmet.contentSecurityPolicy({
         directives: {
@@ -104,7 +106,6 @@ app.use(
         }
     })
 );
-// ---------- CORS (restricted) ----------
 app.use(cors({
     origin: process.env.NODE_ENV === 'production'
         ? ['https://skinguard.site']
@@ -200,24 +201,17 @@ function requireTeacherOrAdmin(req, res, next) {
     res.status(403).json({ error: 'Teacher or admin access required' });
 }
 
-// ---------- PHONE SANITIZER / VALIDATOR ----------
+// ---------- PHONE SANITIZER ----------
 function sanitizePhone(phone) {
     if (!phone) return null;
     const cleaned = phone.replace(/[^\d+]/g, '');
-
-    if (/^09\d{9}$/.test(cleaned)) {
-        return '+63' + cleaned.slice(1);
-    }
-    if (/^639\d{9}$/.test(cleaned)) {
-        return '+' + cleaned;
-    }
-    if (/^\+639\d{9}$/.test(cleaned)) {
-        return cleaned;
-    }
+    if (/^09\d{9}$/.test(cleaned)) return '+63' + cleaned.slice(1);
+    if (/^639\d{9}$/.test(cleaned)) return '+' + cleaned;
+    if (/^\+639\d{9}$/.test(cleaned)) return cleaned;
     return false;
 }
 
-// ---------- SERVER-SIDE MASKING HELPERS ----------
+// ---------- MASKING HELPERS ----------
 function maskName(name) {
     if (!name) return '';
     const trimmed = name.trim();
@@ -1016,7 +1010,7 @@ async function sendSmsViaProvider(validatedPhone, studentName, condition, advice
     }
 }
 
-// ---------- SMS ENDPOINT (with channel selection) ----------
+// ---------- SMS ENDPOINT – only guests require approval ----------
 app.post('/api/send-sms', async (req, res) => {
     const { studentId, condition, advice, severity, channels } = req.body;
 
@@ -1057,6 +1051,7 @@ app.post('/api/send-sms', async (req, res) => {
 
         const role = req.session.role;
 
+        // ─── GUEST: queue for admin approval ───
         if (role === 'guest') {
             const stmt = db.prepare(`
                 INSERT INTO sms_requests (studentName, phone, email, condition, advice, severity, requestedByRole, status, channels)
@@ -1079,6 +1074,7 @@ app.post('/api/send-sms', async (req, res) => {
             return;
         }
 
+        // ─── TEACHER / ADMIN: send immediately ───
         let smsResult = { ok: false, error: 'SMS not requested' };
         let emailResult = { ok: false, error: 'Email not requested' };
         if (filteredChannels.includes('sms') && validatedPhone) {
@@ -1197,6 +1193,27 @@ app.get('/api/sms-requests/:id/status', requireSession, smsStatusLimiter, (req, 
     });
 });
 
+// ---------- DELETE STUDENT BY PHONE ----------
+app.delete('/api/students/by-phone/:phone', requireAdmin, (req, res) => {
+    const phone = req.params.phone;
+    db.get('SELECT id FROM students WHERE phone = ?', [phone], (err, row) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        if (!row) {
+            return res.status(404).json({ error: 'Student not found' });
+        }
+        db.run('DELETE FROM students WHERE id = ?', [row.id], function(deleteErr) {
+            if (deleteErr) {
+                console.error(deleteErr);
+                return res.status(500).json({ error: 'Failed to delete student' });
+            }
+            res.json({ message: 'Student deleted successfully' });
+        });
+    });
+});
+
 // ---------- HOSPITAL SEARCH ----------
 app.post('/api/hospitals', async (req, res) => {
     const { lat, lng, radius = 30000 } = req.body;
@@ -1298,27 +1315,6 @@ app.post('/api/hospitals', async (req, res) => {
 
     console.log(`✅ Returning ${unique.length} unique hospitals/clinics`);
     res.json({ hospitals: unique });
-});
-
-// ---------- DELETE STUDENT BY PHONE ----------
-app.delete('/api/students/by-phone/:phone', requireAdmin, (req, res) => {
-  const phone = req.params.phone;
-  db.get('SELECT id FROM students WHERE phone = ?', [phone], (err, row) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ error: 'Database error' });
-    }
-    if (!row) {
-      return res.status(404).json({ error: 'Student not found' });
-    }
-    db.run('DELETE FROM students WHERE id = ?', [row.id], function(deleteErr) {
-      if (deleteErr) {
-        console.error(deleteErr);
-        return res.status(500).json({ error: 'Failed to delete student' });
-      }
-      res.json({ message: 'Student deleted successfully' });
-    });
-  });
 });
 
 // ---------- START SERVER ----------
