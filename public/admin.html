@@ -746,21 +746,6 @@
   let charts = {};
   let contactsCache = {};
 
-  // ---------- EMAIL MASKING FUNCTION ----------
-  function maskEmail(email) {
-    if (!email || !email.includes('@')) return email || '—';
-    const parts = email.split('@');
-    const local = parts[0];
-    const domain = parts.slice(1).join('@');
-    if (local.length <= 6) {
-      return email; // short local part – show as is
-    }
-    const first3 = local.substring(0, 3);
-    const last3 = local.substring(local.length - 3);
-    const masked = first3 + '***' + last3;
-    return masked + '@' + domain;
-  }
-
   // ---------- TIMESTAMP PARSER ----------
   function parseTimestamp(ts) {
     if (!ts) return new Date(NaN);
@@ -851,7 +836,7 @@
     return `<span style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:.05em;color:${color};">${esc(label)}</span>`;
   }
 
-  // ---------- RENDER SCANS TABLE (with masked email) ----------
+  // ---------- RENDER SCANS TABLE ----------
   function renderTable() {
     const filterValue = document.getElementById('filter-condition').value;
     const filtered = filterValue === 'all' ? scansData : scansData.filter(s => s.condition === filterValue);
@@ -867,8 +852,7 @@
     let html = '';
     filtered.forEach(s => {
       const phoneDisplay = s.phone && s.phone.trim() !== '' ? esc(s.phone) : '—';
-      const rawEmail = s.email && s.email.trim() !== '' ? s.email.trim() : null;
-      const emailDisplay = rawEmail ? esc(maskEmail(rawEmail)) : '—';
+      const emailDisplay = s.email && s.email.trim() !== '' ? esc(s.email) : '—';
       const rawImage = s.image || '';
       const imageSrc = /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(rawImage) ? rawImage : '';
       
@@ -1058,7 +1042,6 @@
     return map;
   }
 
-  // ---------- RENDER CONTACTS (with masked email) ----------
   function renderContacts() {
     contactsCache = buildContacts();
     const contacts = Object.values(contactsCache).sort((a, b) => (b.lastTs || 0) - (a.lastTs || 0));
@@ -1075,14 +1058,11 @@
     contacts.forEach(c => {
       const key = esc(c.phone);
       const lastLogged = c.lastTs ? c.lastTs.toLocaleString() : '—';
-      const rawEmail = c.email && c.email.trim() !== '' ? c.email.trim() : null;
-      const emailDisplay = rawEmail ? esc(maskEmail(rawEmail)) : '—';
-
       html += `
         <tr id="contact-row-${key}">
           <td style="font-weight:600;">${esc(c.name)}</td>
           <td style="font-family:'Share Tech Mono',monospace;">${key}</td>
-          <td style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);">${emailDisplay}</td>
+          <td style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);">${esc(c.email||'—')}</td>
           <td>${c.ids.length}</td>
           <td class="timestamp">${lastLogged}</td>
           <td class="actions">
@@ -1133,6 +1113,7 @@
     const contact = contactsCache[phone];
     if (!contact) return;
 
+    // If there are scans, update all scans
     if (contact.ids.length > 0) {
       try {
         await Promise.all(contact.ids.map(id => {
@@ -1152,6 +1133,7 @@
         loadScans();
       } catch { alert('Update failed.'); }
     } else {
+      // No scans – update the student record directly
       const studentToUpdate = allStudents.find(st => st.phone === phone);
       if (studentToUpdate) {
         try {
@@ -1182,6 +1164,7 @@
         loadScans();
       } catch { alert('Delete failed.'); }
     } else {
+      // No scans – delete the student record
       if (!confirm(`This will permanently delete the student "${contact.name}" from the directory. Continue?`)) return;
       try {
         const res = await fetch(`/api/students/by-phone/${encodeURIComponent(phone)}`, { method: 'DELETE' });
@@ -1250,14 +1233,12 @@
     const sevClass = { Green: 'sev-green', Yellow: 'sev-yellow', Red: 'sev-red' };
     const rows = dayScans.map(s => {
       const sev = normalizeSeverity(s.severity);
-      const rawEmail = s.email && s.email.trim() !== '' ? s.email.trim() : null;
-      const emailDisplay = rawEmail ? esc(maskEmail(rawEmail)) : '—';
       return `
         <tr>
           <td>${s.id}</td>
           <td>${esc(s.name)}</td>
           <td>${s.phone ? esc(s.phone) : '—'}</td>
-          <td>${emailDisplay}</td>
+          <td>${s.email ? esc(s.email) : '—'}</td>
           <td>${esc(s.condition)}</td>
           <td class="${sevClass[sev]}">${esc(sev)}</td>
           <td>${esc(s.advice || '—')}</td>

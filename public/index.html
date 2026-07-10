@@ -224,24 +224,26 @@
       BACK
     </button>
   </div>
-
-<!-- ── NOTIFICATION OPTIONS SCREEN ── -->
  
+<!-- ── NOTIFICATION OPTIONS SCREEN ── -->
 <div id="notify-options-screen" class="screen">
   <h2>NOTIFY PARENT</h2>
   <p>Choose how to notify <strong id="notify-student-name"></strong>'s parent.</p>
 
   <span class="section-label">◆ Channels</span>
 
-  <label>
-    <input type="checkbox" id="notify-channel-sms" checked>
-    SMS
-    <span class="channel-hint">(if phone available)</span>
+  <label style="display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--charcoal); border: 1px solid var(--steel); border-radius: var(--radius); cursor: pointer; transition: border-color .2s;">
+    <input type="checkbox" id="notify-channel-sms" style="width: 18px; height: 18px; accent-color: var(--gold); cursor: pointer;">
+    <span style="font-weight: 500;">SMS</span>
+    <span class="channel-hint" style="font-size: 12px; color: var(--text-faint);">(if phone available)</span>
+    <span id="notify-phone-preview" style="margin-left: auto; font-family: 'Share Tech Mono', monospace; font-size: 13px; color: var(--text-dim);">—</span>
   </label>
-  <label>
-    <input type="checkbox" id="notify-channel-email" checked>
-    Email
-    <span class="channel-hint">(if email available)</span>
+
+  <label style="display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--charcoal); border: 1px solid var(--steel); border-radius: var(--radius); cursor: pointer; transition: border-color .2s; margin-top: 8px;">
+    <input type="checkbox" id="notify-channel-email" style="width: 18px; height: 18px; accent-color: var(--gold); cursor: pointer;">
+    <span style="font-weight: 500;">Email</span>
+    <span class="channel-hint" style="font-size: 12px; color: var(--text-faint);">(if email available)</span>
+    <span id="notify-email-preview" style="margin-left: auto; font-family: 'Share Tech Mono', monospace; font-size: 13px; color: var(--text-dim);">—</span>
   </label>
 
   <div class="rule"></div>
@@ -254,7 +256,19 @@
     BACK
   </button>
 </div>
-  </div>
+
+  <!-- ─── PREVIEW ─── -->
+
+  <div class="rule"></div>
+  <button class="btn" id="send-notification-btn">
+    <span class="btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5a2 2 0 0 1 2-2h2.2a1 1 0 0 1 1 .8l1 4a1 1 0 0 1-.5 1.1L7 9.8a12 12 0 0 0 6.2 6.2l.9-1.7a1 1 0 0 1 1.1-.5l4 1a1 1 0 0 1 .8 1V19a2 2 0 0 1-2 2h-1C9.6 21 3 14.4 3 6Z"/></svg></span>
+    SEND NOTIFICATION
+  </button>
+  <button class="btn-outline" id="cancel-notify-btn">
+    <span class="btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></span>
+    BACK
+  </button>
+</div>
 
   <!-- ── HOSPITAL SCREEN ── -->
   <div id="hospital-screen" class="screen">

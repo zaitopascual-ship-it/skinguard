@@ -182,7 +182,17 @@ function requireAdmin(req, res, next) {
         return next();
     }
     if (req.path.startsWith('/api/')) {
-        return res.status(401).json({ error: 'Authentication required' });
+        return res.status(403).json({ error: 'Admin access required' });
+    }
+    res.redirect('/login');
+}
+
+function requireTeacherOrAdmin(req, res, next) {
+    if (req.session && (req.session.isAdmin || req.session.isTeacher)) {
+        return next();
+    }
+    if (req.path.startsWith('/api/')) {
+        return res.status(403).json({ error: 'Teacher or admin access required' });
     }
     res.redirect('/login');
 }
@@ -192,13 +202,6 @@ function requireSession(req, res, next) {
         return next();
     }
     res.status(401).json({ error: 'Unauthorized' });
-}
-
-function requireTeacherOrAdmin(req, res, next) {
-    if (req.session && (req.session.role === 'teacher' || req.session.role === 'admin')) {
-        return next();
-    }
-    res.status(403).json({ error: 'Teacher or admin access required' });
 }
 
 // ---------- PHONE SANITIZER ----------
@@ -360,25 +363,29 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'landing.html'));
 });
 
-app.get('/admin', requireAdmin, (req, res) => {
-    console.log('✅ Admin page accessed by:', req.session.username);
+app.get('/admin', requireTeacherOrAdmin, (req, res) => {
+    console.log('👤 Admin page accessed by:', req.session.username, 'role:', req.session.role);
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
-app.get('/admin.html', requireAdmin, (req, res) => {
+app.get('/admin.html', requireTeacherOrAdmin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
 // ---------- PROTECTED API ROUTES ----------
-app.use('/api/get-scans', requireAdmin);
+app.use('/api/get-scans', requireTeacherOrAdmin);
+app.use('/api/students', requireTeacherOrAdmin);
+app.use('/api/sms-requests', requireTeacherOrAdmin);
+
+// Write endpoints: only admins
 app.use('/api/add-scan', requireAdmin);
 app.use('/api/update-scan', requireAdmin);
 app.use('/api/delete-scan', requireAdmin);
 
-app.use('/api/students', requireSession);
+// Session required for these (guests, teachers, admins)
 app.use('/api/save-scan', requireSession);
 app.use('/api/analyze', requireSession);
 app.use('/api/send-sms', requireSession);
-app.use('/api/sms-requests', requireSession);
+app.use('/api/hospitals', requireSession);
 
 app.use('/api/analyze', analyzeLimiter);
 app.use('/api/send-sms', smsLimiter);
@@ -459,7 +466,9 @@ db.serialize(() => {
             resolvedBy TEXT,
             createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
             resolvedAt DATETIME,
-            channels TEXT
+            channels TEXT,
+            sms_status TEXT DEFAULT 'pending',
+            email_status TEXT DEFAULT 'pending'
         )
     `);
 
@@ -468,10 +477,22 @@ db.serialize(() => {
             console.warn('Could not add channels to sms_requests:', err.message);
         }
     });
+
+    db.run("ALTER TABLE sms_requests ADD COLUMN sms_status TEXT DEFAULT 'pending'", (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+            console.warn('Could not add sms_status:', err.message);
+        }
+    });
+
+    db.run("ALTER TABLE sms_requests ADD COLUMN email_status TEXT DEFAULT 'pending'", (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+            console.warn('Could not add email_status:', err.message);
+        }
+    });
 });
 
 // ---------- PUBLIC API ENDPOINTS ----------
-app.get('/api/students', (req, res) => {
+app.get('/api/students', requireTeacherOrAdmin, (req, res) => {
     db.all('SELECT id, name, phone, email FROM students ORDER BY name', (err, rows) => {
         if (err) {
             console.error(err);
@@ -483,7 +504,7 @@ app.get('/api/students', (req, res) => {
     });
 });
 
-app.post('/api/students', (req, res) => {
+app.post('/api/students', requireTeacherOrAdmin, (req, res) => {
     const { name, phone, email } = req.body;
     if (!name) return res.status(400).json({ error: 'Name required' });
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -535,6 +556,9 @@ app.post('/api/students', (req, res) => {
             });
         } else {
             const role = req.session.role || 'guest';
+            if (role !== 'teacher' && role !== 'admin') {
+                return res.status(403).json({ error: 'Only teachers or admins can add new students.' });
+            }
             const stmt = db.prepare('INSERT INTO students (name, phone, email, addedByRole) VALUES (?, ?, ?, ?)');
             stmt.run(name, sanitizedPhone, email || null, role, function(insertErr) {
                 if (insertErr) {
@@ -550,41 +574,7 @@ app.post('/api/students', (req, res) => {
     });
 });
 
-app.post('/api/save-scan', (req, res) => {
-    const { name, phone, scanToken, image } = req.body;
-    console.log('📥 Saving scan:', { name, phone, scanToken: scanToken ? scanToken.slice(0, 8) + '…' : null });
-
-    if (!name || !scanToken) {
-        return res.status(400).json({ error: 'Missing required fields (name, scanToken)' });
-    }
-
-    const pending = consumeScanToken(scanToken);
-    if (!pending) {
-        return res.status(400).json({ error: 'Scan session expired or invalid — please re-scan before saving.' });
-    }
-    const { condition, severity, advice, firstAid } = pending;
-
-    if (image && typeof image === 'string' && image.length > 2 * 1024 * 1024) {
-        return res.status(400).json({ error: 'Image too large (max 2MB)' });
-    }
-    const sanitizedPhone = sanitizePhone(phone);
-    if (sanitizedPhone === false) {
-        return res.status(400).json({ error: 'Invalid phone number format. Use a PH mobile number, e.g. 09XXXXXXXXX or +639XXXXXXXXX.' });
-    }
-    const submittedRole = req.session.role || 'guest';
-    const stmt = db.prepare('INSERT INTO scans (name, phone, condition, severity, advice, firstAid, image, submittedRole) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-    stmt.run(name, sanitizedPhone, condition, severity, advice, firstAid, image || null, submittedRole, function(err) {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ error: 'Database error' });
-        }
-        console.log('✅ Scan saved with ID:', this.lastID);
-        res.json({ id: this.lastID, message: 'Scan saved' });
-    });
-    stmt.finalize();
-});
-
-app.get('/api/get-scans', (req, res) => {
+app.get('/api/get-scans', requireTeacherOrAdmin, (req, res) => {
     db.all('SELECT * FROM scans ORDER BY timestamp DESC', (err, rows) => {
         if (err) {
             console.error(err);
@@ -595,7 +585,7 @@ app.get('/api/get-scans', (req, res) => {
     });
 });
 
-app.post('/api/add-scan', (req, res) => {
+app.post('/api/add-scan', requireAdmin, (req, res) => {
     const { name, phone, condition, severity, advice, firstAid, image, email } = req.body;
     if (!name || !condition || !severity) {
         return res.status(400).json({ error: 'Missing required fields' });
@@ -621,10 +611,7 @@ app.post('/api/add-scan', (req, res) => {
     stmt.finalize();
 });
 
-app.put('/api/update-scan/:id', (req, res) => {
-    if (req.session.role !== 'admin') {
-        return res.status(403).json({ error: 'Admin access required' });
-    }
+app.put('/api/update-scan/:id', requireAdmin, (req, res) => {
     const { id } = req.params;
     const { name, phone, condition, severity, advice, firstAid, email } = req.body;
     if (!name || !condition || !severity) {
@@ -653,10 +640,7 @@ app.put('/api/update-scan/:id', (req, res) => {
     stmt.finalize();
 });
 
-app.delete('/api/delete-scan/:id', (req, res) => {
-    if (req.session.role !== 'admin') {
-        return res.status(403).json({ error: 'Admin access required' });
-    }
+app.delete('/api/delete-scan/:id', requireAdmin, (req, res) => {
     const { id } = req.params;
     const stmt = db.prepare('DELETE FROM scans WHERE id = ?');
     stmt.run(id, function(err) {
@@ -672,7 +656,7 @@ app.delete('/api/delete-scan/:id', (req, res) => {
     stmt.finalize();
 });
 
-// ---------- Static fallback data ----------
+// ---------- STATIC FALLBACK DATA ----------
 const staticConditionData = {
     'bugbites': { severity: 'Green', advice: 'Minor – can go back to class. Monitor for swelling.', firstAid: 'Wash with soap and water. Apply cold compress. Use anti-itch cream if needed.' },
     'chickenpox': { severity: 'Red', advice: 'Serious – call parents immediately. Isolate child.', firstAid: 'Keep clean, avoid scratching, use calamine lotion, consult doctor immediately.' },
@@ -906,7 +890,42 @@ app.post('/api/analyze', async (req, res) => {
     }
 });
 
-// ---------- SMS SENDING (shared by direct sends and admin-approved requests) ----------
+// ---------- SAVE SCAN (for guests and teachers) ----------
+app.post('/api/save-scan', requireSession, saveScanLimiter, (req, res) => {
+    const { name, phone, scanToken, image } = req.body;
+    console.log('📥 Saving scan:', { name, phone, scanToken: scanToken ? scanToken.slice(0, 8) + '…' : null });
+
+    if (!name || !scanToken) {
+        return res.status(400).json({ error: 'Missing required fields (name, scanToken)' });
+    }
+
+    const pending = consumeScanToken(scanToken);
+    if (!pending) {
+        return res.status(400).json({ error: 'Scan session expired or invalid — please re-scan before saving.' });
+    }
+    const { condition, severity, advice, firstAid } = pending;
+
+    if (image && typeof image === 'string' && image.length > 2 * 1024 * 1024) {
+        return res.status(400).json({ error: 'Image too large (max 2MB)' });
+    }
+    const sanitizedPhone = sanitizePhone(phone);
+    if (sanitizedPhone === false) {
+        return res.status(400).json({ error: 'Invalid phone number format. Use a PH mobile number, e.g. 09XXXXXXXXX or +639XXXXXXXXX.' });
+    }
+    const submittedRole = req.session.role || 'guest';
+    const stmt = db.prepare('INSERT INTO scans (name, phone, condition, severity, advice, firstAid, image, submittedRole) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    stmt.run(name, sanitizedPhone, condition, severity, advice, firstAid, image || null, submittedRole, function(err) {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        console.log('✅ Scan saved with ID:', this.lastID);
+        res.json({ id: this.lastID, message: 'Scan saved' });
+    });
+    stmt.finalize();
+});
+
+// ---------- SMS SENDING ----------
 async function sendSmsViaProvider(validatedPhone, studentName, condition, advice) {
     const apiSecretKey = process.env.UNISMS_API_SECRET;
 
@@ -1010,7 +1029,7 @@ async function sendSmsViaProvider(validatedPhone, studentName, condition, advice
     }
 }
 
-// ---------- SMS ENDPOINT – only guests require approval ----------
+// ---------- SMS ENDPOINT ----------
 app.post('/api/send-sms', async (req, res) => {
     const { studentId, condition, advice, severity, channels } = req.body;
 
@@ -1053,11 +1072,13 @@ app.post('/api/send-sms', async (req, res) => {
 
         // ─── GUEST: queue for admin approval ───
         if (role === 'guest') {
+            const smsStatus = filteredChannels.includes('sms') ? 'pending' : 'none';
+            const emailStatus = filteredChannels.includes('email') ? 'pending' : 'none';
             const stmt = db.prepare(`
-                INSERT INTO sms_requests (studentName, phone, email, condition, advice, severity, requestedByRole, status, channels)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+                INSERT INTO sms_requests (studentName, phone, email, condition, advice, severity, requestedByRole, status, channels, sms_status, email_status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
             `);
-            stmt.run(studentName, validatedPhone, email, condition, advice || '', normalizeSeverity(severity) || null, role, filteredChannels.join(','), function(insertErr) {
+            stmt.run(studentName, validatedPhone, email, condition, advice || '', normalizeSeverity(severity) || null, role, filteredChannels.join(','), smsStatus, emailStatus, function(insertErr) {
                 if (insertErr) {
                     console.error(insertErr);
                     return res.status(500).json({ error: 'Database error while creating SMS request' });
@@ -1094,8 +1115,8 @@ app.post('/api/send-sms', async (req, res) => {
     });
 });
 
-// ---------- SMS APPROVAL QUEUE (admin only) ----------
-app.get('/api/sms-requests', requireAdmin, smsQueueLimiter, (req, res) => {
+// ---------- SMS APPROVAL QUEUE ----------
+app.get('/api/sms-requests', requireTeacherOrAdmin, (req, res) => {
     db.all('SELECT * FROM sms_requests ORDER BY createdAt DESC LIMIT 200', (err, rows) => {
         if (err) {
             console.error(err);
@@ -1105,7 +1126,7 @@ app.get('/api/sms-requests', requireAdmin, smsQueueLimiter, (req, res) => {
     });
 });
 
-app.post('/api/sms-requests/:id/approve', requireAdmin, smsQueueLimiter, async (req, res) => {
+app.post('/api/sms-requests/:id/approve-sms', requireAdmin, smsQueueLimiter, async (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid request id' });
 
@@ -1115,81 +1136,117 @@ app.post('/api/sms-requests/:id/approve', requireAdmin, smsQueueLimiter, async (
             return res.status(500).json({ error: 'Database error' });
         }
         if (!row) return res.status(404).json({ error: 'Request not found' });
-        if (row.status !== 'pending') return res.status(409).json({ error: `Request already ${row.status}` });
-
-        const storedChannels = row.channels ? row.channels.split(',') : ['sms', 'email'];
-        const smsRequested = storedChannels.includes('sms');
-        const emailRequested = storedChannels.includes('email');
+        if (row.sms_status !== 'pending') {
+            return res.status(409).json({ error: `SMS already ${row.sms_status}` });
+        }
 
         let smsResult = { ok: false, error: 'SMS not requested' };
-        let emailResult = { ok: false, error: 'Email not requested' };
-        if (smsRequested && row.phone) {
+        if (row.phone) {
             smsResult = await sendSmsViaProvider(row.phone, row.studentName, row.condition, row.advice);
         }
-        if (emailRequested && row.email) {
+
+        const newStatus = smsResult.ok ? 'approved' : 'failed';
+        db.run(
+            'UPDATE sms_requests SET sms_status = ?, resolvedBy = ?, resolvedAt = CURRENT_TIMESTAMP WHERE id = ?',
+            [newStatus, req.session.username || 'admin', id],
+            (updateErr) => {
+                if (updateErr) console.error('Failed to update sms_status:', updateErr);
+            }
+        );
+        console.log(`${newStatus === 'approved' ? '✅' : '❌'} SMS #${id} ${newStatus} by ${req.session.username}`);
+        res.json({ success: newStatus === 'approved', status: newStatus, sms: smsResult });
+    });
+});
+
+app.post('/api/sms-requests/:id/reject-sms', requireAdmin, smsQueueLimiter, async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid request id' });
+
+    db.get('SELECT * FROM sms_requests WHERE id = ?', [id], async (err, row) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        if (!row) return res.status(404).json({ error: 'Request not found' });
+        if (row.sms_status !== 'pending') {
+            return res.status(409).json({ error: `SMS already ${row.sms_status}` });
+        }
+        db.run(
+            'UPDATE sms_requests SET sms_status = ?, resolvedBy = ?, resolvedAt = CURRENT_TIMESTAMP WHERE id = ?',
+            ['rejected', req.session.username || 'admin', id],
+            (updateErr) => {
+                if (updateErr) console.error('Failed to update sms_status:', updateErr);
+            }
+        );
+        console.log(`🚫 SMS #${id} rejected by ${req.session.username}`);
+        res.json({ success: true, status: 'rejected' });
+    });
+});
+
+app.post('/api/sms-requests/:id/approve-email', requireAdmin, smsQueueLimiter, async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid request id' });
+
+    db.get('SELECT * FROM sms_requests WHERE id = ?', [id], async (err, row) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        if (!row) return res.status(404).json({ error: 'Request not found' });
+        if (row.email_status !== 'pending') {
+            return res.status(409).json({ error: `Email already ${row.email_status}` });
+        }
+
+        let emailResult = { ok: false, error: 'Email not requested' };
+        if (row.email) {
             emailResult = await sendEmailViaProvider(row.email, row.studentName, row.condition, row.advice);
         }
 
-        const allOk = (smsRequested ? smsResult.ok : true) &&
-                      (emailRequested ? emailResult.ok : true);
-        const newStatus = allOk ? 'approved' : 'failed';
-
+        const newStatus = emailResult.ok ? 'approved' : 'failed';
         db.run(
-            'UPDATE sms_requests SET status = ?, resolvedBy = ?, resolvedAt = CURRENT_TIMESTAMP WHERE id = ?',
+            'UPDATE sms_requests SET email_status = ?, resolvedBy = ?, resolvedAt = CURRENT_TIMESTAMP WHERE id = ?',
             [newStatus, req.session.username || 'admin', id],
             (updateErr) => {
-                if (updateErr) console.error('Failed to update sms_request status:', updateErr);
+                if (updateErr) console.error('Failed to update email_status:', updateErr);
             }
         );
-
-        console.log(`${newStatus === 'approved' ? '✅' : '❌'} SMS request #${id} ${newStatus} by ${req.session.username}`);
-        res.status(allOk ? 200 : 500).json({
-            success: newStatus === 'approved',
-            requestStatus: newStatus,
-            sms: smsResult,
-            email: emailResult,
-        });
+        console.log(`${newStatus === 'approved' ? '✅' : '❌'} Email #${id} ${newStatus} by ${req.session.username}`);
+        res.json({ success: newStatus === 'approved', status: newStatus, email: emailResult });
     });
 });
 
-app.post('/api/sms-requests/:id/reject', requireAdmin, smsQueueLimiter, (req, res) => {
+app.post('/api/sms-requests/:id/reject-email', requireAdmin, smsQueueLimiter, async (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid request id' });
 
-    db.get('SELECT * FROM sms_requests WHERE id = ?', [id], (err, row) => {
+    db.get('SELECT * FROM sms_requests WHERE id = ?', [id], async (err, row) => {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
         }
         if (!row) return res.status(404).json({ error: 'Request not found' });
-        if (row.status !== 'pending') return res.status(409).json({ error: `Request already ${row.status}` });
-
+        if (row.email_status !== 'pending') {
+            return res.status(409).json({ error: `Email already ${row.email_status}` });
+        }
         db.run(
-            'UPDATE sms_requests SET status = ?, resolvedBy = ?, resolvedAt = CURRENT_TIMESTAMP WHERE id = ?',
+            'UPDATE sms_requests SET email_status = ?, resolvedBy = ?, resolvedAt = CURRENT_TIMESTAMP WHERE id = ?',
             ['rejected', req.session.username || 'admin', id],
             (updateErr) => {
-                if (updateErr) {
-                    console.error(updateErr);
-                    return res.status(500).json({ error: 'Failed to reject request' });
-                }
-                console.log(`🚫 SMS request #${id} rejected by ${req.session.username}`);
-                res.json({ success: true, requestStatus: 'rejected' });
+                if (updateErr) console.error('Failed to update email_status:', updateErr);
             }
         );
+        console.log(`🚫 Email #${id} rejected by ${req.session.username}`);
+        res.json({ success: true, status: 'rejected' });
     });
 });
 
-app.get('/api/sms-requests/:id/status', requireSession, smsStatusLimiter, (req, res) => {
+app.delete('/api/sms-requests/:id', requireAdmin, (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid request id' });
-
-    db.get('SELECT id, status, studentName FROM sms_requests WHERE id = ?', [id], (err, row) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ error: 'Database error' });
-        }
-        if (!row) return res.status(404).json({ error: 'Request not found' });
-        res.json({ id: row.id, status: row.status, studentName: row.studentName });
+    db.run('DELETE FROM sms_requests WHERE id = ?', [id], function(err) {
+        if (err) { console.error(err); return res.status(500).json({ error: 'Database error' }); }
+        if (this.changes === 0) return res.status(404).json({ error: 'Request not found' });
+        res.json({ message: 'Request deleted' });
     });
 });
 

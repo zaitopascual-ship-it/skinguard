@@ -90,6 +90,19 @@ function isValidPhone(phone) {
     return /^[\d+]+$/.test(phone);
 }
 
+function maskEmail(email) {
+  if (!email || !email.includes('@')) return email || '—';
+  const parts = email.split('@');
+  const local = parts[0];
+  const domain = parts.slice(1).join('@');
+  if (local.length <= 6) {
+    return email;
+  }
+  const first3 = local.substring(0, 3);
+  const last3 = local.substring(local.length - 3);
+  return first3 + '***' + last3 + '@' + domain;
+}
+
 // ---------- MASK FUNCTIONS ----------
 function maskName(name) {
     if (!name) return '';
@@ -100,23 +113,35 @@ function maskName(name) {
 }
 
 function maskPhone(phone) {
-    if (!phone) return 'No phone';
-    if (isTeacher) return phone;
-    let cleaned = phone.replace(/[^\d+]/g, '');
-    let prefix = '';
-    let number = cleaned;
-    if (cleaned.startsWith('+')) {
-        prefix = '+';
-        number = cleaned.substring(1);
-    }
-    if (number.length > 4) {
-        let last4 = number.slice(-4);
-        let masked = '*'.repeat(number.length - 4) + last4;
-        return prefix + masked;
-    }
-    return prefix + number;
+  if (!phone) return 'No phone';
+  // Existing maskPhone – keeps prefix + last 4 digits
+  let cleaned = phone.replace(/[^\d+]/g, '');
+  let prefix = '';
+  let number = cleaned;
+  if (cleaned.startsWith('+')) {
+    prefix = '+';
+    number = cleaned.substring(1);
+  }
+  if (number.length > 4) {
+    let last4 = number.slice(-4);
+    let masked = '*'.repeat(number.length - 4) + last4;
+    return prefix + masked;
+  }
+  return prefix + number;
 }
 
+function maskEmail(email) {
+  if (!email || !email.includes('@')) return email || '—';
+  const parts = email.split('@');
+  const local = parts[0];
+  const domain = parts.slice(1).join('@');
+  if (local.length <= 6) {
+    return email;
+  }
+  const first3 = local.substring(0, 3);
+  const last3 = local.substring(local.length - 3);
+  return first3 + '***' + last3 + '@' + domain;
+}
 // ---------- SCREEN MANAGEMENT ----------
 function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -308,18 +333,32 @@ function selectStudent(student) {
 }
 
 function showNotifyOptions(student) {
-    document.getElementById('notify-student-name').textContent = student.name;
-    const smsCheck = document.getElementById('notify-channel-sms');
-    const emailCheck = document.getElementById('notify-channel-email');
-    smsCheck.checked = !!(student.phone && student.phone.trim() !== '');
-    emailCheck.checked = !!(student.email && student.email.trim() !== '');
-    smsCheck.disabled = !smsCheck.checked;
-    emailCheck.disabled = !emailCheck.checked;
-    if (!smsCheck.checked) smsCheck.parentElement.style.opacity = '0.5';
-    else smsCheck.parentElement.style.opacity = '1';
-    if (!emailCheck.checked) emailCheck.parentElement.style.opacity = '0.5';
-    else emailCheck.parentElement.style.opacity = '1';
-    showScreen('notify-options-screen');
+  document.getElementById('notify-student-name').textContent = student.name;
+
+  const phone = student.phone && student.phone.trim() !== '' ? student.phone : null;
+  const email = student.email && student.email.trim() !== '' ? student.email : null;
+
+  // ─── Always mask phone and email (privacy) ───
+  let phoneDisplay = phone ? maskPhone(phone) : '—';
+  let emailDisplay = email ? maskEmail(email) : '—';
+
+  document.getElementById('notify-phone-preview').textContent = phoneDisplay;
+  document.getElementById('notify-email-preview').textContent = emailDisplay;
+
+  // Checkboxes
+  const smsCheck = document.getElementById('notify-channel-sms');
+  const emailCheck = document.getElementById('notify-channel-email');
+
+  smsCheck.checked = !!phone;
+  emailCheck.checked = !!email;
+
+  smsCheck.disabled = !smsCheck.checked;
+  emailCheck.disabled = !emailCheck.checked;
+
+  smsCheck.parentElement.style.opacity = smsCheck.disabled ? '0.4' : '1';
+  emailCheck.parentElement.style.opacity = emailCheck.disabled ? '0.4' : '1';
+
+  showScreen('notify-options-screen');
 }
 
 // ---------- PERFORM SAVE ----------
