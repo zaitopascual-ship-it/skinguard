@@ -748,6 +748,22 @@
 </div>
 
 <script>
+  // ---------- CSRF HELPER ----------
+  // The server sets a random 'XSRF-TOKEN' cookie on every response. We must
+  // echo it back in the X-CSRF-Token header on any state-changing request
+  // (POST/PUT/DELETE/PATCH) or the server will reject it with 403.
+  function getCookie(name) {
+    const match = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+    return match ? decodeURIComponent(match[2]) : null;
+  }
+  function csrfFetch(url, options = {}) {
+    const method = (options.method || 'GET').toUpperCase();
+    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+      options.headers = { ...(options.headers || {}), 'X-CSRF-Token': getCookie('XSRF-TOKEN') || '' };
+    }
+    return fetch(url, options);
+  }
+
   let scansData = [];
   let allStudents = [];
   let smsRequests = [];
@@ -932,7 +948,7 @@
     };
     if (!body.name || !body.condition) return alert('Name and condition required.');
     try {
-      const r = await fetch(`/api/update-scan/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+      const r = await csrfFetch(`/api/update-scan/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
       if (!r.ok) throw new Error();
       loadScans();
     } catch { alert('Update failed.'); }
@@ -941,7 +957,7 @@
     if (userRole !== 'admin') return;
     if (!confirm('Eliminate this record?')) return;
     try {
-      const r = await fetch(`/api/delete-scan/${id}`, { method:'DELETE' });
+      const r = await csrfFetch(`/api/delete-scan/${id}`, { method:'DELETE' });
       if (!r.ok) throw new Error();
       loadScans();
     } catch { alert('Delete failed.'); }
@@ -1030,7 +1046,7 @@
   window.approveSms = async (id) => {
     if (!confirm('Approve SMS? This will send an SMS to the parent.')) return;
     try {
-      const r = await fetch(`/api/sms-requests/${id}/approve-sms`, { method: 'POST' });
+      const r = await csrfFetch(`/api/sms-requests/${id}/approve-sms`, { method: 'POST' });
       const data = await r.json();
       if (!r.ok || data.success === false) {
         alert(`❌ Failed: ${data.error || 'Unknown error'}`);
@@ -1044,7 +1060,7 @@
   window.rejectSms = async (id) => {
     if (!confirm('Reject SMS request?')) return;
     try {
-      const r = await fetch(`/api/sms-requests/${id}/reject-sms`, { method: 'POST' });
+      const r = await csrfFetch(`/api/sms-requests/${id}/reject-sms`, { method: 'POST' });
       if (!r.ok) { const data = await r.json(); alert(`❌ Failed: ${data.error}`); }
       else { alert('✅ SMS rejected.'); }
     } catch (e) { console.error(e); alert('Network error.'); }
@@ -1054,7 +1070,7 @@
   window.approveEmail = async (id) => {
     if (!confirm('Approve Email? This will send an email to the parent.')) return;
     try {
-      const r = await fetch(`/api/sms-requests/${id}/approve-email`, { method: 'POST' });
+      const r = await csrfFetch(`/api/sms-requests/${id}/approve-email`, { method: 'POST' });
       const data = await r.json();
       if (!r.ok || data.success === false) {
         alert(`❌ Failed: ${data.error || 'Unknown error'}`);
@@ -1068,7 +1084,7 @@
   window.rejectEmail = async (id) => {
     if (!confirm('Reject Email request?')) return;
     try {
-      const r = await fetch(`/api/sms-requests/${id}/reject-email`, { method: 'POST' });
+      const r = await csrfFetch(`/api/sms-requests/${id}/reject-email`, { method: 'POST' });
       if (!r.ok) { const data = await r.json(); alert(`❌ Failed: ${data.error}`); }
       else { alert('✅ Email rejected.'); }
     } catch (e) { console.error(e); alert('Network error.'); }
@@ -1078,7 +1094,7 @@
   window.deleteRequest = async (id) => {
     if (!confirm('Delete this request permanently?')) return;
     try {
-      const r = await fetch(`/api/sms-requests/${id}`, { method: 'DELETE' });
+      const r = await csrfFetch(`/api/sms-requests/${id}`, { method: 'DELETE' });
       if (!r.ok) { const data = await r.json(); alert(`❌ Failed: ${data.error}`); }
       else { alert('✅ Request deleted.'); }
     } catch (e) { console.error(e); alert('Network error.'); }
@@ -1205,7 +1221,7 @@
             advice:    record.advice || '',
             firstAid:  record.firstAid || '',
           };
-          return fetch(`/api/update-scan/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+          return csrfFetch(`/api/update-scan/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         }));
         loadScans();
       } catch { alert('Update failed.'); }
@@ -1213,7 +1229,7 @@
       const studentToUpdate = allStudents.find(st => st.phone === phone);
       if (studentToUpdate) {
         try {
-          const res = await fetch('/api/students', {
+          const res = await csrfFetch('/api/students', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: newName, phone: newPhone, email: newEmail })
@@ -1236,13 +1252,13 @@
     if (n > 0) {
       if (!confirm(`This will permanently delete ${n} scan record(s) for ${contact.name}. Continue?`)) return;
       try {
-        await Promise.all(contact.ids.map(id => fetch(`/api/delete-scan/${id}`, { method: 'DELETE' })));
+        await Promise.all(contact.ids.map(id => csrfFetch(`/api/delete-scan/${id}`, { method: 'DELETE' })));
         loadScans();
       } catch { alert('Delete failed.'); }
     } else {
       if (!confirm(`This will permanently delete the student "${contact.name}" from the directory. Continue?`)) return;
       try {
-        const res = await fetch(`/api/students/by-phone/${encodeURIComponent(phone)}`, { method: 'DELETE' });
+        const res = await csrfFetch(`/api/students/by-phone/${encodeURIComponent(phone)}`, { method: 'DELETE' });
         if (!res.ok) throw new Error('Failed to delete student');
         loadScans();
       } catch (e) {
@@ -1268,7 +1284,7 @@
     };
     if (!body.name || !body.condition) return alert('Name and condition required.');
     try {
-      const r = await fetch('/api/add-scan', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+      const r = await csrfFetch('/api/add-scan', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
       if (!r.ok) throw new Error();
       ['new-name','new-phone','new-email','new-condition','new-advice','new-firstaid'].forEach(i => document.getElementById(i).value='');
       document.getElementById('new-severity').value = 'Green';

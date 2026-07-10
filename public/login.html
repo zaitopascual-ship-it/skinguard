@@ -201,6 +201,11 @@
 </div>
 
 <script>
+  function getCookie(name) {
+    const match = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+    return match ? decodeURIComponent(match[2]) : null;
+  }
+
   document.getElementById('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -222,7 +227,10 @@
     try {
       const response = await fetch('/api/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': getCookie('XSRF-TOKEN') || ''
+        },
         body: JSON.stringify({ username, password })
       });
 

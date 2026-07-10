@@ -1,3 +1,20 @@
+// ---------- CSRF HELPER ----------
+// The server sets a random 'XSRF-TOKEN' cookie on every response. We must
+// echo it back in the X-CSRF-Token header on any state-changing request
+// (POST/PUT/DELETE/PATCH) or the server will reject it with 403.
+function getCookie(name) {
+    const match = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+    return match ? decodeURIComponent(match[2]) : null;
+}
+
+function csrfFetch(url, options = {}) {
+    const method = (options.method || 'GET').toUpperCase();
+    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+        options.headers = { ...(options.headers || {}), 'X-CSRF-Token': getCookie('XSRF-TOKEN') || '' };
+    }
+    return fetch(url, options);
+}
+
 let capturedImage = null;
 let videoStream = null;
 let currentFacingMode = 'environment';
@@ -208,7 +225,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     btn.disabled = true;
     btn.textContent = 'LOGGING IN...';
     try {
-        const res = await fetch('/api/login', {
+        const res = await csrfFetch('/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password })
@@ -249,7 +266,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
 
 document.getElementById('guest-btn').addEventListener('click', async function() {
     try {
-        const response = await fetch('/api/guest-login', {
+        const response = await csrfFetch('/api/guest-login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         });
@@ -376,7 +393,7 @@ async function performSave() {
         };
         console.log('📤 Sending save request with payload:', { name: payload.name, phone: payload.phone, scanToken: payload.scanToken ? payload.scanToken.substring(0, 10) + '…' : null, imageSize: payload.image ? payload.image.length : 0 });
 
-        const response = await fetch('/api/save-scan', {
+        const response = await csrfFetch('/api/save-scan', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -430,7 +447,7 @@ async function performNotifyWithChannels(channels) {
     btn.disabled = true;
 
     try {
-        const response = await fetch('/api/send-sms', {
+        const response = await csrfFetch('/api/send-sms', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -515,7 +532,7 @@ async function autoSaveScan(result) {
         image: capturedImage
     };
     try {
-        const response = await fetch('/api/save-scan', {
+        const response = await csrfFetch('/api/save-scan', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -579,7 +596,7 @@ document.getElementById('confirm-add-student-btn').addEventListener('click', asy
     const fullName = firstName + ' ' + lastName;
 
     try {
-        const response = await fetch('/api/students', {
+        const response = await csrfFetch('/api/students', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: fullName, phone: phone || null, email: email || null })
@@ -805,7 +822,7 @@ async function analyzeImage() {
     showLoading();
     try {
         const resizedImage = await resizeImage(capturedImage, 600, 600, 0.7); // Better compression
-        const response = await fetch('/api/analyze', {
+        const response = await csrfFetch('/api/analyze', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ image: resizedImage })

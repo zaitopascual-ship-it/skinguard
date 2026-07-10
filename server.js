@@ -12,6 +12,7 @@ const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const cookieParser = require('cookie-parser'); // npm install cookie-parser
 require('dotenv').config();
 
 // ---------- ENV CHECKS ----------
@@ -49,17 +50,30 @@ if (process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS) 
     console.warn('⚠️ Email not configured – skipping email notifications');
 }
 
+function escapeHtmlForEmail(unsafe) {
+    if (unsafe === null || unsafe === undefined) return '';
+    return String(unsafe)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 async function sendEmailViaProvider(toEmail, studentName, condition, advice) {
     if (!emailTransporter) {
         console.warn('📧 Email transport not available – skipping');
         return { ok: false, error: 'Email not configured' };
     }
+    const safeName = escapeHtmlForEmail(studentName);
+    const safeCondition = escapeHtmlForEmail(condition);
+    const safeAdvice = escapeHtmlForEmail(advice);
     const subject = `SkinGuard Alert for ${studentName}`;
     const text = `Dear parent/guardian of ${studentName},\n\nYour child was assessed with: ${condition}.\n${advice}\n\nPlease take appropriate action.\n\n— AMA Santiago Campus Clinic`;
     const html = `<p><strong>SkinGuard Alert</strong></p>
-    <p>Dear parent/guardian of <strong>${studentName}</strong>,</p>
-    <p>Your child was assessed with: <strong>${condition}</strong>.</p>
-    <p>${advice}</p>
+    <p>Dear parent/guardian of <strong>${safeName}</strong>,</p>
+    <p>Your child was assessed with: <strong>${safeCondition}</strong>.</p>
+    <p>${safeAdvice}</p>
     <p>Please take appropriate action.</p>
     <p>— AMA Santiago Campus Clinic</p>`;
     try {
@@ -185,6 +199,47 @@ app.use(session({
         maxAge: 24 * 60 * 60 * 1000
     }
 }));
+
+app.use(cookieParser());
+
+// ---------- CSRF PROTECTION (double-submit cookie) ----------
+// Every response ensures the browser holds a random, unguessable token in a
+// non-httpOnly cookie. Every state-changing request must echo that same
+// value back in the X-CSRF-Token header. A cross-site form/script can send
+// the cookie automatically but cannot read it (or the correct value) to
+// build the matching header, so forged requests are rejected.
+function ensureCsrfCookie(req, res, next) {
+    if (!req.cookies || !req.cookies['XSRF-TOKEN']) {
+        const token = crypto.randomBytes(32).toString('hex');
+        res.cookie('XSRF-TOKEN', token, {
+            httpOnly: false, // must be readable by client JS
+            sameSite: 'lax',
+            secure: process.env.NODE_ENV === 'production',
+            maxAge: 24 * 60 * 60 * 1000
+        });
+        req.csrfToken = token;
+    } else {
+        req.csrfToken = req.cookies['XSRF-TOKEN'];
+    }
+    next();
+}
+
+function verifyCsrf(req, res, next) {
+    const cookieToken = req.cookies && req.cookies['XSRF-TOKEN'];
+    const headerToken = req.headers['x-csrf-token'];
+    if (!cookieToken || !headerToken || cookieToken !== headerToken) {
+        return res.status(403).json({ error: 'CSRF validation failed. Please refresh the page and try again.' });
+    }
+    next();
+}
+
+app.use(ensureCsrfCookie);
+app.use((req, res, next) => {
+    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method) && req.path.startsWith('/api/')) {
+        return verifyCsrf(req, res, next);
+    }
+    next();
+});
 
 // ---------- AUTH MIDDLEWARES ----------
 function requireAdmin(req, res, next) {
