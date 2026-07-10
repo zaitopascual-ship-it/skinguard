@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    /* ── YOUR EXISTING STYLES – KEEP THEM UNCHANGED ── */
+  
     :root {
       --void:       #0A0205;
       --obsidian:   #120408;
@@ -632,13 +632,14 @@
 
   <!-- Charts Panel -->
   <div class="panel">
-    <div class="panel-title">◆ &nbsp; Scan Trends</div>
+    <div class="panel-title">◆ &nbsp; Scan Trends (Last 14 Days)</div>
     <div class="stat-strip" id="stat-strip">
       <div class="stat-card total"><div class="stat-num" id="stat-total">0</div><div class="stat-label"><span class="dot"></span>Total Scans</div></div>
       <div class="stat-card green"><div class="stat-num" id="stat-green">0</div><div class="stat-label"><span class="dot"></span>Green — Clear</div></div>
       <div class="stat-card yellow"><div class="stat-num" id="stat-yellow">0</div><div class="stat-label"><span class="dot"></span>Yellow — Moderate</div></div>
       <div class="stat-card red"><div class="stat-num" id="stat-red">0</div><div class="stat-label"><span class="dot"></span>Red — Urgent</div></div>
     </div>
+
     <div class="chart-grid">
       <div class="chart-box"><canvas id="totalScansChart" height="150"></canvas></div>
       <div class="chart-box"><canvas id="severityTrendChart" height="150"></canvas></div>
@@ -729,8 +730,16 @@
     <div class="table-panel">
       <div class="table-wrap">
         <table id="sms-requests-table">
-          <thead><tr><th>ID</th><th>Student</th><th>Parent Phone</th><th>Condition</th><th>Level</th><th>Requested By</th><th>Requested</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody id="sms-requests-body"><tr><td colspan="9" class="empty-state">loading requests…</td></tr></tbody>
+          <thead>
+            <tr>
+              <th>ID</th><th>Student</th><th>Phone</th><th>Email</th><th>Condition</th><th>Level</th>
+              <th>Requested By</th><th>Requested</th>
+              <th style="text-align:center;">SMS Status</th>
+              <th style="text-align:center;">Email Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="sms-requests-body"><tr><td colspan="11" class="empty-state">loading requests…</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -961,49 +970,118 @@
 
   function renderSmsRequests() {
     const tbody = document.getElementById('sms-requests-body');
-    const pendingCount = smsRequests.filter(r => r.status === 'pending').length;
+    const pendingCount = smsRequests.filter(r => r.sms_status === 'pending' || r.email_status === 'pending').length;
     document.getElementById('sms-pending-count').textContent = pendingCount;
     const badge = document.getElementById('sms-badge');
     if (pendingCount > 0) { badge.textContent = pendingCount; badge.style.display = ''; } else { badge.style.display = 'none'; }
-    if (smsRequests.length === 0) { tbody.innerHTML = `<tr><td colspan="9" class="empty-state">📭 No SMS requests yet.</td></tr>`; return; }
-    const statusColors = { pending: '#F5C400', approved: '#4ADE80', rejected: '#FF6B6B', failed: '#FF6B6B' };
-    tbody.innerHTML = smsRequests.map(r => `
-      <tr id="sms-row-${r.id}">
-        <td class="id-cell">${r.id}</td>
-        <td style="font-weight:600;">${esc(r.studentName)}</td>
-        <td style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);">${esc(r.phone)}</td>
-        <td>${esc(r.condition)}</td>
-        <td>${r.severity ? `<span class="severity-pill ${sc(r.severity)}">${esc(r.severity)}</span>` : '—'}</td>
-        <td>${sourceBadge(r.requestedByRole)}</td>
-        <td class="timestamp">${parseTimestamp(r.createdAt).toLocaleString()}</td>
-        <td><span style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:.05em;color:${statusColors[r.status] || 'var(--text-faint)'};">${esc((r.status || '').toUpperCase())}</span></td>
-        <td class="actions">
-          ${r.status === 'pending' ? `
-            <button class="btn-save" onclick="approveSmsRequest(${r.id})">APPROVE</button>
-            <button class="btn-delete" onclick="rejectSmsRequest(${r.id})">REJECT</button>
-          ` : `<span style="color:var(--text-faint);font-size:11px;">—</span>`}
-        </td>
-      </tr>
-    `).join('');
+
+    if (smsRequests.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="11" class="empty-state">📭 No SMS requests yet.</td></tr>`;
+      return;
+    }
+
+    const statusColors = { pending: '#F5C400', approved: '#4ADE80', rejected: '#FF6B6B', failed: '#FF6B6B', none: '#4A2830' };
+
+    tbody.innerHTML = smsRequests.map(r => {
+      const smsStatus = r.sms_status || 'pending';
+      const emailStatus = r.email_status || 'pending';
+
+      let smsButtons = '';
+      if (smsStatus === 'pending') {
+        smsButtons = `
+          <button class="btn-save" onclick="approveSms('${r.id}')">Approve</button>
+          <button class="btn-delete" onclick="rejectSms('${r.id}')">Reject</button>
+        `;
+      } else {
+        smsButtons = `<span style="color:${statusColors[smsStatus]};">${smsStatus.toUpperCase()}</span>`;
+      }
+
+      let emailButtons = '';
+      if (emailStatus === 'pending') {
+        emailButtons = `
+          <button class="btn-save" onclick="approveEmail('${r.id}')">Approve</button>
+          <button class="btn-delete" onclick="rejectEmail('${r.id}')">Reject</button>
+        `;
+      } else {
+        emailButtons = `<span style="color:${statusColors[emailStatus]};">${emailStatus.toUpperCase()}</span>`;
+      }
+
+      return `
+        <tr id="sms-row-${r.id}">
+          <td class="id-cell">${r.id}</td>
+          <td style="font-weight:600;">${esc(r.studentName)}</td>
+          <td style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);">${esc(r.phone)}</td>
+          <td style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);">${esc(r.email || '—')}</td>
+          <td>${esc(r.condition)}</td>
+          <td>${r.severity ? `<span class="severity-pill ${sc(r.severity)}">${esc(r.severity)}</span>` : '—'}</td>
+          <td>${sourceBadge(r.requestedByRole)}</td>
+          <td class="timestamp">${parseTimestamp(r.createdAt).toLocaleString()}</td>
+          <td style="text-align:center;">${smsButtons}</td>
+          <td style="text-align:center;">${emailButtons}</td>
+          <td class="actions" style="text-align:center;">
+            <button class="btn-delete" onclick="deleteRequest('${r.id}')">DELETE</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
   }
 
-  window.approveSmsRequest = async (id) => {
-    if (!confirm('Approve this request? The SMS will be sent to the parent immediately.')) return;
+  // ---------- SEPARATE APPROVAL FUNCTIONS ----------
+  window.approveSms = async (id) => {
+    if (!confirm('Approve SMS? This will send an SMS to the parent.')) return;
     try {
-      const r = await fetch(`/api/sms-requests/${id}/approve`, { method: 'POST' });
+      const r = await fetch(`/api/sms-requests/${id}/approve-sms`, { method: 'POST' });
       const data = await r.json();
-      if (!r.ok || data.success === false) alert(`❌ Failed to send: ${data.error || 'Unknown error'}`);
-      else alert('✅ SMS sent to parent.');
-    } catch (e) { console.error(e); alert('Network error while approving request.'); }
+      if (!r.ok || data.success === false) {
+        alert(`❌ Failed: ${data.error || 'Unknown error'}`);
+      } else {
+        alert('✅ SMS approved and sent.');
+      }
+    } catch (e) { console.error(e); alert('Network error.'); }
     loadSmsRequests();
   };
 
-  window.rejectSmsRequest = async (id) => {
-    if (!confirm('Reject this SMS request? No message will be sent.')) return;
+  window.rejectSms = async (id) => {
+    if (!confirm('Reject SMS request?')) return;
     try {
-      const r = await fetch(`/api/sms-requests/${id}/reject`, { method: 'POST' });
-      if (!r.ok) { const data = await r.json(); alert(`❌ Failed to reject: ${data.error || 'Unknown error'}`); }
-    } catch (e) { console.error(e); alert('Network error while rejecting request.'); }
+      const r = await fetch(`/api/sms-requests/${id}/reject-sms`, { method: 'POST' });
+      if (!r.ok) { const data = await r.json(); alert(`❌ Failed: ${data.error}`); }
+      else { alert('✅ SMS rejected.'); }
+    } catch (e) { console.error(e); alert('Network error.'); }
+    loadSmsRequests();
+  };
+
+  window.approveEmail = async (id) => {
+    if (!confirm('Approve Email? This will send an email to the parent.')) return;
+    try {
+      const r = await fetch(`/api/sms-requests/${id}/approve-email`, { method: 'POST' });
+      const data = await r.json();
+      if (!r.ok || data.success === false) {
+        alert(`❌ Failed: ${data.error || 'Unknown error'}`);
+      } else {
+        alert('✅ Email approved and sent.');
+      }
+    } catch (e) { console.error(e); alert('Network error.'); }
+    loadSmsRequests();
+  };
+
+  window.rejectEmail = async (id) => {
+    if (!confirm('Reject Email request?')) return;
+    try {
+      const r = await fetch(`/api/sms-requests/${id}/reject-email`, { method: 'POST' });
+      if (!r.ok) { const data = await r.json(); alert(`❌ Failed: ${data.error}`); }
+      else { alert('✅ Email rejected.'); }
+    } catch (e) { console.error(e); alert('Network error.'); }
+    loadSmsRequests();
+  };
+
+  window.deleteRequest = async (id) => {
+    if (!confirm('Delete this request permanently?')) return;
+    try {
+      const r = await fetch(`/api/sms-requests/${id}`, { method: 'DELETE' });
+      if (!r.ok) { const data = await r.json(); alert(`❌ Failed: ${data.error}`); }
+      else { alert('✅ Request deleted.'); }
+    } catch (e) { console.error(e); alert('Network error.'); }
     loadSmsRequests();
   };
 
@@ -1113,7 +1191,6 @@
     const contact = contactsCache[phone];
     if (!contact) return;
 
-    // If there are scans, update all scans
     if (contact.ids.length > 0) {
       try {
         await Promise.all(contact.ids.map(id => {
@@ -1133,7 +1210,6 @@
         loadScans();
       } catch { alert('Update failed.'); }
     } else {
-      // No scans – update the student record directly
       const studentToUpdate = allStudents.find(st => st.phone === phone);
       if (studentToUpdate) {
         try {
@@ -1164,7 +1240,6 @@
         loadScans();
       } catch { alert('Delete failed.'); }
     } else {
-      // No scans – delete the student record
       if (!confirm(`This will permanently delete the student "${contact.name}" from the directory. Continue?`)) return;
       try {
         const res = await fetch(`/api/students/by-phone/${encodeURIComponent(phone)}`, { method: 'DELETE' });
@@ -1203,7 +1278,7 @@
 
   document.getElementById('filter-condition').addEventListener('change', () => renderTable());
 
-  // ---------- PRINT BY DAY ----------
+  // ---------- PRINT BY DAY (UPDATED: removed advice and firstAid) ----------
   function toLocalDateKey(date) {
     return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
   }
@@ -1241,8 +1316,6 @@
           <td>${s.email ? esc(s.email) : '—'}</td>
           <td>${esc(s.condition)}</td>
           <td class="${sevClass[sev]}">${esc(sev)}</td>
-          <td>${esc(s.advice || '—')}</td>
-          <td>${esc(s.firstAid || '—')}</td>
           <td>${parseTimestamp(s.timestamp).toLocaleString()}</td>
           <td>${esc((s.submittedRole || '').toUpperCase() || '—')}</td>
         </tr>
@@ -1254,20 +1327,24 @@
       <div class="print-sub">AMA Computer College Santiago Campus — Clinic Records</div>
       <div class="print-meta">Date: ${esc(dayKey)} &nbsp;·&nbsp; Records: ${dayScans.length} &nbsp;·&nbsp; Generated: ${esc(new Date().toLocaleString())}</div>
       <table>
-        <thead><tr><th>ID</th><th>Name</th><th>Contact</th><th>Email</th><th>Condition</th><th>Level</th><th>Advice</th><th>First Aid</th><th>Logged</th><th>Source</th></tr></thead>
+        <thead>
+          <tr>
+            <th>ID</th><th>Name</th><th>Contact</th><th>Email</th>
+            <th>Condition</th><th>Level</th><th>Logged</th><th>Source</th>
+          </tr>
+        </thead>
         <tbody>${rows}</tbody>
       </table>
     `;
     window.print();
   });
 
-  // ---------- CHARTS ----------
+  // ---------- CHARTS (DAILY) ----------
   const HUD_FONT = "'Share Tech Mono', monospace";
 
-  function monthLabel(key) {
-    const [y, m] = key.split('-');
-    const monthName = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'short' });
-    return `${monthName} '${String(y).slice(-2)}`;
+  function dayLabel(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
   function hudTooltip(extra) {
@@ -1327,37 +1404,48 @@
       if (empty) empty.remove();
     });
 
-    const monthMap = {};
-    const severityMonthMap = {};
-    const conditionMap = {};
+    // Build daily data for the last 14 days
+    const now = new Date();
+    const dayKeys = [];
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      dayKeys.push(toLocalDateKey(d));
+    }
+
+    const dailyMap = {};
+    dayKeys.forEach(key => { dailyMap[key] = { total: 0, Green: 0, Yellow: 0, Red: 0 }; });
 
     scans.forEach(s => {
       const date = parseTimestamp(s.timestamp);
       if (isNaN(date.getTime())) return;
-      const monthKey = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0');
-      monthMap[monthKey] = (monthMap[monthKey] || 0) + 1;
-      const sev = normalizeSeverity(s.severity);
-      if (!severityMonthMap[monthKey]) severityMonthMap[monthKey] = { Green: 0, Yellow: 0, Red: 0 };
-      severityMonthMap[monthKey][sev]++;
-      const cond = s.condition || 'Unspecified';
-      conditionMap[cond] = (conditionMap[cond] || 0) + 1;
+      const dayKey = toLocalDateKey(date);
+      if (dailyMap[dayKey]) {
+        dailyMap[dayKey].total++;
+        const sev = normalizeSeverity(s.severity);
+        dailyMap[dayKey][sev]++;
+      }
     });
 
-    const sortedMonths = Object.keys(monthMap).sort();
-    const monthLabels = sortedMonths.map(monthLabel);
+    const labels = dayKeys.map(dayLabel);
+    const totalData = dayKeys.map(k => dailyMap[k].total);
+    const greenData = dayKeys.map(k => dailyMap[k].Green);
+    const yellowData = dayKeys.map(k => dailyMap[k].Yellow);
+    const redData = dayKeys.map(k => dailyMap[k].Red);
 
-    // Total
+    // ---- 1. Total scans ----
     const ctx1 = document.getElementById('totalScansChart').getContext('2d');
     const goldFill = ctx1.createLinearGradient(0, 0, 0, 170);
     goldFill.addColorStop(0, 'rgba(245,196,0,0.45)');
     goldFill.addColorStop(1, 'rgba(245,196,0,0.01)');
+
     charts.total = new Chart(ctx1, {
       type: 'line',
       data: {
-        labels: monthLabels,
+        labels: labels,
         datasets: [{
           label: 'Scans',
-          data: sortedMonths.map(m => monthMap[m]),
+          data: totalData,
           borderColor: '#F5C400',
           borderWidth: 2.5,
           backgroundColor: goldFill,
@@ -1378,7 +1466,7 @@
         interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: { display: false },
-          title: { display: true, text: '◆ TOTAL SCANS / MONTH', color: '#F5C400', font: { size: 10, family: HUD_FONT }, padding: { bottom: 10 } },
+          title: { display: true, text: '◆ DAILY SCAN COUNT', color: '#F5C400', font: { size: 10, family: HUD_FONT }, padding: { bottom: 10 } },
           tooltip: hudTooltip()
         },
         scales: {
@@ -1388,20 +1476,21 @@
       }
     });
 
-    // Severity trend
+    // ---- 2. Severity trend ----
     const ctx2 = document.getElementById('severityTrendChart').getContext('2d');
     const sevSeries = [
       { key: 'Green', color: '#4ADE80' },
       { key: 'Yellow', color: '#F5C400' },
       { key: 'Red', color: '#FF4D4D' }
     ];
+
     charts.severity = new Chart(ctx2, {
       type: 'line',
       data: {
-        labels: monthLabels,
+        labels: labels,
         datasets: sevSeries.map(({ key, color }) => ({
           label: key,
-          data: sortedMonths.map(m => severityMonthMap[m]?.[key] || 0),
+          data: key === 'Green' ? greenData : key === 'Yellow' ? yellowData : redData,
           borderColor: color,
           backgroundColor: color + '14',
           borderWidth: 2,
@@ -1419,8 +1508,11 @@
         maintainAspectRatio: true,
         interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { position: 'bottom', labels: { color: '#A0888A', font: { size: 9, family: HUD_FONT }, boxWidth: 8, boxHeight: 8, usePointStyle: true, pointStyle: 'circle', padding: 12 } },
-          title: { display: true, text: '◆ SEVERITY TRENDS', color: '#F5C400', font: { size: 10, family: HUD_FONT }, padding: { bottom: 10 } },
+          legend: {
+            position: 'bottom',
+            labels: { color: '#A0888A', font: { size: 9, family: HUD_FONT }, boxWidth: 8, boxHeight: 8, usePointStyle: true, pointStyle: 'circle', padding: 12 }
+          },
+          title: { display: true, text: '◆ SEVERITY DAILY TREND', color: '#F5C400', font: { size: 10, family: HUD_FONT }, padding: { bottom: 10 } },
           tooltip: hudTooltip()
         },
         scales: {
@@ -1430,7 +1522,7 @@
       }
     });
 
-    // Donut
+    // ---- 3. Severity distribution (overall, unchanged) ----
     const ctx3 = document.getElementById('severityDonutChart').getContext('2d');
     charts.donut = new Chart(ctx3, {
       type: 'doughnut',
@@ -1449,19 +1541,37 @@
         maintainAspectRatio: true,
         cutout: '68%',
         plugins: {
-          legend: { position: 'bottom', labels: { color: '#A0888A', font: { size: 9, family: HUD_FONT }, boxWidth: 8, boxHeight: 8, usePointStyle: true, pointStyle: 'circle', padding: 12 } },
+          legend: {
+            position: 'bottom',
+            labels: { color: '#A0888A', font: { size: 9, family: HUD_FONT }, boxWidth: 8, boxHeight: 8, usePointStyle: true, pointStyle: 'circle', padding: 12 }
+          },
           title: { display: true, text: '◆ SEVERITY DISTRIBUTION', color: '#F5C400', font: { size: 10, family: HUD_FONT }, padding: { bottom: 10 } },
-          tooltip: hudTooltip({ callbacks: { label: (ctx) => { const val = ctx.parsed; const pct = total ? Math.round((val / total) * 100) : 0; return `${ctx.label}: ${val} (${pct}%)`; } } })
+          tooltip: hudTooltip({
+            callbacks: {
+              label: (ctx) => {
+                const val = ctx.parsed;
+                const pct = total ? Math.round((val / total) * 100) : 0;
+                return `${ctx.label}: ${val} (${pct}%)`;
+              }
+            }
+          })
         }
       }
     });
 
-    // Top conditions
+    // ---- 4. Top conditions (overall, unchanged) ----
+    const conditionMap = {};
+    scans.forEach(s => {
+      const cond = s.condition || 'Unspecified';
+      conditionMap[cond] = (conditionMap[cond] || 0) + 1;
+    });
     const topConditions = Object.entries(conditionMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
     const ctx4 = document.getElementById('topConditionsChart').getContext('2d');
     const barFill = ctx4.createLinearGradient(0, 0, 260, 0);
     barFill.addColorStop(0, '#8B0D22');
     barFill.addColorStop(1, '#F5C400');
+
     charts.topConditions = new Chart(ctx4, {
       type: 'bar',
       data: {

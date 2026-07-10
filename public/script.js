@@ -90,19 +90,6 @@ function isValidPhone(phone) {
     return /^[\d+]+$/.test(phone);
 }
 
-function maskEmail(email) {
-  if (!email || !email.includes('@')) return email || '—';
-  const parts = email.split('@');
-  const local = parts[0];
-  const domain = parts.slice(1).join('@');
-  if (local.length <= 6) {
-    return email;
-  }
-  const first3 = local.substring(0, 3);
-  const last3 = local.substring(local.length - 3);
-  return first3 + '***' + last3 + '@' + domain;
-}
-
 // ---------- MASK FUNCTIONS ----------
 function maskName(name) {
     if (!name) return '';
@@ -114,34 +101,44 @@ function maskName(name) {
 
 function maskPhone(phone) {
   if (!phone) return 'No phone';
-  // Existing maskPhone – keeps prefix + last 4 digits
+
+  // If already masked, return as-is
+  if (phone.includes('*')) return phone;
+
+  // Clean: keep only digits and '+'
   let cleaned = phone.replace(/[^\d+]/g, '');
   let prefix = '';
   let number = cleaned;
+
   if (cleaned.startsWith('+')) {
     prefix = '+';
     number = cleaned.substring(1);
   }
-  if (number.length > 4) {
-    let last4 = number.slice(-4);
-    let masked = '*'.repeat(number.length - 4) + last4;
-    return prefix + masked;
+
+  // If the number is 4 digits or less, mask entirely
+  if (number.length <= 4) {
+    return prefix + '****';
   }
-  return prefix + number;
+
+  // For longer numbers: show prefix + last 4 digits
+  const last4 = number.slice(-4);
+  const masked = '*'.repeat(number.length - 4) + last4;
+  return prefix + masked;
 }
 
 function maskEmail(email) {
-  if (!email || !email.includes('@')) return email || '—';
-  const parts = email.split('@');
-  const local = parts[0];
-  const domain = parts.slice(1).join('@');
-  if (local.length <= 6) {
-    return email;
-  }
-  const first3 = local.substring(0, 3);
-  const last3 = local.substring(local.length - 3);
-  return first3 + '***' + last3 + '@' + domain;
+    if (!email || !email.includes('@')) return email || '—';
+    const parts = email.split('@');
+    const local = parts[0];
+    const domain = parts.slice(1).join('@');
+    if (local.length <= 6) {
+        return email;
+    }
+    const first3 = local.substring(0, 3);
+    const last3 = local.substring(local.length - 3);
+    return first3 + '***' + last3 + '@' + domain;
 }
+
 // ---------- SCREEN MANAGEMENT ----------
 function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -333,32 +330,30 @@ function selectStudent(student) {
 }
 
 function showNotifyOptions(student) {
-  document.getElementById('notify-student-name').textContent = student.name;
+    document.getElementById('notify-student-name').textContent = student.name;
 
-  const phone = student.phone && student.phone.trim() !== '' ? student.phone : null;
-  const email = student.email && student.email.trim() !== '' ? student.email : null;
+    const phone = student.phone && student.phone.trim() !== '' ? student.phone : null;
+    const email = student.email && student.email.trim() !== '' ? student.email : null;
 
-  // ─── Always mask phone and email (privacy) ───
-  let phoneDisplay = phone ? maskPhone(phone) : '—';
-  let emailDisplay = email ? maskEmail(email) : '—';
+    let phoneDisplay = phone ? maskPhone(phone) : '—';
+    let emailDisplay = email ? maskEmail(email) : '—';
 
-  document.getElementById('notify-phone-preview').textContent = phoneDisplay;
-  document.getElementById('notify-email-preview').textContent = emailDisplay;
+    document.getElementById('notify-phone-preview').textContent = phoneDisplay;
+    document.getElementById('notify-email-preview').textContent = emailDisplay;
 
-  // Checkboxes
-  const smsCheck = document.getElementById('notify-channel-sms');
-  const emailCheck = document.getElementById('notify-channel-email');
+    const smsCheck = document.getElementById('notify-channel-sms');
+    const emailCheck = document.getElementById('notify-channel-email');
 
-  smsCheck.checked = !!phone;
-  emailCheck.checked = !!email;
+    smsCheck.checked = !!phone;
+    emailCheck.checked = !!email;
 
-  smsCheck.disabled = !smsCheck.checked;
-  emailCheck.disabled = !emailCheck.checked;
+    smsCheck.disabled = !smsCheck.checked;
+    emailCheck.disabled = !emailCheck.checked;
 
-  smsCheck.parentElement.style.opacity = smsCheck.disabled ? '0.4' : '1';
-  emailCheck.parentElement.style.opacity = emailCheck.disabled ? '0.4' : '1';
+    smsCheck.parentElement.style.opacity = smsCheck.disabled ? '0.4' : '1';
+    emailCheck.parentElement.style.opacity = emailCheck.disabled ? '0.4' : '1';
 
-  showScreen('notify-options-screen');
+    showScreen('notify-options-screen');
 }
 
 // ---------- PERFORM SAVE ----------
@@ -449,15 +444,14 @@ async function performNotifyWithChannels(channels) {
         const data = await response.json();
 
         if (response.ok && data.pending) {
-            // Only guests get this
-            alert(`📨 Sent to admin for approval. ${selectedStudent.name}'s parent will be notified via ${channels.join(' and ')} once approved.`);
-            pollSmsRequestStatus(data.requestId, selectedStudent.name);
-        } else if (response.ok) {
-            // Teachers/admins – immediate success
-            alert(`✅ Notification sent via ${channels.join(' and ')} to ${selectedStudent.name}'s parent!`);
-        } else {
-            alert(`❌ Failed: ${data.error}`);
-        }
+    // Only guests get this
+    alert(`📨 Your notification request has been sent to the admin for approval.
+    
+🔹 ${selectedStudent.name}'s parent will be notified via ${channels.join(' and ')}.
+🔹 The admin must approve this request in the admin panel.
+🔹 You will be notified once approved.`);
+    pollSmsRequestStatus(data.requestId, selectedStudent.name);
+}
     } catch (error) {
         console.error('Notification error:', error);
         alert('Error sending notification.');
@@ -778,8 +772,8 @@ function drawBoundingBoxes(img, bboxes, imgSize) {
     }
 }
 
-// ---------- RESIZE IMAGE ----------
-function resizeImage(dataUrl, maxWidth, maxHeight) {
+// ---------- RESIZE IMAGE (improved compression) ----------
+function resizeImage(dataUrl, maxWidth = 600, maxHeight = 600, quality = 0.7) {
     return new Promise((resolve) => {
         const img = new Image();
         img.onload = () => {
@@ -799,7 +793,7 @@ function resizeImage(dataUrl, maxWidth, maxHeight) {
             canvas.width = width;
             canvas.height = height;
             canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL('image/jpeg', 0.9));
+            resolve(canvas.toDataURL('image/jpeg', quality));
         };
         img.src = dataUrl;
     });
@@ -810,7 +804,7 @@ async function analyzeImage() {
     if (!capturedImage) return;
     showLoading();
     try {
-        const resizedImage = await resizeImage(capturedImage, 800, 800);
+        const resizedImage = await resizeImage(capturedImage, 600, 600, 0.7); // Better compression
         const response = await fetch('/api/analyze', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

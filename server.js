@@ -82,6 +82,16 @@ async function sendEmailViaProvider(toEmail, studentName, condition, advice) {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// ---------- DEVELOPMENT SSL REDIRECT ----------
+if (process.env.NODE_ENV !== 'production') {
+    app.use((req, res, next) => {
+        if (req.secure) {
+            return res.redirect(`http://${req.headers.host}${req.url}`);
+        }
+        next();
+    });
+}
+
 // ---------- SECURITY HEADERS ----------
 app.use(
     helmet.contentSecurityPolicy({
@@ -371,31 +381,7 @@ app.get('/admin.html', requireTeacherOrAdmin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
-// ---------- PROTECTED API ROUTES ----------
-app.use('/api/get-scans', requireTeacherOrAdmin);
-app.use('/api/students', requireTeacherOrAdmin);
-app.use('/api/sms-requests', requireTeacherOrAdmin);
-
-// Write endpoints: only admins
-app.use('/api/add-scan', requireAdmin);
-app.use('/api/update-scan', requireAdmin);
-app.use('/api/delete-scan', requireAdmin);
-
-// Session required for these (guests, teachers, admins)
-app.use('/api/save-scan', requireSession);
-app.use('/api/analyze', requireSession);
-app.use('/api/send-sms', requireSession);
-app.use('/api/hospitals', requireSession);
-
-app.use('/api/analyze', analyzeLimiter);
-app.use('/api/send-sms', smsLimiter);
-app.use('/api/hospitals', hospitalLimiter);
-app.use('/api/save-scan', saveScanLimiter);
-app.post('/api/students', studentPostLimiter);
-
-app.use(express.static('public'));
-
-// ---------- ElevenLabs ----------
+// ---------- ELEVENLABS ----------
 let elevenLabs = null;
 if (process.env.ELEVENLABS_API_KEY) {
     elevenLabs = new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY });
@@ -491,8 +477,11 @@ db.serialize(() => {
     });
 });
 
-// ---------- PUBLIC API ENDPOINTS ----------
-app.get('/api/students', requireTeacherOrAdmin, (req, res) => {
+// ---------- ROUTES (ALL AFTER DB INIT) ----------
+
+// ---- STUDENTS ----
+// GET /api/students – any logged‑in user (guests, teachers, admins)
+app.get('/api/students', requireSession, (req, res) => {
     db.all('SELECT id, name, phone, email FROM students ORDER BY name', (err, rows) => {
         if (err) {
             console.error(err);
@@ -504,7 +493,8 @@ app.get('/api/students', requireTeacherOrAdmin, (req, res) => {
     });
 });
 
-app.post('/api/students', requireTeacherOrAdmin, (req, res) => {
+// POST /api/students – all logged‑in users (guests can add, but only teachers/admins can update)
+app.post('/api/students', requireSession, studentPostLimiter, (req, res) => {
     const { name, phone, email } = req.body;
     if (!name) return res.status(400).json({ error: 'Name required' });
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -521,6 +511,7 @@ app.post('/api/students', requireTeacherOrAdmin, (req, res) => {
             return res.status(500).json({ error: 'Database error' });
         }
         if (row) {
+            // Existing student: allow updates only if role is teacher or admin
             const role = req.session.role || 'guest';
             if (role !== 'teacher' && role !== 'admin') {
                 return res.status(403).json({ error: 'Only teachers or admins can update existing student records.' });
@@ -555,10 +546,8 @@ app.post('/api/students', requireTeacherOrAdmin, (req, res) => {
                 });
             });
         } else {
+            // New student: allow any role to add
             const role = req.session.role || 'guest';
-            if (role !== 'teacher' && role !== 'admin') {
-                return res.status(403).json({ error: 'Only teachers or admins can add new students.' });
-            }
             const stmt = db.prepare('INSERT INTO students (name, phone, email, addedByRole) VALUES (?, ?, ?, ?)');
             stmt.run(name, sanitizedPhone, email || null, role, function(insertErr) {
                 if (insertErr) {
@@ -574,6 +563,28 @@ app.post('/api/students', requireTeacherOrAdmin, (req, res) => {
     });
 });
 
+// DELETE /api/students/by-phone/:phone – admin only
+app.delete('/api/students/by-phone/:phone', requireAdmin, (req, res) => {
+    const phone = req.params.phone;
+    db.get('SELECT id FROM students WHERE phone = ?', [phone], (err, row) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        if (!row) {
+            return res.status(404).json({ error: 'Student not found' });
+        }
+        db.run('DELETE FROM students WHERE id = ?', [row.id], function(deleteErr) {
+            if (deleteErr) {
+                console.error(deleteErr);
+                return res.status(500).json({ error: 'Failed to delete student' });
+            }
+            res.json({ message: 'Student deleted successfully' });
+        });
+    });
+});
+
+// ---- SCANS ----
 app.get('/api/get-scans', requireTeacherOrAdmin, (req, res) => {
     db.all('SELECT * FROM scans ORDER BY timestamp DESC', (err, rows) => {
         if (err) {
@@ -656,7 +667,458 @@ app.delete('/api/delete-scan/:id', requireAdmin, (req, res) => {
     stmt.finalize();
 });
 
-// ---------- STATIC FALLBACK DATA ----------
+app.post('/api/save-scan', requireSession, saveScanLimiter, (req, res) => {
+    const { name, phone, scanToken, image } = req.body;
+    console.log('📥 Saving scan:', { name, phone, scanToken: scanToken ? scanToken.slice(0, 8) + '…' : null });
+
+    if (!name || !scanToken) {
+        return res.status(400).json({ error: 'Missing required fields (name, scanToken)' });
+    }
+
+    const pending = consumeScanToken(scanToken);
+    if (!pending) {
+        return res.status(400).json({ error: 'Scan session expired or invalid — please re-scan before saving.' });
+    }
+    const { condition, severity, advice, firstAid } = pending;
+
+    if (image && typeof image === 'string' && image.length > 5 * 1024 * 1024) {
+        return res.status(400).json({ error: 'Image too large (max 5MB)' });
+    }
+    const sanitizedPhone = sanitizePhone(phone);
+    if (sanitizedPhone === false) {
+        return res.status(400).json({ error: 'Invalid phone number format. Use a PH mobile number, e.g. 09XXXXXXXXX or +639XXXXXXXXX.' });
+    }
+    const submittedRole = req.session.role || 'guest';
+    const stmt = db.prepare('INSERT INTO scans (name, phone, condition, severity, advice, firstAid, image, submittedRole) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    stmt.run(name, sanitizedPhone, condition, severity, advice, firstAid, image || null, submittedRole, function(err) {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        console.log('✅ Scan saved with ID:', this.lastID);
+        res.json({ id: this.lastID, message: 'Scan saved' });
+    });
+    stmt.finalize();
+});
+
+// ---- SMS & EMAIL ----
+async function sendSmsViaProvider(validatedPhone, studentName, condition, advice) {
+    const apiSecretKey = process.env.UNISMS_API_SECRET;
+    if (!apiSecretKey) {
+        console.error('❌ UNISMS_API_SECRET not set in .env – cannot send SMS');
+        return {
+            ok: false,
+            statusCode: 500,
+            body: { success: false, error: 'SMS is not configured on the server. Add UNISMS_API_SECRET to .env' }
+        };
+    }
+
+    let messageText = `AMA SKINGUARD ALERT\nPARENT NOTIFICATION\nDear parent/guardian of ${studentName}, your child was assessed with ${condition}. ${advice}. Please take appropriate action.`;
+    messageText = messageText.replace(/[^\x00-\x7F]/g, '');
+
+    let senderId = process.env.UNISMS_SENDER_ID;
+    const useSenderId = senderId && senderId.trim().length > 0;
+
+    console.log(`📤 Sending SMS to ${validatedPhone} via UniSMS...`);
+    console.log(`📝 Message: ${messageText}`);
+    if (useSenderId) console.log(`📤 Sender ID: ${senderId}`);
+    else console.log('📤 No sender ID provided – will omit field');
+
+    try {
+        const requestBody = { recipient: validatedPhone, content: messageText };
+        if (useSenderId) requestBody.sender_id = senderId;
+
+        const auth = Buffer.from(`${apiSecretKey}:`).toString('base64');
+
+        const response = await fetch('https://unismsapi.com/api/sms', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Basic ${auth}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+        });
+
+        const responseText = await response.text();
+        console.log(`📦 Response status: ${response.status}`);
+        console.log(`📦 Response body: ${responseText}`);
+
+        let data;
+        try { data = JSON.parse(responseText); } catch (e) {
+            console.error('❌ Failed to parse JSON:', e.message);
+            if (response.status >= 200 && response.status < 300) {
+                console.log('✅ SMS sent successfully (response status 2xx)');
+                return { ok: true, statusCode: 200, body: { success: true, message: 'SMS sent successfully', referenceId: null } };
+            }
+            return {
+                ok: false,
+                statusCode: 502,
+                body: { success: false, error: 'SMS provider returned an unparsable response', rawResponse: responseText }
+            };
+        }
+
+        if (response.status >= 200 && response.status < 300) {
+            console.log('✅ SMS sent successfully');
+            return {
+                ok: true,
+                statusCode: 200,
+                body: { success: true, message: 'SMS sent successfully', referenceId: data.message?.reference_id || data.reference_id || null }
+            };
+        }
+
+        if (response.status === 401) {
+            console.error('❌ Authentication failed – check your API Secret key');
+        }
+
+        if (response.status === 422) {
+            console.error('❌ Validation error – check recipient, content, or sender_id');
+            if (data.errors) {
+                console.error('  Details:', JSON.stringify(data.errors, null, 2));
+                if (data.errors.sender_id) {
+                    console.warn('💡 Sender ID is invalid. Please set a valid sender ID in .env (UNISMS_SENDER_ID) or get one from the UniSMS dashboard.');
+                }
+                if (data.errors.content && data.errors.content[0]?.includes('Emojis')) {
+                    console.warn('💡 Emojis removed automatically. Message should now be plain text.');
+                }
+            }
+        }
+
+        console.error('❌ SMS sending failed');
+        return {
+            ok: false,
+            statusCode: response.status && response.status >= 400 ? response.status : 502,
+            body: { success: false, error: data.message || data.error || 'Unknown error from SMS provider', details: data.errors || null }
+        };
+    } catch (error) {
+        console.error('❌ SMS sending error:', error.message);
+        return { ok: false, statusCode: 502, body: { success: false, error: 'Network error while sending SMS: ' + error.message } };
+    }
+}
+
+app.post('/api/send-sms', requireSession, smsLimiter, async (req, res) => {
+    const { studentId, condition, advice, severity, channels } = req.body;
+
+    if (!studentId || !condition) {
+        return res.status(400).json({ error: 'Missing required fields: studentId, condition' });
+    }
+    const id = parseInt(studentId, 10);
+    if (!Number.isInteger(id)) {
+        return res.status(400).json({ error: 'Invalid studentId' });
+    }
+
+    let channelsArray = channels;
+    if (!channelsArray || !Array.isArray(channelsArray) || channelsArray.length === 0) {
+        channelsArray = ['sms', 'email'];
+    }
+    const validChannels = ['sms', 'email'];
+    const filteredChannels = channelsArray.filter(ch => validChannels.includes(ch));
+    if (filteredChannels.length === 0) {
+        return res.status(400).json({ error: 'No valid channels selected. Choose sms and/or email.' });
+    }
+
+    db.get('SELECT id, name, phone, email FROM students WHERE id = ?', [id], async (err, student) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        if (!student) return res.status(404).json({ error: 'Student not found' });
+
+        const validatedPhone = sanitizePhone(student.phone);
+        if (filteredChannels.includes('sms') && (validatedPhone === false || !validatedPhone)) {
+            return res.status(400).json({ error: 'SMS requested but no valid phone number on file for this student.' });
+        }
+        const studentName = student.name;
+        const email = student.email || null;
+        if (filteredChannels.includes('email') && !email) {
+            return res.status(400).json({ error: 'Email requested but no email address on file for this student.' });
+        }
+
+        const role = req.session.role;
+
+        // ─── GUEST: queue for admin approval ───
+        if (role === 'guest') {
+            const smsStatus = filteredChannels.includes('sms') ? 'pending' : 'none';
+            const emailStatus = filteredChannels.includes('email') ? 'pending' : 'none';
+            const stmt = db.prepare(`
+                INSERT INTO sms_requests (studentName, phone, email, condition, advice, severity, requestedByRole, status, channels, sms_status, email_status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+            `);
+            stmt.run(studentName, validatedPhone, email, condition, advice || '', normalizeSeverity(severity) || null, role, filteredChannels.join(','), smsStatus, emailStatus, function(insertErr) {
+                if (insertErr) {
+                    console.error(insertErr);
+                    return res.status(500).json({ error: 'Database error while creating SMS request' });
+                }
+                console.log(`📝 SMS request #${this.lastID} queued for admin approval (guest, ${studentName})`);
+                res.json({
+                    success: true,
+                    pending: true,
+                    requestId: this.lastID,
+                    message: `Request sent to an admin for approval. The parent will be notified via ${filteredChannels.join(' and ')} once approved.`
+                });
+            });
+            stmt.finalize();
+            return;
+        }
+
+        // ─── TEACHER / ADMIN: send immediately ───
+        let smsResult = { ok: false, error: 'SMS not requested' };
+        let emailResult = { ok: false, error: 'Email not requested' };
+        if (filteredChannels.includes('sms') && validatedPhone) {
+            smsResult = await sendSmsViaProvider(validatedPhone, studentName, condition, advice);
+        }
+        if (filteredChannels.includes('email') && email) {
+            emailResult = await sendEmailViaProvider(email, studentName, condition, advice);
+        }
+        const allOk = (filteredChannels.includes('sms') ? smsResult.ok : true) &&
+                      (filteredChannels.includes('email') ? emailResult.ok : true);
+        res.json({
+            success: allOk,
+            sms: smsResult,
+            email: emailResult,
+            channels: filteredChannels
+        });
+    });
+});
+
+// ---- SMS APPROVAL QUEUE (admin only) ----
+app.get('/api/sms-requests', requireTeacherOrAdmin, (req, res) => {
+    db.all('SELECT * FROM sms_requests ORDER BY createdAt DESC LIMIT 200', (err, rows) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json(rows);
+    });
+});
+
+app.post('/api/sms-requests/:id/approve-sms', requireAdmin, smsQueueLimiter, async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid request id' });
+
+    db.get('SELECT * FROM sms_requests WHERE id = ?', [id], async (err, row) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        if (!row) return res.status(404).json({ error: 'Request not found' });
+        if (row.sms_status !== 'pending') {
+            return res.status(409).json({ error: `SMS already ${row.sms_status}` });
+        }
+
+        let smsResult = { ok: false, error: 'SMS not requested' };
+        if (row.phone) {
+            smsResult = await sendSmsViaProvider(row.phone, row.studentName, row.condition, row.advice);
+        }
+
+        const newStatus = smsResult.ok ? 'approved' : 'failed';
+        db.run(
+            'UPDATE sms_requests SET sms_status = ?, resolvedBy = ?, resolvedAt = CURRENT_TIMESTAMP WHERE id = ?',
+            [newStatus, req.session.username || 'admin', id],
+            (updateErr) => {
+                if (updateErr) console.error('Failed to update sms_status:', updateErr);
+            }
+        );
+        console.log(`${newStatus === 'approved' ? '✅' : '❌'} SMS #${id} ${newStatus} by ${req.session.username}`);
+        res.json({ success: newStatus === 'approved', status: newStatus, sms: smsResult });
+    });
+});
+
+app.post('/api/sms-requests/:id/reject-sms', requireAdmin, smsQueueLimiter, async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid request id' });
+
+    db.get('SELECT * FROM sms_requests WHERE id = ?', [id], async (err, row) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        if (!row) return res.status(404).json({ error: 'Request not found' });
+        if (row.sms_status !== 'pending') {
+            return res.status(409).json({ error: `SMS already ${row.sms_status}` });
+        }
+        db.run(
+            'UPDATE sms_requests SET sms_status = ?, resolvedBy = ?, resolvedAt = CURRENT_TIMESTAMP WHERE id = ?',
+            ['rejected', req.session.username || 'admin', id],
+            (updateErr) => {
+                if (updateErr) console.error('Failed to update sms_status:', updateErr);
+            }
+        );
+        console.log(`🚫 SMS #${id} rejected by ${req.session.username}`);
+        res.json({ success: true, status: 'rejected' });
+    });
+});
+
+app.post('/api/sms-requests/:id/approve-email', requireAdmin, smsQueueLimiter, async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid request id' });
+
+    db.get('SELECT * FROM sms_requests WHERE id = ?', [id], async (err, row) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        if (!row) return res.status(404).json({ error: 'Request not found' });
+        if (row.email_status !== 'pending') {
+            return res.status(409).json({ error: `Email already ${row.email_status}` });
+        }
+
+        let emailResult = { ok: false, error: 'Email not requested' };
+        if (row.email) {
+            emailResult = await sendEmailViaProvider(row.email, row.studentName, row.condition, row.advice);
+        }
+
+        const newStatus = emailResult.ok ? 'approved' : 'failed';
+        db.run(
+            'UPDATE sms_requests SET email_status = ?, resolvedBy = ?, resolvedAt = CURRENT_TIMESTAMP WHERE id = ?',
+            [newStatus, req.session.username || 'admin', id],
+            (updateErr) => {
+                if (updateErr) console.error('Failed to update email_status:', updateErr);
+            }
+        );
+        console.log(`${newStatus === 'approved' ? '✅' : '❌'} Email #${id} ${newStatus} by ${req.session.username}`);
+        res.json({ success: newStatus === 'approved', status: newStatus, email: emailResult });
+    });
+});
+
+app.post('/api/sms-requests/:id/reject-email', requireAdmin, smsQueueLimiter, async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid request id' });
+
+    db.get('SELECT * FROM sms_requests WHERE id = ?', [id], async (err, row) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        if (!row) return res.status(404).json({ error: 'Request not found' });
+        if (row.email_status !== 'pending') {
+            return res.status(409).json({ error: `Email already ${row.email_status}` });
+        }
+        db.run(
+            'UPDATE sms_requests SET email_status = ?, resolvedBy = ?, resolvedAt = CURRENT_TIMESTAMP WHERE id = ?',
+            ['rejected', req.session.username || 'admin', id],
+            (updateErr) => {
+                if (updateErr) console.error('Failed to update email_status:', updateErr);
+            }
+        );
+        console.log(`🚫 Email #${id} rejected by ${req.session.username}`);
+        res.json({ success: true, status: 'rejected' });
+    });
+});
+
+app.delete('/api/sms-requests/:id', requireAdmin, (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid request id' });
+    db.run('DELETE FROM sms_requests WHERE id = ?', [id], function(err) {
+        if (err) { console.error(err); return res.status(500).json({ error: 'Database error' }); }
+        if (this.changes === 0) return res.status(404).json({ error: 'Request not found' });
+        res.json({ message: 'Request deleted' });
+    });
+});
+
+// ---- HOSPITAL SEARCH ----
+app.post('/api/hospitals', requireSession, hospitalLimiter, async (req, res) => {
+    const { lat, lng, radius = 30000 } = req.body;
+
+    if (typeof lat !== 'number' || isNaN(lat) || lat < -90 || lat > 90) {
+        return res.status(400).json({ error: 'Invalid latitude' });
+    }
+    if (typeof lng !== 'number' || isNaN(lng) || lng < -180 || lng > 180) {
+        return res.status(400).json({ error: 'Invalid longitude' });
+    }
+    const radiusNum = Number(radius);
+    if (isNaN(radiusNum) || radiusNum < 100 || radiusNum > 50000) {
+        return res.status(400).json({ error: 'Radius must be between 100 and 50000 meters' });
+    }
+
+    const query = `
+        [out:json];
+        (
+            node["amenity"="hospital"](around:${radiusNum},${lat},${lng});
+            node["amenity"="clinic"](around:${radiusNum},${lat},${lng});
+            node["amenity"="doctors"](around:${radiusNum},${lat},${lng});
+            node["healthcare"="hospital"](around:${radiusNum},${lat},${lng});
+            node["healthcare"="clinic"](around:${radiusNum},${lat},${lng});
+            way["amenity"="hospital"](around:${radiusNum},${lat},${lng});
+            way["amenity"="clinic"](around:${radiusNum},${lat},${lng});
+            way["healthcare"="hospital"](around:${radiusNum},${lat},${lng});
+        );
+        out;
+    `;
+
+    const endpoints = [
+        'https://overpass-api.de/api/interpreter',
+        'https://overpass.kumi.systems/api/interpreter'
+    ];
+
+    let hospitals = [];
+    let anySuccess = false;
+
+    for (const endpoint of endpoints) {
+        const url = `${endpoint}?data=${encodeURIComponent(query)}`;
+        console.log(`🌐 Trying: ${endpoint}`);
+        try {
+            const response = await fetch(url, {
+                headers: { 'Accept': 'application/json', 'User-Agent': 'SkinGuard/1.0' }
+            });
+            if (!response.ok) {
+                console.warn(`  ⚠️ ${endpoint} returned ${response.status}`);
+                continue;
+            }
+            anySuccess = true;
+            const data = await response.json();
+            const elements = data.elements || [];
+            console.log(`  ✅ ${endpoint} returned ${elements.length} elements`);
+
+            if (elements.length > 0) {
+                console.log('  Sample element:', JSON.stringify(elements[0]).slice(0, 200));
+            }
+
+            const extracted = elements
+                .map(el => {
+                    const lat = el.lat || (el.center && el.center.lat) || 0;
+                    const lon = el.lon || (el.center && el.center.lon) || 0;
+                    return {
+                        name: el.tags?.name || 'Medical Facility',
+                        address: el.tags?.['addr:street'] || el.tags?.['addr:full'] || '',
+                        lat: lat,
+                        lon: lon
+                    };
+                })
+                .filter(h => h.lat && h.lon);
+
+            if (extracted.length > 0) {
+                hospitals = extracted;
+                console.log(`  📍 Extracted ${hospitals.length} hospitals from ${endpoint}`);
+                break;
+            }
+        } catch (e) {
+            console.warn(`  ❌ ${endpoint} failed:`, e.message);
+        }
+    }
+
+    if (hospitals.length === 0 && anySuccess) {
+        console.log('⚠️ No hospitals found in successful response, returning empty array');
+        return res.json({ hospitals: [] });
+    }
+
+    if (hospitals.length === 0 && !anySuccess) {
+        console.error('❌ All Overpass endpoints failed or returned no data');
+        return res.status(500).json({ error: 'Failed to fetch hospitals from OpenStreetMap' });
+    }
+
+    const seen = new Set();
+    const unique = hospitals.filter(h => {
+        const key = `${h.lat.toFixed(5)},${h.lon.toFixed(5)}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+
+    console.log(`✅ Returning ${unique.length} unique hospitals/clinics`);
+    res.json({ hospitals: unique });
+});
+
+// ---- ANALYSIS (AI) ----
 const staticConditionData = {
     'bugbites': { severity: 'Green', advice: 'Minor – can go back to class. Monitor for swelling.', firstAid: 'Wash with soap and water. Apply cold compress. Use anti-itch cream if needed.' },
     'chickenpox': { severity: 'Red', advice: 'Serious – call parents immediately. Isolate child.', firstAid: 'Keep clean, avoid scratching, use calamine lotion, consult doctor immediately.' },
@@ -673,7 +1135,6 @@ const staticConditionData = {
     'warts': { severity: 'Green', advice: 'Over‑the‑counter treatments available. Avoid picking.', firstAid: 'Cover with bandage. Use wart remover as directed. Wash hands after touching.' }
 };
 
-// Helper: Call OpenAI
 async function getAdviceFromOpenAI(condition) {
     console.log(`  → Calling OpenAI for advice on "${condition}"...`);
     try {
@@ -703,7 +1164,6 @@ async function getAdviceFromOpenAI(condition) {
     }
 }
 
-// Helper: Generate TTS audio
 async function generateAndSaveAudio(text, fileName = 'analysis_audio.mp3') {
     if (!elevenLabs) return null;
     console.log(`  → Generating TTS audio...`);
@@ -735,8 +1195,7 @@ async function generateAndSaveAudio(text, fileName = 'analysis_audio.mp3') {
     }
 }
 
-// ---------- MAIN ANALYSIS ENDPOINT ----------
-app.post('/api/analyze', async (req, res) => {
+app.post('/api/analyze', requireSession, analyzeLimiter, async (req, res) => {
     const startTime = Date.now();
     console.log('\n📥 [SCAN] Received image from frontend');
 
@@ -890,489 +1349,8 @@ app.post('/api/analyze', async (req, res) => {
     }
 });
 
-// ---------- SAVE SCAN (for guests and teachers) ----------
-app.post('/api/save-scan', requireSession, saveScanLimiter, (req, res) => {
-    const { name, phone, scanToken, image } = req.body;
-    console.log('📥 Saving scan:', { name, phone, scanToken: scanToken ? scanToken.slice(0, 8) + '…' : null });
-
-    if (!name || !scanToken) {
-        return res.status(400).json({ error: 'Missing required fields (name, scanToken)' });
-    }
-
-    const pending = consumeScanToken(scanToken);
-    if (!pending) {
-        return res.status(400).json({ error: 'Scan session expired or invalid — please re-scan before saving.' });
-    }
-    const { condition, severity, advice, firstAid } = pending;
-
-    if (image && typeof image === 'string' && image.length > 2 * 1024 * 1024) {
-        return res.status(400).json({ error: 'Image too large (max 2MB)' });
-    }
-    const sanitizedPhone = sanitizePhone(phone);
-    if (sanitizedPhone === false) {
-        return res.status(400).json({ error: 'Invalid phone number format. Use a PH mobile number, e.g. 09XXXXXXXXX or +639XXXXXXXXX.' });
-    }
-    const submittedRole = req.session.role || 'guest';
-    const stmt = db.prepare('INSERT INTO scans (name, phone, condition, severity, advice, firstAid, image, submittedRole) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-    stmt.run(name, sanitizedPhone, condition, severity, advice, firstAid, image || null, submittedRole, function(err) {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ error: 'Database error' });
-        }
-        console.log('✅ Scan saved with ID:', this.lastID);
-        res.json({ id: this.lastID, message: 'Scan saved' });
-    });
-    stmt.finalize();
-});
-
-// ---------- SMS SENDING ----------
-async function sendSmsViaProvider(validatedPhone, studentName, condition, advice) {
-    const apiSecretKey = process.env.UNISMS_API_SECRET;
-
-    if (!apiSecretKey) {
-        console.error('❌ UNISMS_API_SECRET not set in .env – cannot send SMS');
-        return {
-            ok: false,
-            statusCode: 500,
-            body: { success: false, error: 'SMS is not configured on the server. Add UNISMS_API_SECRET to .env' }
-        };
-    }
-
-    let messageText = `AMA SKINGUARD ALERT\nPARENT NOTIFICATION\nDear parent/guardian of ${studentName}, your child was assessed with ${condition}. ${advice}. Please take appropriate action.`;
-    messageText = messageText.replace(/[^\x00-\x7F]/g, '');
-
-    let senderId = process.env.UNISMS_SENDER_ID;
-    const useSenderId = senderId && senderId.trim().length > 0;
-
-    console.log(`📤 Sending SMS to ${validatedPhone} via UniSMS...`);
-    console.log(`📝 Message: ${messageText}`);
-    if (useSenderId) console.log(`📤 Sender ID: ${senderId}`);
-    else console.log('📤 No sender ID provided – will omit field');
-
-    try {
-        const requestBody = {
-            recipient: validatedPhone,
-            content: messageText
-        };
-        if (useSenderId) {
-            requestBody.sender_id = senderId;
-        }
-
-        const auth = Buffer.from(`${apiSecretKey}:`).toString('base64');
-
-        console.log('📦 Request:', JSON.stringify(requestBody, null, 2));
-
-        const response = await fetch('https://unismsapi.com/api/sms', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Basic ${auth}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(requestBody)
-        });
-
-        const responseText = await response.text();
-        console.log(`📦 Response status: ${response.status}`);
-        console.log(`📦 Response body: ${responseText}`);
-
-        let data;
-        try {
-            data = JSON.parse(responseText);
-        } catch (e) {
-            console.error('❌ Failed to parse JSON:', e.message);
-            if (response.status >= 200 && response.status < 300) {
-                console.log('✅ SMS sent successfully (response status 2xx)');
-                return { ok: true, statusCode: 200, body: { success: true, message: 'SMS sent successfully', referenceId: null } };
-            }
-            return {
-                ok: false,
-                statusCode: 502,
-                body: { success: false, error: 'SMS provider returned an unparsable response', rawResponse: responseText }
-            };
-        }
-
-        if (response.status >= 200 && response.status < 300) {
-            console.log('✅ SMS sent successfully');
-            return {
-                ok: true,
-                statusCode: 200,
-                body: { success: true, message: 'SMS sent successfully', referenceId: data.message?.reference_id || data.reference_id || null }
-            };
-        }
-
-        if (response.status === 401) {
-            console.error('❌ Authentication failed – check your API Secret key');
-        }
-
-        if (response.status === 422) {
-            console.error('❌ Validation error – check recipient, content, or sender_id');
-            if (data.errors) {
-                console.error('  Details:', JSON.stringify(data.errors, null, 2));
-                if (data.errors.sender_id) {
-                    console.warn('💡 Sender ID is invalid. Please set a valid sender ID in .env (UNISMS_SENDER_ID) or get one from the UniSMS dashboard.');
-                }
-                if (data.errors.content && data.errors.content[0]?.includes('Emojis')) {
-                    console.warn('💡 Emojis removed automatically. Message should now be plain text.');
-                }
-            }
-        }
-
-        console.error('❌ SMS sending failed');
-        return {
-            ok: false,
-            statusCode: response.status && response.status >= 400 ? response.status : 502,
-            body: { success: false, error: data.message || data.error || 'Unknown error from SMS provider', details: data.errors || null }
-        };
-    } catch (error) {
-        console.error('❌ SMS sending error:', error.message);
-        return { ok: false, statusCode: 502, body: { success: false, error: 'Network error while sending SMS: ' + error.message } };
-    }
-}
-
-// ---------- SMS ENDPOINT ----------
-app.post('/api/send-sms', async (req, res) => {
-    const { studentId, condition, advice, severity, channels } = req.body;
-
-    if (!studentId || !condition) {
-        return res.status(400).json({ error: 'Missing required fields: studentId, condition' });
-    }
-    const id = parseInt(studentId, 10);
-    if (!Number.isInteger(id)) {
-        return res.status(400).json({ error: 'Invalid studentId' });
-    }
-
-    let channelsArray = channels;
-    if (!channelsArray || !Array.isArray(channelsArray) || channelsArray.length === 0) {
-        channelsArray = ['sms', 'email'];
-    }
-    const validChannels = ['sms', 'email'];
-    const filteredChannels = channelsArray.filter(ch => validChannels.includes(ch));
-    if (filteredChannels.length === 0) {
-        return res.status(400).json({ error: 'No valid channels selected. Choose sms and/or email.' });
-    }
-
-    db.get('SELECT id, name, phone, email FROM students WHERE id = ?', [id], async (err, student) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ error: 'Database error' });
-        }
-        if (!student) return res.status(404).json({ error: 'Student not found' });
-
-        const validatedPhone = sanitizePhone(student.phone);
-        if (filteredChannels.includes('sms') && (validatedPhone === false || !validatedPhone)) {
-            return res.status(400).json({ error: 'SMS requested but no valid phone number on file for this student.' });
-        }
-        const studentName = student.name;
-        const email = student.email || null;
-        if (filteredChannels.includes('email') && !email) {
-            return res.status(400).json({ error: 'Email requested but no email address on file for this student.' });
-        }
-
-        const role = req.session.role;
-
-        // ─── GUEST: queue for admin approval ───
-        if (role === 'guest') {
-            const smsStatus = filteredChannels.includes('sms') ? 'pending' : 'none';
-            const emailStatus = filteredChannels.includes('email') ? 'pending' : 'none';
-            const stmt = db.prepare(`
-                INSERT INTO sms_requests (studentName, phone, email, condition, advice, severity, requestedByRole, status, channels, sms_status, email_status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
-            `);
-            stmt.run(studentName, validatedPhone, email, condition, advice || '', normalizeSeverity(severity) || null, role, filteredChannels.join(','), smsStatus, emailStatus, function(insertErr) {
-                if (insertErr) {
-                    console.error(insertErr);
-                    return res.status(500).json({ error: 'Database error while creating SMS request' });
-                }
-                console.log(`📝 SMS request #${this.lastID} queued for admin approval (guest, ${studentName})`);
-                res.json({
-                    success: true,
-                    pending: true,
-                    requestId: this.lastID,
-                    message: `Request sent to an admin for approval. The parent will be notified via ${filteredChannels.join(' and ')} once approved.`
-                });
-            });
-            stmt.finalize();
-            return;
-        }
-
-        // ─── TEACHER / ADMIN: send immediately ───
-        let smsResult = { ok: false, error: 'SMS not requested' };
-        let emailResult = { ok: false, error: 'Email not requested' };
-        if (filteredChannels.includes('sms') && validatedPhone) {
-            smsResult = await sendSmsViaProvider(validatedPhone, studentName, condition, advice);
-        }
-        if (filteredChannels.includes('email') && email) {
-            emailResult = await sendEmailViaProvider(email, studentName, condition, advice);
-        }
-        const allOk = (filteredChannels.includes('sms') ? smsResult.ok : true) &&
-                      (filteredChannels.includes('email') ? emailResult.ok : true);
-        res.json({
-            success: allOk,
-            sms: smsResult,
-            email: emailResult,
-            channels: filteredChannels
-        });
-    });
-});
-
-// ---------- SMS APPROVAL QUEUE ----------
-app.get('/api/sms-requests', requireTeacherOrAdmin, (req, res) => {
-    db.all('SELECT * FROM sms_requests ORDER BY createdAt DESC LIMIT 200', (err, rows) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ error: 'Database error' });
-        }
-        res.json(rows);
-    });
-});
-
-app.post('/api/sms-requests/:id/approve-sms', requireAdmin, smsQueueLimiter, async (req, res) => {
-    const id = parseInt(req.params.id, 10);
-    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid request id' });
-
-    db.get('SELECT * FROM sms_requests WHERE id = ?', [id], async (err, row) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ error: 'Database error' });
-        }
-        if (!row) return res.status(404).json({ error: 'Request not found' });
-        if (row.sms_status !== 'pending') {
-            return res.status(409).json({ error: `SMS already ${row.sms_status}` });
-        }
-
-        let smsResult = { ok: false, error: 'SMS not requested' };
-        if (row.phone) {
-            smsResult = await sendSmsViaProvider(row.phone, row.studentName, row.condition, row.advice);
-        }
-
-        const newStatus = smsResult.ok ? 'approved' : 'failed';
-        db.run(
-            'UPDATE sms_requests SET sms_status = ?, resolvedBy = ?, resolvedAt = CURRENT_TIMESTAMP WHERE id = ?',
-            [newStatus, req.session.username || 'admin', id],
-            (updateErr) => {
-                if (updateErr) console.error('Failed to update sms_status:', updateErr);
-            }
-        );
-        console.log(`${newStatus === 'approved' ? '✅' : '❌'} SMS #${id} ${newStatus} by ${req.session.username}`);
-        res.json({ success: newStatus === 'approved', status: newStatus, sms: smsResult });
-    });
-});
-
-app.post('/api/sms-requests/:id/reject-sms', requireAdmin, smsQueueLimiter, async (req, res) => {
-    const id = parseInt(req.params.id, 10);
-    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid request id' });
-
-    db.get('SELECT * FROM sms_requests WHERE id = ?', [id], async (err, row) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ error: 'Database error' });
-        }
-        if (!row) return res.status(404).json({ error: 'Request not found' });
-        if (row.sms_status !== 'pending') {
-            return res.status(409).json({ error: `SMS already ${row.sms_status}` });
-        }
-        db.run(
-            'UPDATE sms_requests SET sms_status = ?, resolvedBy = ?, resolvedAt = CURRENT_TIMESTAMP WHERE id = ?',
-            ['rejected', req.session.username || 'admin', id],
-            (updateErr) => {
-                if (updateErr) console.error('Failed to update sms_status:', updateErr);
-            }
-        );
-        console.log(`🚫 SMS #${id} rejected by ${req.session.username}`);
-        res.json({ success: true, status: 'rejected' });
-    });
-});
-
-app.post('/api/sms-requests/:id/approve-email', requireAdmin, smsQueueLimiter, async (req, res) => {
-    const id = parseInt(req.params.id, 10);
-    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid request id' });
-
-    db.get('SELECT * FROM sms_requests WHERE id = ?', [id], async (err, row) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ error: 'Database error' });
-        }
-        if (!row) return res.status(404).json({ error: 'Request not found' });
-        if (row.email_status !== 'pending') {
-            return res.status(409).json({ error: `Email already ${row.email_status}` });
-        }
-
-        let emailResult = { ok: false, error: 'Email not requested' };
-        if (row.email) {
-            emailResult = await sendEmailViaProvider(row.email, row.studentName, row.condition, row.advice);
-        }
-
-        const newStatus = emailResult.ok ? 'approved' : 'failed';
-        db.run(
-            'UPDATE sms_requests SET email_status = ?, resolvedBy = ?, resolvedAt = CURRENT_TIMESTAMP WHERE id = ?',
-            [newStatus, req.session.username || 'admin', id],
-            (updateErr) => {
-                if (updateErr) console.error('Failed to update email_status:', updateErr);
-            }
-        );
-        console.log(`${newStatus === 'approved' ? '✅' : '❌'} Email #${id} ${newStatus} by ${req.session.username}`);
-        res.json({ success: newStatus === 'approved', status: newStatus, email: emailResult });
-    });
-});
-
-app.post('/api/sms-requests/:id/reject-email', requireAdmin, smsQueueLimiter, async (req, res) => {
-    const id = parseInt(req.params.id, 10);
-    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid request id' });
-
-    db.get('SELECT * FROM sms_requests WHERE id = ?', [id], async (err, row) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ error: 'Database error' });
-        }
-        if (!row) return res.status(404).json({ error: 'Request not found' });
-        if (row.email_status !== 'pending') {
-            return res.status(409).json({ error: `Email already ${row.email_status}` });
-        }
-        db.run(
-            'UPDATE sms_requests SET email_status = ?, resolvedBy = ?, resolvedAt = CURRENT_TIMESTAMP WHERE id = ?',
-            ['rejected', req.session.username || 'admin', id],
-            (updateErr) => {
-                if (updateErr) console.error('Failed to update email_status:', updateErr);
-            }
-        );
-        console.log(`🚫 Email #${id} rejected by ${req.session.username}`);
-        res.json({ success: true, status: 'rejected' });
-    });
-});
-
-app.delete('/api/sms-requests/:id', requireAdmin, (req, res) => {
-    const id = parseInt(req.params.id, 10);
-    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid request id' });
-    db.run('DELETE FROM sms_requests WHERE id = ?', [id], function(err) {
-        if (err) { console.error(err); return res.status(500).json({ error: 'Database error' }); }
-        if (this.changes === 0) return res.status(404).json({ error: 'Request not found' });
-        res.json({ message: 'Request deleted' });
-    });
-});
-
-// ---------- DELETE STUDENT BY PHONE ----------
-app.delete('/api/students/by-phone/:phone', requireAdmin, (req, res) => {
-    const phone = req.params.phone;
-    db.get('SELECT id FROM students WHERE phone = ?', [phone], (err, row) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ error: 'Database error' });
-        }
-        if (!row) {
-            return res.status(404).json({ error: 'Student not found' });
-        }
-        db.run('DELETE FROM students WHERE id = ?', [row.id], function(deleteErr) {
-            if (deleteErr) {
-                console.error(deleteErr);
-                return res.status(500).json({ error: 'Failed to delete student' });
-            }
-            res.json({ message: 'Student deleted successfully' });
-        });
-    });
-});
-
-// ---------- HOSPITAL SEARCH ----------
-app.post('/api/hospitals', async (req, res) => {
-    const { lat, lng, radius = 30000 } = req.body;
-
-    if (typeof lat !== 'number' || isNaN(lat) || lat < -90 || lat > 90) {
-        return res.status(400).json({ error: 'Invalid latitude' });
-    }
-    if (typeof lng !== 'number' || isNaN(lng) || lng < -180 || lng > 180) {
-        return res.status(400).json({ error: 'Invalid longitude' });
-    }
-    const radiusNum = Number(radius);
-    if (isNaN(radiusNum) || radiusNum < 100 || radiusNum > 50000) {
-        return res.status(400).json({ error: 'Radius must be between 100 and 50000 meters' });
-    }
-
-    const query = `
-        [out:json];
-        (
-            node["amenity"="hospital"](around:${radiusNum},${lat},${lng});
-            node["amenity"="clinic"](around:${radiusNum},${lat},${lng});
-            node["amenity"="doctors"](around:${radiusNum},${lat},${lng});
-            node["healthcare"="hospital"](around:${radiusNum},${lat},${lng});
-            node["healthcare"="clinic"](around:${radiusNum},${lat},${lng});
-            way["amenity"="hospital"](around:${radiusNum},${lat},${lng});
-            way["amenity"="clinic"](around:${radiusNum},${lat},${lng});
-            way["healthcare"="hospital"](around:${radiusNum},${lat},${lng});
-        );
-        out;
-    `;
-
-    const endpoints = [
-        'https://overpass-api.de/api/interpreter',
-        'https://overpass.kumi.systems/api/interpreter'
-    ];
-
-    let hospitals = [];
-    let anySuccess = false;
-
-    for (const endpoint of endpoints) {
-        const url = `${endpoint}?data=${encodeURIComponent(query)}`;
-        console.log(`🌐 Trying: ${endpoint}`);
-        try {
-            const response = await fetch(url, {
-                headers: { 'Accept': 'application/json', 'User-Agent': 'SkinGuard/1.0' }
-            });
-            if (!response.ok) {
-                console.warn(`  ⚠️ ${endpoint} returned ${response.status}`);
-                continue;
-            }
-            anySuccess = true;
-            const data = await response.json();
-            const elements = data.elements || [];
-            console.log(`  ✅ ${endpoint} returned ${elements.length} elements`);
-
-            if (elements.length > 0) {
-                console.log('  Sample element:', JSON.stringify(elements[0]).slice(0, 200));
-            }
-
-            const extracted = elements
-                .map(el => {
-                    const lat = el.lat || (el.center && el.center.lat) || 0;
-                    const lon = el.lon || (el.center && el.center.lon) || 0;
-                    return {
-                        name: el.tags?.name || 'Medical Facility',
-                        address: el.tags?.['addr:street'] || el.tags?.['addr:full'] || '',
-                        lat: lat,
-                        lon: lon
-                    };
-                })
-                .filter(h => h.lat && h.lon);
-
-            if (extracted.length > 0) {
-                hospitals = extracted;
-                console.log(`  📍 Extracted ${hospitals.length} hospitals from ${endpoint}`);
-                break;
-            }
-        } catch (e) {
-            console.warn(`  ❌ ${endpoint} failed:`, e.message);
-        }
-    }
-
-    if (hospitals.length === 0 && anySuccess) {
-        console.log('⚠️ No hospitals found in successful response, returning empty array');
-        return res.json({ hospitals: [] });
-    }
-
-    if (hospitals.length === 0 && !anySuccess) {
-        console.error('❌ All Overpass endpoints failed or returned no data');
-        return res.status(500).json({ error: 'Failed to fetch hospitals from OpenStreetMap' });
-    }
-
-    const seen = new Set();
-    const unique = hospitals.filter(h => {
-        const key = `${h.lat.toFixed(5)},${h.lon.toFixed(5)}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-    });
-
-    console.log(`✅ Returning ${unique.length} unique hospitals/clinics`);
-    res.json({ hospitals: unique });
-});
+// ---------- SERVE STATIC FILES ----------
+app.use(express.static('public'));
 
 // ---------- START SERVER ----------
 app.listen(PORT, () => {
