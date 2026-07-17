@@ -12,7 +12,7 @@ const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
-const cookieParser = require('cookie-parser'); // npm install cookie-parser
+const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
 // ---------- ENV CHECKS ----------
@@ -203,16 +203,11 @@ app.use(session({
 app.use(cookieParser());
 
 // ---------- CSRF PROTECTION (double-submit cookie) ----------
-// Every response ensures the browser holds a random, unguessable token in a
-// non-httpOnly cookie. Every state-changing request must echo that same
-// value back in the X-CSRF-Token header. A cross-site form/script can send
-// the cookie automatically but cannot read it (or the correct value) to
-// build the matching header, so forged requests are rejected.
 function ensureCsrfCookie(req, res, next) {
     if (!req.cookies || !req.cookies['XSRF-TOKEN']) {
         const token = crypto.randomBytes(32).toString('hex');
         res.cookie('XSRF-TOKEN', token, {
-            httpOnly: false, // must be readable by client JS
+            httpOnly: false,
             sameSite: 'lax',
             secure: process.env.NODE_ENV === 'production',
             maxAge: 24 * 60 * 60 * 1000
@@ -548,8 +543,8 @@ app.get('/api/students', requireSession, (req, res) => {
     });
 });
 
-// POST /api/students – all logged‑in users (guests can add, but only teachers/admins can update)
-app.post('/api/students', requireSession, studentPostLimiter, (req, res) => {
+// POST /api/students – only teachers and admins
+app.post('/api/students', requireTeacherOrAdmin, studentPostLimiter, (req, res) => {
     const { name, phone, email } = req.body;
     if (!name) return res.status(400).json({ error: 'Name required' });
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -566,7 +561,7 @@ app.post('/api/students', requireSession, studentPostLimiter, (req, res) => {
             return res.status(500).json({ error: 'Database error' });
         }
         if (row) {
-            // Existing student: allow updates only if role is teacher or admin
+            // Existing student: allow updates only if role is teacher or admin (already enforced by middleware)
             const role = req.session.role || 'guest';
             if (role !== 'teacher' && role !== 'admin') {
                 return res.status(403).json({ error: 'Only teachers or admins can update existing student records.' });
@@ -601,8 +596,11 @@ app.post('/api/students', requireSession, studentPostLimiter, (req, res) => {
                 });
             });
         } else {
-            // New student: allow any role to add
+            // New student: only teachers/admins can add (already enforced)
             const role = req.session.role || 'guest';
+            if (role !== 'teacher' && role !== 'admin') {
+                return res.status(403).json({ error: 'Only teachers or admins can add new students.' });
+            }
             const stmt = db.prepare('INSERT INTO students (name, phone, email, addedByRole) VALUES (?, ?, ?, ?)');
             stmt.run(name, sanitizedPhone, email || null, role, function(insertErr) {
                 if (insertErr) {
@@ -1067,6 +1065,36 @@ app.delete('/api/sms-requests/:id', requireAdmin, (req, res) => {
         if (err) { console.error(err); return res.status(500).json({ error: 'Database error' }); }
         if (this.changes === 0) return res.status(404).json({ error: 'Request not found' });
         res.json({ message: 'Request deleted' });
+    });
+});
+
+// ---- STATUS ENDPOINT FOR GUEST POLLING ----
+app.get('/api/sms-requests/:id/status', requireSession, smsStatusLimiter, (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) {
+        return res.status(400).json({ error: 'Invalid request id' });
+    }
+
+    db.get('SELECT id, status, sms_status, email_status, studentName FROM sms_requests WHERE id = ?', [id], (err, row) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        if (!row) {
+            return res.status(404).json({ error: 'Request not found' });
+        }
+        // Determine overall status if both are resolved
+        let overallStatus = row.status;
+        if (overallStatus === 'pending' && row.sms_status !== 'pending' && row.email_status !== 'pending') {
+            overallStatus = (row.sms_status === 'approved' || row.email_status === 'approved') ? 'approved' : 'rejected';
+        }
+        res.json({
+            id: row.id,
+            status: overallStatus,
+            sms_status: row.sms_status,
+            email_status: row.email_status,
+            studentName: row.studentName
+        });
     });
 });
 

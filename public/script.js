@@ -555,6 +555,12 @@ async function autoSaveScan(result) {
 
 // ---------- ADD STUDENT ----------
 document.getElementById('add-new-student-btn').addEventListener('click', () => {
+    // ─── Check if guest ───
+    if (isGuest) {
+        alert('Only teachers and administrators can add new students.');
+        return;
+    }
+    // Clear and show add student screen
     document.getElementById('new-student-firstname').value = '';
     document.getElementById('new-student-lastname').value = '';
     document.getElementById('new-student-phone').value = '';
