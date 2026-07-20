@@ -2,12 +2,12 @@
 
 :root {
   /* AMA Core Palette */
-  --void:       #0A0205;
-  --obsidian:   #120408;
-  --charcoal:   #1A060C;
-  --iron:       #220A12;
-  --steel:      #2E1018;
-  --mist:       #3E1820;
+  --void:       #FAF6F3;
+  --obsidian:   #FFFFFF;
+  --charcoal:   #FCF8F6;
+  --iron:       #F7ECEC;
+  --steel:      #E7D5D5;
+  --mist:       #D8BEC0;
 
   /* AMA Crimson Red — primary brand */
   --gold:       #C41230;
@@ -16,10 +16,10 @@
   --gold-line:  rgba(196,18,48,.30);
 
   /* AMA Gold/Yellow — accent */
-  --accent:        #F5C400;
-  --accent-dim:    #B89200;
-  --accent-glow:   rgba(245,196,0,.15);
-  --accent-line:   rgba(245,196,0,.30);
+  --accent:        #B8860B;
+  --accent-dim:    #8C6D00;
+  --accent-glow:   rgba(184,134,11,.15);
+  --accent-line:   rgba(184,134,11,.30);
 
   /* AMA Navy — secondary */
   --navy:          #0E2060;
@@ -28,9 +28,9 @@
 
   --crimson:    #8B0D22;
   --blood:      #C41230;
-  --text:       #F5EEE8;
-  --text-dim:   #A0888A;
-  --text-faint: #4A2830;
+  --text:       #201013;
+  --text-dim:   #6B4F52;
+  --text-faint: #A78589;
   --radius:     4px;
   --radius-lg:  8px;
 }
@@ -52,8 +52,8 @@ body {
   justify-content: center;
   padding: 16px;
   background-image:
-    radial-gradient(ellipse 80% 50% at 50% -10%, #2a0610 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 50% 110%, #0a0218 0%, transparent 60%);
+    radial-gradient(ellipse 80% 50% at 50% -10%, #F6DCE0 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 50% 110%, #DEE4F5 0%, transparent 60%);
 }
 
 /* Subtle texture */
@@ -77,8 +77,8 @@ body::after {
   position: relative;
   overflow: hidden;
   box-shadow:
-    0 0 0 1px rgba(0,0,0,.9),
-    0 50px 100px rgba(0,0,0,.85),
+    0 0 0 1px rgba(0,0,0,.06),
+    0 50px 100px rgba(0,0,0,.10),
     inset 0 1px 0 rgba(196,18,48,.12);
 }
 
@@ -155,10 +155,10 @@ h1 {
   display: block;
   margin-top: 6px;
   margin-bottom: 16px;
-  background: rgba(245,196,0,.06);
+  background: rgba(184,134,11,.06);
   padding: 3px 8px;
   border-radius: 2px;
-  border: 1px solid rgba(245,196,0,.15);
+  border: 1px solid rgba(184,134,11,.15);
   width: fit-content;
 }
 
@@ -193,7 +193,7 @@ p {
   margin: 14px 0;
   position: relative;
   border: 1px solid rgba(196,18,48,.25);
-  box-shadow: inset 0 0 60px rgba(0,0,0,.7);
+  box-shadow: inset 0 0 60px rgba(0,0,0,.08);
 }
 
 .camera-container .corner {
@@ -354,7 +354,7 @@ p {
   color: var(--accent);
   text-align: center;
   margin-bottom: 4px;
-  text-shadow: 0 0 40px rgba(245,196,0,.2);
+  text-shadow: 0 0 40px rgba(184,134,11,.2);
 }
 
 #confidence-text {
@@ -385,7 +385,7 @@ p {
 .badge::before { content: '◆'; font-size: 8px; }
 
 .badge.green  { background: rgba(5,150,105,.1);  color: #4ADE80; border-color: rgba(74,222,128,.25);  }
-.badge.yellow { background: rgba(245,196,0,.1);   color: #F5C400; border-color: rgba(245,196,0,.25); }
+.badge.yellow { background: rgba(184,134,11,.1);   color: #B8860B; border-color: rgba(184,134,11,.25); }
 .badge.red    { background: rgba(196,18,48,.15);   color: #FF6B6B; border-color: rgba(255,107,107,.25); }
 
 /* ── ADVICE BOXES ── */
@@ -448,7 +448,7 @@ input::placeholder, textarea::placeholder {
 input:focus, textarea:focus {
   border-color: var(--gold-dim);
   box-shadow: 0 0 0 2px var(--gold-glow);
-  background: #1C0810;
+  background: #FBEFEF;
 }
 
 /* ── SECTION LABEL ── */
@@ -465,7 +465,7 @@ input:focus, textarea:focus {
 /* ── LOADING ── */
 .loading-overlay {
   position: fixed; inset: 0;
-  background: rgba(10,2,5,.93);
+  background: rgba(255,255,255,.88);
   backdrop-filter: blur(8px);
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
@@ -499,7 +499,7 @@ input:focus, textarea:focus {
   border: 1px solid var(--gold-line);
   margin-bottom: 10px;
   overflow: hidden;
-  filter: saturate(.2) brightness(.6) contrast(1.1) hue-rotate(320deg);
+  filter: saturate(.4) contrast(1.05) hue-rotate(320deg);
 }
 #hospital-list { max-height: 160px; overflow-y: auto; margin-bottom: 10px; }
 .hospital-item {
@@ -564,7 +564,7 @@ input:focus, textarea:focus {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(10,2,5,.95);
+  background: rgba(255,255,255,.9);
   backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
@@ -586,7 +586,7 @@ input:focus, textarea:focus {
   border: 1px solid var(--gold-line);
   border-radius: var(--radius-lg);
   padding: 40px 32px;
-  box-shadow: 0 30px 80px rgba(0,0,0,.8);
+  box-shadow: 0 30px 80px rgba(0,0,0,.12);
   text-align: center;
 }
 .login-box img {
@@ -713,7 +713,7 @@ input:focus, textarea:focus {
   padding: 28px 24px 32px;
   max-width: 480px;
   margin: 0 auto;
-  box-shadow: 0 8px 40px rgba(0,0,0,.7);
+  box-shadow: 0 8px 40px rgba(0,0,0,.08);
   position: relative;
   overflow: hidden;
 }

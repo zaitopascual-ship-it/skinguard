@@ -22,8 +22,8 @@
       align-items: center;
       gap: 8px;
       padding: 10px 14px;
-      background: var(--charcoal, #1A060C);
-      border: 1px solid var(--steel, #2E1018);
+      background: var(--charcoal, #FCF8F6);
+      border: 1px solid var(--steel, #E7D5D5);
       border-radius: var(--radius, 4px);
       cursor: pointer;
       transition: border-color .2s, background .2s;
@@ -31,7 +31,7 @@
     }
     #notify-options-screen label:hover {
       border-color: var(--gold-dim, #8B0D22);
-      background: var(--iron, #220A12);
+      background: var(--iron, #F7ECEC);
     }
     #notify-options-screen label input[type="checkbox"] {
       width: 18px;
@@ -41,22 +41,167 @@
     }
     #notify-options-screen label .channel-hint {
       font-size: 12px;
-      color: var(--text-faint, #4A2830);
+      color: var(--text-faint, #A78589);
     }
     #notify-options-screen label .preview {
       margin-left: auto;
       font-family: 'Share Tech Mono', monospace;
       font-size: 13px;
-      color: var(--text-dim, #A0888A);
+      color: var(--text-dim, #6B4F52);
+    }
+
+    /* ── IMAGE STORAGE CONSENT MODAL ── */
+    #consent-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(32,16,19,.45);
+      backdrop-filter: blur(4px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s ease;
+    }
+    #consent-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    #consent-overlay .consent-box {
+      position: relative;
+      width: 100%;
+      max-width: 420px;
+      background: var(--obsidian, #FFFFFF);
+      border: 1px solid var(--gold-line, rgba(196,18,48,.30));
+      border-radius: var(--radius-lg, 8px);
+      box-shadow: 0 30px 80px rgba(0,0,0,.18);
+      padding: 32px 30px 28px;
+      text-align: center;
+      transform: translateY(14px) scale(.98);
+      transition: transform .2s ease;
+    }
+    #consent-overlay.open .consent-box {
+      transform: translateY(0) scale(1);
+    }
+    #consent-overlay .consent-icon {
+      width: 52px;
+      height: 52px;
+      margin: 0 auto 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: var(--iron, #F7ECEC);
+      color: var(--gold, #C41230);
+    }
+    #consent-overlay h3 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 24px;
+      letter-spacing: .06em;
+      color: var(--gold, #C41230);
+      margin-bottom: 14px;
+    }
+    #consent-overlay p {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      color: var(--text-dim, #6B4F52);
+      margin-bottom: 10px;
+    }
+    #consent-overlay p strong {
+      color: var(--text, #201013);
+    }
+    #consent-overlay .consent-sub {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: var(--text-faint, #A78589) !important;
+      margin-top: 16px !important;
+      margin-bottom: 0 !important;
+    }
+    #consent-overlay .consent-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    #consent-overlay .consent-actions button {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 20px;
+      letter-spacing: .12em;
+      border-radius: var(--radius, 4px);
+      padding: 14px;
+      cursor: pointer;
+      width: 100%;
+      transition: all .15s ease;
+    }
+    #consent-overlay #idx-consent-agree {
+      background: var(--gold, #C41230);
+      color: #fff;
+      border: 1px solid rgba(196,18,48,.5);
+      box-shadow: 0 2px 20px rgba(196,18,48,.25);
+    }
+    #consent-overlay #idx-consent-agree:hover { background: #D91535; }
+    #consent-overlay #idx-consent-disagree {
+      background: transparent;
+      color: var(--text-dim, #6B4F52);
+      border: 1px solid var(--mist, #D8BEC0);
+    }
+    #consent-overlay #idx-consent-disagree:hover {
+      border-color: var(--gold-dim, #8B0D22);
+      color: var(--gold, #C41230);
+      background: rgba(196,18,48,.06);
     }
   </style>
 </head>
 <body>
 
+<!-- ── IMAGE STORAGE CONSENT MODAL ── -->
+<div id="consent-overlay" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="idx-consent-title">
+  <div class="consent-box">
+    <div class="consent-icon">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.6-2.4A2 2 0 0 1 10.2 4.6h3.6a2 2 0 0 1 1.6 1L17 8h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z"/><circle cx="12" cy="14" r="3.5"/></svg>
+    </div>
+    <h3 id="idx-consent-title">IMAGE STORAGE CONSENT</h3>
+    <p>To generate an assessment, SkinGuard will <strong>capture and store</strong> the photo you take or upload here, together with the AI's findings, in the school's records system for the subject's care and follow‑up.</p>
+    <p class="consent-sub">Do you agree to proceed?</p>
+    <div class="consent-actions">
+      <button type="button" id="idx-consent-agree">AGREE &amp; CONTINUE</button>
+      <button type="button" id="idx-consent-disagree">DISAGREE</button>
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    var CONSENT_KEY = 'skinguard_img_consent';
+    var overlay = document.getElementById('consent-overlay');
+    var agreeBtn = document.getElementById('idx-consent-agree');
+    var disagreeBtn = document.getElementById('idx-consent-disagree');
+
+    if (sessionStorage.getItem(CONSENT_KEY) !== 'yes') {
+      overlay.classList.add('open');
+      overlay.setAttribute('aria-hidden', 'false');
+    }
+
+    agreeBtn.addEventListener('click', function () {
+      sessionStorage.setItem(CONSENT_KEY, 'yes');
+      overlay.classList.remove('open');
+      overlay.setAttribute('aria-hidden', 'true');
+    });
+
+    disagreeBtn.addEventListener('click', function () {
+      window.location.href = 'landing.html';
+    });
+  })();
+</script>
+
 <!-- ── LOGIN OVERLAY ── -->
 <div id="login-overlay">
   <div class="login-box">
-    <img src="assets/skinguard-logo.png" alt="SkinGuard">
+    <img src="assets/skinguard-logo.svg" alt="SkinGuard">
     <h2>SKINGUARD</h2>
     <p class="sub">AI Skin Assessment</p>
     <div id="login-status" class="user-badge" style="display:none;"></div>
@@ -82,7 +227,7 @@
   <!-- ── CAMERA SCREEN ── -->
   <div id="camera-screen" class="screen active">
     <div class="crest-wrap">
-      <img class="crest" src="assets/skinguard-logo.png" alt="SkinGuard Logo">
+      <img class="crest" src="assets/skinguard-logo.svg" alt="SkinGuard Logo">
       <div class="crest-text">
         <h1>SKINGUARD</h1>
         <span class="subtitle">&nbsp; AI Skin Assessment &nbsp;</span>

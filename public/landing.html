@@ -11,26 +11,26 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
   :root {
-    --void:       #0A0205;
-    --obsidian:   #120408;
-    --charcoal:   #1A060C;
-    --iron:       #220A12;
-    --steel:      #2E1018;
-    --mist:       #3E1820;
+    --void:       #FAF6F3;
+    --obsidian:   #FFFFFF;
+    --charcoal:   #FCF8F6;
+    --iron:       #F7ECEC;
+    --steel:      #E7D5D5;
+    --mist:       #D8BEC0;
     --gold:       #C41230;
     --gold-dim:   #8B0D22;
     --gold-glow:  rgba(196,18,48,.15);
     --gold-line:  rgba(196,18,48,.30);
-    --accent:        #F5C400;
-    --accent-dim:    #B89200;
-    --accent-glow:   rgba(245,196,0,.15);
-    --accent-line:   rgba(245,196,0,.30);
+    --accent:        #B8860B;
+    --accent-dim:    #8C6D00;
+    --accent-glow:   rgba(184,134,11,.15);
+    --accent-line:   rgba(184,134,11,.30);
     --navy:          #0E2060;
     --navy-mid:      #1A3080;
     --navy-line:     rgba(14,32,96,.5);
-    --text:       #F5EEE8;
-    --text-dim:   #A0888A;
-    --text-faint: #4A2830;
+    --text:       #201013;
+    --text-dim:   #6B4F52;
+    --text-faint: #A78589;
     --radius:     4px;
     --radius-lg:  8px;
     --maxw:       1180px;
@@ -51,8 +51,8 @@
     line-height:1.6;
     overflow-x:hidden;
     background-image:
-      radial-gradient(ellipse 80% 50% at 50% -10%, #2a0610 0%, transparent 60%),
-      radial-gradient(ellipse 60% 40% at 50% 105%, #0a0218 0%, transparent 55%);
+      radial-gradient(ellipse 80% 50% at 50% -10%, #F6DCE0 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 50% 105%, #DEE4F5 0%, transparent 55%);
   }
 
   body::after {
@@ -124,7 +124,7 @@
 
   .nav {
     position:sticky; top:0; z-index:500;
-    background:rgba(10,2,5,.82);
+    background:rgba(255,255,255,.85);
     backdrop-filter:blur(10px);
     border-bottom:1px solid var(--gold-line);
   }
@@ -217,7 +217,7 @@
     background:var(--obsidian);
     border-radius:var(--radius-lg);
     border:1px solid var(--gold-line);
-    box-shadow:0 30px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(196,18,48,.1);
+    box-shadow:0 30px 80px rgba(0,0,0,.08), inset 0 1px 0 rgba(196,18,48,.1);
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     overflow:hidden;
   }
@@ -231,12 +231,70 @@
   .hero-visual .crosshair::before { width:100%; height:1px; top:50%; left:0; }
   .hero-visual .crosshair::after { width:1px; height:100%; left:50%; top:0; }
 
-  .hero-visual img.logo-big { width:350px; z-index:2; filter:drop-shadow(0 10px 30px rgba(196,18,48,.4)); }
+  .hero-visual img.logo-big { width:350px; display:block; }
+
+  .logo-launch {
+    position:relative; z-index:2;
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+    cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .logo-scan-wrap {
+    position:relative;
+    width:350px;
+    filter:drop-shadow(0 10px 30px rgba(196,18,48,.4));
+    transition:transform .25s ease, filter .25s ease;
+  }
+  .logo-launch:hover .logo-scan-wrap,
+  .logo-launch:focus-visible .logo-scan-wrap {
+    transform:scale(1.035);
+    filter:drop-shadow(0 14px 38px rgba(196,18,48,.55));
+  }
+  .logo-scan-wrap::before {
+    content:'';
+    position:absolute; inset:-26px;
+    border-radius:50%;
+    background:radial-gradient(circle, rgba(196,18,48,.22), transparent 70%);
+    animation:logoPulse 2.6s ease-in-out infinite;
+    z-index:0;
+  }
+  .logo-scan-wrap .logo-big { position:relative; z-index:1; }
+  .logo-scan-sweep {
+    position:absolute; inset:0; z-index:2;
+    pointer-events:none;
+    -webkit-mask-image:url('assets/skinguard-logo.svg');
+    mask-image:url('assets/skinguard-logo.svg');
+    -webkit-mask-size:contain; mask-size:contain;
+    -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+    -webkit-mask-position:center; mask-position:center;
+    background-image:linear-gradient(180deg,
+      transparent 0%, transparent 42%,
+      rgba(184,134,11,.9) 50%,
+      transparent 58%, transparent 100%);
+    background-size:100% 260%;
+    animation:logoScan 2.4s linear infinite;
+    opacity:.9;
+    mix-blend-mode:multiply;
+  }
+  .logo-tap-hint {
+    font-family:'Share Tech Mono', monospace;
+    font-size:11px; letter-spacing:.25em;
+    color:var(--gold-dim);
+    opacity:.75;
+  }
+  @keyframes logoPulse {
+    0%, 100% { opacity:.55; transform:scale(1); }
+    50% { opacity:1; transform:scale(1.08); }
+  }
+  @keyframes logoScan {
+    0% { background-position:0 -100%; }
+    100% { background-position:0 220%; }
+  }
 
   .scan-line {
     position:absolute; left:6%; right:6%; height:2px;
     background:linear-gradient(90deg, transparent, var(--accent), transparent);
-    box-shadow:0 0 12px 2px rgba(245,196,0,.5);
+    box-shadow:0 0 12px 2px rgba(184,134,11,.5);
     animation:scan 3.2s ease-in-out infinite;
     opacity:.85;
   }
@@ -289,7 +347,7 @@
   }
   .badge::before { content:'◆'; font-size:9px; }
   .badge.green  { background:rgba(5,150,105,.1); color:#4ADE80; border-color:rgba(74,222,128,.25); }
-  .badge.yellow { background:rgba(245,196,0,.1); color:var(--accent); border-color:rgba(245,196,0,.25); }
+  .badge.yellow { background:rgba(184,134,11,.1); color:var(--accent); border-color:rgba(184,134,11,.25); }
   .badge.red    { background:rgba(196,18,48,.15); color:#FF6B6B; border-color:rgba(255,107,107,.25); }
   .legend-card p { color:var(--text-dim); font-size:18px; }
 
@@ -351,6 +409,61 @@
     .cta-banner { padding:36px 22px; }
     .footer-inner { flex-direction:column; align-items:flex-start; }
   }
+
+  /* ── CONSENT MODAL ── */
+  .consent-overlay {
+    position:fixed; inset:0; z-index:999;
+    display:flex; align-items:center; justify-content:center;
+    padding:20px;
+    background:rgba(32,16,19,.45);
+    backdrop-filter:blur(4px);
+    opacity:0; pointer-events:none;
+    transition:opacity .2s ease;
+  }
+  .consent-overlay.open { opacity:1; pointer-events:auto; }
+  .consent-box {
+    position:relative;
+    width:100%; max-width:440px;
+    background:var(--obsidian);
+    border:1px solid var(--gold-line);
+    border-radius:var(--radius-lg);
+    box-shadow:0 30px 80px rgba(0,0,0,.18), inset 0 1px 0 rgba(196,18,48,.1);
+    padding:32px 30px 28px;
+    text-align:center;
+    transform:translateY(14px) scale(.98);
+    transition:transform .2s ease;
+  }
+  .consent-overlay.open .consent-box { transform:translateY(0) scale(1); }
+  .consent-box .corner { border-color:var(--gold); }
+  .consent-icon {
+    width:52px; height:52px; margin:0 auto 16px;
+    display:flex; align-items:center; justify-content:center;
+    border-radius:50%;
+    background:var(--iron);
+    color:var(--gold);
+  }
+  .consent-box h3 {
+    font-family:'Bebas Neue', sans-serif;
+    font-size:24px; letter-spacing:.06em;
+    color:var(--gold);
+    margin-bottom:14px;
+  }
+  .consent-box p {
+    font-size:16px; line-height:1.6; color:var(--text-dim);
+    margin-bottom:10px;
+  }
+  .consent-box p strong { color:var(--text); }
+  .consent-sub {
+    font-family:'Share Tech Mono', monospace;
+    font-size:11px; letter-spacing:.2em; text-transform:uppercase;
+    color:var(--text-faint) !important;
+    margin-top:16px !important; margin-bottom:0 !important;
+  }
+  .consent-actions {
+    display:flex; flex-direction:column; gap:10px;
+    margin-top:20px;
+  }
+  .consent-actions .btn, .consent-actions .btn-outline { width:100%; justify-content:center; }
 </style>
 </head>
 <body>
@@ -358,7 +471,7 @@
 <nav class="nav">
   <div class="nav-inner">
     <a class="nav-brand" href="#top">
-      <img src="assets/skinguard-logo.png" alt="SkinGuard">
+      <img src="assets/skinguard-logo.svg" alt="SkinGuard">
       <span>SKINGUARD</span>
     </a>
     <div class="nav-links">
@@ -366,7 +479,7 @@
       <a href="#severity">Severity Scale</a>
       <a href="#specs">Specifications</a>
     </div>
-    <a class="nav-cta" href="index.html">LAUNCH SCANNER</a>
+    <a class="nav-cta js-launch-scanner" href="index.html">LAUNCH SCANNER</a>
   </div>
 </nav>
 
@@ -381,7 +494,7 @@
       <h1>SEE THE MARK.<br>KNOW THE <em>RISK.</em></h1>
       <p class="lead">SkinGuard turns a clinic camera into a first read on common skin conditions — instant severity, first‑aid steps, and parent notification, logged straight to the record.</p>
       <div class="hero-ctas">
-        <a class="btn" href="index.html">
+        <a class="btn js-launch-scanner" href="index.html">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.6-2.4A2 2 0 0 1 10.2 4.6h3.6a2 2 0 0 1 1.6 1L17 8h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z"/><circle cx="12" cy="14" r="3.5"/></svg>
           LAUNCH SCANNER
         </a>
@@ -406,8 +519,12 @@
       <div class="crosshair"></div>
       <div class="scan-line"></div>
       <!-- BIG LOGO REDIRECTS TO SCANNER -->
-      <a href="index.html">
-        <img class="logo-big" src="assets/skinguard-logo.png" alt="SkinGuard crest">
+      <a href="index.html" class="js-launch-scanner logo-launch" aria-label="Launch scanner">
+        <div class="logo-scan-wrap">
+          <img class="logo-big" src="assets/skinguard-logo.svg" alt="SkinGuard crest">
+          <div class="logo-scan-sweep"></div>
+        </div>
+        <span class="logo-tap-hint">TAP TO SCAN</span>
       </a>
     </div>
   </div>
@@ -502,7 +619,7 @@
       <h2>RUN YOUR FIRST SCAN</h2>
       <p>No setup, no waiting — open the scanner and point it at the mark.</p>
       <div class="cta-row">
-        <a class="btn" href="index.html">LAUNCH SCANNER</a>
+        <a class="btn js-launch-scanner" href="index.html">LAUNCH SCANNER</a>
         <a class="btn-outline" href="admin.html">VIEW RECORDS</a>
       </div>
     </div>
@@ -513,14 +630,14 @@
   <div class="wrap">
     <div class="footer-inner">
       <div class="footer-brand">
-        <img src="assets/skinguard-logo.png" alt="SkinGuard">
+        <img src="assets/skinguard-logo.svg" alt="SkinGuard">
         <div>
           SKINGUARD
           <div class="footer-sub">AMA Computer College · Santiago Campus</div>
         </div>
       </div>
       <div class="footer-links">
-        <a href="index.html">Scanner</a>
+        <a href="index.html" class="js-launch-scanner">Scanner</a>
         <a href="admin.html">Admin</a>
         <a href="#how">How It Works</a>
       </div>
@@ -528,6 +645,67 @@
     <p class="disclaimer">SkinGuard is a capstone research project and is intended to assist, not replace, clinical judgment. It is not a substitute for professional medical diagnosis or treatment.</p>
   </div>
 </footer>
+
+<!-- ── IMAGE STORAGE CONSENT MODAL ── -->
+<div id="consent-modal" class="consent-overlay" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="consent-title">
+  <div class="consent-box frame">
+    <span class="corner tl"></span><span class="corner tr"></span>
+    <span class="corner bl"></span><span class="corner br"></span>
+    <div class="consent-icon">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.6-2.4A2 2 0 0 1 10.2 4.6h3.6a2 2 0 0 1 1.6 1L17 8h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z"/><circle cx="12" cy="14" r="3.5"/></svg>
+    </div>
+    <h3 id="consent-title">IMAGE STORAGE CONSENT</h3>
+    <p>To generate an assessment, SkinGuard will <strong>capture and store</strong> the photo you take or upload in the scanner, together with the AI's findings, in the school's records system for the subject's care and follow‑up.</p>
+    <p class="consent-sub">Do you agree to proceed?</p>
+    <div class="consent-actions">
+      <button type="button" class="btn" id="consent-agree-btn">AGREE &amp; CONTINUE</button>
+      <button type="button" class="btn-outline" id="consent-disagree-btn">DISAGREE</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var modal = document.getElementById('consent-modal');
+    var agreeBtn = document.getElementById('consent-agree-btn');
+    var disagreeBtn = document.getElementById('consent-disagree-btn');
+    var scannerHref = 'index.html';
+
+    function openModal(e) {
+      if (e) e.preventDefault();
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden', 'false');
+      agreeBtn.focus();
+    }
+    function closeModal() {
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+
+    document.querySelectorAll('.js-launch-scanner').forEach(function (link) {
+      link.addEventListener('click', openModal);
+    });
+
+    agreeBtn.addEventListener('click', function () {
+      sessionStorage.setItem('skinguard_img_consent', 'yes');
+      closeModal();
+      window.location.href = scannerHref;
+    });
+
+    disagreeBtn.addEventListener('click', function () {
+      closeModal();
+      window.location.href = 'landing.html';
+    });
+
+    modal.addEventListener('click', function (e) {
+      if (e.target === modal) closeModal();
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && modal.classList.contains('open')) closeModal();
+    });
+  })();
+</script>
 
 </body>
 </html>

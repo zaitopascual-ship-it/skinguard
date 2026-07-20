@@ -13,28 +13,28 @@
   <style>
   
     :root {
-      --void:       #0A0205;
-      --obsidian:   #120408;
-      --charcoal:   #1A060C;
-      --iron:       #220A12;
-      --steel:      #2E1018;
-      --mist:       #3E1820;
+      --void:       #FAF6F3;
+      --obsidian:   #FFFFFF;
+      --charcoal:   #FCF8F6;
+      --iron:       #F7ECEC;
+      --steel:      #E7D5D5;
+      --mist:       #D8BEC0;
       --gold:       #C41230;
       --gold-dim:   #8B0D22;
       --gold-glow:  rgba(196,18,48,.15);
       --gold-line:  rgba(196,18,48,.30);
-      --accent:        #F5C400;
-      --accent-dim:    #B89200;
-      --accent-glow:   rgba(245,196,0,.15);
-      --accent-line:   rgba(245,196,0,.30);
+      --accent:        #B8860B;
+      --accent-dim:    #8C6D00;
+      --accent-glow:   rgba(184,134,11,.15);
+      --accent-line:   rgba(184,134,11,.30);
       --navy:          #0E2060;
       --navy-mid:      #1A3080;
       --navy-line:     rgba(14,32,96,.5);
       --crimson:    #8B0D22;
       --blood:      #C41230;
-      --text:       #F5EEE8;
-      --text-dim:   #A0888A;
-      --text-faint: #4A2830;
+      --text:       #201013;
+      --text-dim:   #6B4F52;
+      --text-faint: #A78589;
       --radius:     4px;
       --radius-lg:  8px;
     }
@@ -49,8 +49,8 @@
       color: var(--text);
       padding: 28px 20px;
       background-image:
-        radial-gradient(ellipse 80% 50% at 50% -10%, #2a0610 0%, transparent 60%),
-        radial-gradient(ellipse 60% 40% at 50% 110%, #0a0218 0%, transparent 60%);
+        radial-gradient(ellipse 80% 50% at 50% -10%, #F6DCE0 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 50% 110%, #DEE4F5 0%, transparent 60%);
     }
 
     body::after {
@@ -134,7 +134,7 @@
       border-radius: var(--radius-lg);
       padding: 18px 20px;
       margin-bottom: 16px;
-      box-shadow: 0 4px 30px rgba(0,0,0,.5), inset 0 1px 0 rgba(196,18,48,.12);
+      box-shadow: 0 4px 30px rgba(0,0,0,.10), inset 0 1px 0 rgba(196,18,48,.12);
       position: relative;
       overflow: hidden;
     }
@@ -232,7 +232,7 @@
 
     .stat-card.total   { --stat-color: var(--accent); }
     .stat-card.green   { --stat-color: #4ADE80; }
-    .stat-card.yellow  { --stat-color: #F5C400; }
+    .stat-card.yellow  { --stat-color: #B8860B; }
     .stat-card.red     { --stat-color: #FF4D4D; }
 
     .stat-num {
@@ -451,7 +451,7 @@
       border: 1px solid var(--gold-line);
       border-radius: var(--radius-lg);
       overflow: hidden;
-      box-shadow: 0 4px 30px rgba(0,0,0,.5);
+      box-shadow: 0 4px 30px rgba(0,0,0,.10);
     }
 
     .table-wrap { overflow-x: auto; }
@@ -509,7 +509,7 @@
       font-size: 6px;
     }
     .severity-pill.green  { background: rgba(5,150,105,.1);  color: #4ADE80; border-color: rgba(74,222,128,.2);  }
-    .severity-pill.yellow { background: rgba(245,196,0,.1);  color: #F5C400; border-color: rgba(245,196,0,.25); }
+    .severity-pill.yellow { background: rgba(184,134,11,.1);  color: #B8860B; border-color: rgba(184,134,11,.25); }
     .severity-pill.red    { background: rgba(196,18,48,.15);  color: #FF6B6B; border-color: rgba(255,107,107,.25); }
 
     .img-preview {
@@ -616,7 +616,7 @@
 
   <div class="header">
     <div class="wordmark-wrap">
-      <img class="wordmark-crest" src="assets/skinguard-logo.png" alt="SkinGuard Logo">
+      <img class="wordmark-crest" src="assets/skinguard-logo.svg" alt="SkinGuard Logo">
       <div>
         <div class="wordmark">SKINGUARD</div>
         <div class="wordmark-sub">◆ &nbsp; Admin Records &nbsp; ◆</div>
@@ -855,7 +855,7 @@
 
   function sourceBadge(role) {
     const r = (role || '').toLowerCase();
-    const colors = { guest: '#F5C400', teacher: '#4ADE80', admin: '#60A5FA' };
+    const colors = { guest: '#B8860B', teacher: '#4ADE80', admin: '#60A5FA' };
     const color = colors[r] || 'var(--text-faint)';
     const label = r ? r.toUpperCase() : 'UNKNOWN';
     return `<span style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:.05em;color:${color};">${esc(label)}</span>`;
@@ -996,7 +996,7 @@
       return;
     }
 
-    const statusColors = { pending: '#F5C400', approved: '#4ADE80', rejected: '#FF6B6B', failed: '#FF6B6B', none: '#4A2830' };
+    const statusColors = { pending: '#B8860B', approved: '#4ADE80', rejected: '#FF6B6B', failed: '#FF6B6B', none: '#A78589' };
 
     tbody.innerHTML = smsRequests.map(r => {
       const smsStatus = r.sms_status || 'pending';
@@ -1365,9 +1365,9 @@
 
   function hudTooltip(extra) {
     return Object.assign({
-      backgroundColor: 'rgba(18,4,8,0.95)',
-      titleColor: '#F5C400',
-      bodyColor: '#F5EEE8',
+      backgroundColor: 'rgba(255,255,255,.92)',
+      titleColor: '#B8860B',
+      bodyColor: '#201013',
       borderColor: 'rgba(196,18,48,.5)',
       borderWidth: 1,
       titleFont: { family: HUD_FONT, size: 10 },
@@ -1452,8 +1452,8 @@
     // ---- 1. Total scans ----
     const ctx1 = document.getElementById('totalScansChart').getContext('2d');
     const goldFill = ctx1.createLinearGradient(0, 0, 0, 170);
-    goldFill.addColorStop(0, 'rgba(245,196,0,0.45)');
-    goldFill.addColorStop(1, 'rgba(245,196,0,0.01)');
+    goldFill.addColorStop(0, 'rgba(184,134,11,0.45)');
+    goldFill.addColorStop(1, 'rgba(184,134,11,0.01)');
 
     charts.total = new Chart(ctx1, {
       type: 'line',
@@ -1462,17 +1462,17 @@
         datasets: [{
           label: 'Scans',
           data: totalData,
-          borderColor: '#F5C400',
+          borderColor: '#B8860B',
           borderWidth: 2.5,
           backgroundColor: goldFill,
           fill: true,
           tension: 0.35,
-          pointBackgroundColor: '#0A0205',
-          pointBorderColor: '#F5C400',
+          pointBackgroundColor: '#FAF6F3',
+          pointBorderColor: '#B8860B',
           pointBorderWidth: 2,
           pointRadius: 4,
           pointHoverRadius: 6,
-          pointHoverBackgroundColor: '#F5C400',
+          pointHoverBackgroundColor: '#B8860B',
           pointHoverBorderColor: '#C41230'
         }]
       },
@@ -1482,7 +1482,7 @@
         interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: { display: false },
-          title: { display: true, text: '◆ DAILY SCAN COUNT', color: '#F5C400', font: { size: 10, family: HUD_FONT }, padding: { bottom: 10 } },
+          title: { display: true, text: '◆ DAILY SCAN COUNT', color: '#B8860B', font: { size: 10, family: HUD_FONT }, padding: { bottom: 10 } },
           tooltip: hudTooltip()
         },
         scales: {
@@ -1496,7 +1496,7 @@
     const ctx2 = document.getElementById('severityTrendChart').getContext('2d');
     const sevSeries = [
       { key: 'Green', color: '#4ADE80' },
-      { key: 'Yellow', color: '#F5C400' },
+      { key: 'Yellow', color: '#B8860B' },
       { key: 'Red', color: '#FF4D4D' }
     ];
 
@@ -1512,7 +1512,7 @@
           borderWidth: 2,
           fill: false,
           tension: 0.35,
-          pointBackgroundColor: '#0A0205',
+          pointBackgroundColor: '#FAF6F3',
           pointBorderColor: color,
           pointBorderWidth: 2,
           pointRadius: 3,
@@ -1526,9 +1526,9 @@
         plugins: {
           legend: {
             position: 'bottom',
-            labels: { color: '#A0888A', font: { size: 9, family: HUD_FONT }, boxWidth: 8, boxHeight: 8, usePointStyle: true, pointStyle: 'circle', padding: 12 }
+            labels: { color: '#6B4F52', font: { size: 9, family: HUD_FONT }, boxWidth: 8, boxHeight: 8, usePointStyle: true, pointStyle: 'circle', padding: 12 }
           },
-          title: { display: true, text: '◆ SEVERITY DAILY TREND', color: '#F5C400', font: { size: 10, family: HUD_FONT }, padding: { bottom: 10 } },
+          title: { display: true, text: '◆ SEVERITY DAILY TREND', color: '#B8860B', font: { size: 10, family: HUD_FONT }, padding: { bottom: 10 } },
           tooltip: hudTooltip()
         },
         scales: {
@@ -1546,8 +1546,8 @@
         labels: ['Green', 'Yellow', 'Red'],
         datasets: [{
           data: [green, yellow, red],
-          backgroundColor: ['#4ADE80', '#F5C400', '#FF4D4D'],
-          borderColor: '#0A0205',
+          backgroundColor: ['#4ADE80', '#B8860B', '#FF4D4D'],
+          borderColor: '#FAF6F3',
           borderWidth: 3,
           hoverOffset: 8
         }]
@@ -1559,9 +1559,9 @@
         plugins: {
           legend: {
             position: 'bottom',
-            labels: { color: '#A0888A', font: { size: 9, family: HUD_FONT }, boxWidth: 8, boxHeight: 8, usePointStyle: true, pointStyle: 'circle', padding: 12 }
+            labels: { color: '#6B4F52', font: { size: 9, family: HUD_FONT }, boxWidth: 8, boxHeight: 8, usePointStyle: true, pointStyle: 'circle', padding: 12 }
           },
-          title: { display: true, text: '◆ SEVERITY DISTRIBUTION', color: '#F5C400', font: { size: 10, family: HUD_FONT }, padding: { bottom: 10 } },
+          title: { display: true, text: '◆ SEVERITY DISTRIBUTION', color: '#B8860B', font: { size: 10, family: HUD_FONT }, padding: { bottom: 10 } },
           tooltip: hudTooltip({
             callbacks: {
               label: (ctx) => {
@@ -1586,7 +1586,7 @@
     const ctx4 = document.getElementById('topConditionsChart').getContext('2d');
     const barFill = ctx4.createLinearGradient(0, 0, 260, 0);
     barFill.addColorStop(0, '#8B0D22');
-    barFill.addColorStop(1, '#F5C400');
+    barFill.addColorStop(1, '#B8860B');
 
     charts.topConditions = new Chart(ctx4, {
       type: 'bar',
@@ -1606,12 +1606,12 @@
         maintainAspectRatio: true,
         plugins: {
           legend: { display: false },
-          title: { display: true, text: '◆ TOP CONDITIONS', color: '#F5C400', font: { size: 10, family: HUD_FONT }, padding: { bottom: 10 } },
+          title: { display: true, text: '◆ TOP CONDITIONS', color: '#B8860B', font: { size: 10, family: HUD_FONT }, padding: { bottom: 10 } },
           tooltip: hudTooltip()
         },
         scales: {
           x: { beginAtZero: true, grid: { color: 'rgba(196,18,48,.12)', drawBorder: false }, ticks: { color: '#6A5A5A', font: { size: 9, family: 'Rajdhani' }, precision: 0 } },
-          y: { grid: { display: false }, ticks: { color: '#A0888A', font: { size: 10, family: 'Rajdhani', weight: '600' } } }
+          y: { grid: { display: false }, ticks: { color: '#6B4F52', font: { size: 10, family: 'Rajdhani', weight: '600' } } }
         }
       }
     });
