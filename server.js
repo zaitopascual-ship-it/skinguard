@@ -12,6 +12,8 @@ const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const { ImapFlow } = require('imapflow');
+const { simpleParser } = require('mailparser');
 const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
@@ -91,6 +93,131 @@ async function sendEmailViaProvider(toEmail, studentName, condition, advice) {
         return { ok: false, error: err.message };
     }
 }
+
+// ---------- EMAIL REPLY POLLING (IMAP, Gmail only) ----------
+// Reuses the same Gmail app-password credentials used for sending (EMAIL_USER / EMAIL_PASS).
+// Looks at recent inbox messages that are replies (via In-Reply-To / References headers)
+// to a Message-ID we previously stored on a sms_requests row, and saves the reply text.
+// NOTE: this deliberately does NOT filter by "unseen" — a reply the parent's device already
+// marked as read (e.g. opened on a phone) would otherwise be invisible forever. Instead we
+// dedupe using the reply email's own Message-ID (unique index on email_replies.sourceMessageId)
+// so re-scanning the same window on every poll is safe and idempotent. We also never touch
+// \Seen flags, so this can't accidentally mark unrelated inbox mail as read.
+const IMAP_HOST = process.env.EMAIL_IMAP_HOST || 'imap.gmail.com';
+const IMAP_PORT = parseInt(process.env.EMAIL_IMAP_PORT || '993', 10);
+const IMAP_LOOKBACK_DAYS = parseInt(process.env.EMAIL_IMAP_LOOKBACK_DAYS || '14', 10);
+let imapPollInFlight = false;
+
+async function pollEmailReplies(db) {
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+        console.warn('📩 Skipping reply poll — EMAIL_USER/EMAIL_PASS not configured');
+        return { ok: false, error: 'not configured' };
+    }
+    if (imapPollInFlight) {
+        console.log('📩 Skipping reply poll — previous poll still running');
+        return { ok: false, error: 'already running' };
+    }
+    imapPollInFlight = true;
+
+    const client = new ImapFlow({
+        host: IMAP_HOST,
+        port: IMAP_PORT,
+        secure: true,
+        auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS,
+        },
+        logger: false,
+    });
+
+    const stats = { scanned: 0, withReplyHeaders: 0, matched: 0, saved: 0, duplicates: 0 };
+
+    try {
+        await client.connect();
+        console.log(`📩 IMAP connected as ${process.env.EMAIL_USER}`);
+        const lock = await client.getMailboxLock('INBOX');
+        try {
+            const since = new Date(Date.now() - IMAP_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+            const uids = await client.search({ since }, { uid: true });
+
+            if (!uids || uids.length === 0) {
+                console.log(`📩 No messages found in the last ${IMAP_LOOKBACK_DAYS} day(s)`);
+            } else {
+                console.log(`📩 Scanning ${uids.length} message(s) from the last ${IMAP_LOOKBACK_DAYS} day(s)...`);
+            }
+
+            for await (const message of client.fetch(uids, { envelope: true, source: true }, { uid: true })) {
+                stats.scanned++;
+                let parsed;
+                try {
+                    parsed = await simpleParser(message.source);
+                } catch (parseErr) {
+                    console.error('📩 Failed to parse inbox message:', parseErr.message);
+                    continue;
+                }
+
+                const sourceMessageId = (parsed.messageId || '').trim();
+                const inReplyTo = (parsed.inReplyTo || '').trim();
+                const references = parsed.references
+                    ? (Array.isArray(parsed.references) ? parsed.references : [parsed.references])
+                    : [];
+                const candidateIds = [...new Set([inReplyTo, ...references].filter(Boolean))];
+
+                if (candidateIds.length === 0) continue; // not a reply to anything
+                stats.withReplyHeaders++;
+
+                const matchedRow = await new Promise((resolve) => {
+                    const placeholders = candidateIds.map(() => '?').join(',');
+                    db.get(
+                        `SELECT id, studentName FROM sms_requests WHERE email_message_id IN (${placeholders}) LIMIT 1`,
+                        candidateIds,
+                        (err, row) => {
+                            if (err) { console.error('📩 Reply match query failed:', err.message); return resolve(null); }
+                            resolve(row || null);
+                        }
+                    );
+                });
+
+                if (!matchedRow) continue; // reply to some other email, not one of ours
+                stats.matched++;
+
+                const fromAddress = (parsed.from && parsed.from.text) || 'unknown';
+                const subject = parsed.subject || '(no subject)';
+                const body = (parsed.text || parsed.html || '').toString().trim().slice(0, 5000);
+
+                await new Promise((resolve) => {
+                    db.run(
+                        `INSERT OR IGNORE INTO email_replies (sms_request_id, fromAddress, subject, body, sourceMessageId) VALUES (?, ?, ?, ?, ?)`,
+                        [matchedRow.id, fromAddress, subject, body, sourceMessageId || null],
+                        function (insertErr) {
+                            if (insertErr) {
+                                console.error('📩 Failed to save email reply:', insertErr.message);
+                            } else if (this.changes === 0) {
+                                stats.duplicates++;
+                            } else {
+                                stats.saved++;
+                                console.log(`📩 Parent reply captured for request #${matchedRow.id} (${matchedRow.studentName})`);
+                            }
+                            resolve();
+                        }
+                    );
+                });
+            }
+        } finally {
+            lock.release();
+        }
+        await client.logout();
+        console.log(`📩 Reply poll done — scanned ${stats.scanned}, had reply headers ${stats.withReplyHeaders}, matched ours ${stats.matched}, newly saved ${stats.saved}, already known ${stats.duplicates}`);
+        return { ok: true, stats };
+    } catch (err) {
+        console.error('📩 IMAP reply poll failed:', err.message);
+        return { ok: false, error: err.message };
+    } finally {
+        imapPollInFlight = false;
+    }
+}
+
+
 
 // ---------- APP SETUP ----------
 const app = express();
@@ -525,7 +652,48 @@ db.serialize(() => {
             console.warn('Could not add email_status:', err.message);
         }
     });
+
+    db.run("ALTER TABLE sms_requests ADD COLUMN email_message_id TEXT", (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+            console.warn('Could not add email_message_id to sms_requests:', err.message);
+        }
+    });
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS email_replies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sms_request_id INTEGER NOT NULL,
+            fromAddress TEXT,
+            subject TEXT,
+            body TEXT,
+            sourceMessageId TEXT,
+            receivedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (sms_request_id) REFERENCES sms_requests(id)
+        )
+    `);
+
+    db.run("ALTER TABLE email_replies ADD COLUMN sourceMessageId TEXT", (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+            console.warn('Could not add sourceMessageId to email_replies:', err.message);
+        }
+    });
+
+    db.run(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_email_replies_source ON email_replies(sourceMessageId) WHERE sourceMessageId IS NOT NULL",
+        (err) => {
+            if (err) console.warn('Could not create unique index on email_replies.sourceMessageId:', err.message);
+        }
+    );
 });
+
+// ---------- START EMAIL REPLY POLLING ----------
+if (process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+    setInterval(() => pollEmailReplies(db), 60 * 1000); // check inbox every 60s
+    pollEmailReplies(db); // run once at startup
+    console.log(`📩 Email reply polling enabled (${IMAP_HOST}, every 60s)`);
+} else {
+    console.warn('⚠️ Email reply polling disabled — EMAIL_HOST/EMAIL_USER/EMAIL_PASS not fully configured');
+}
 
 // ---------- ROUTES (ALL AFTER DB INIT) ----------
 
@@ -935,13 +1103,41 @@ app.post('/api/send-sms', requireSession, smsLimiter, async (req, res) => {
 
 // ---- SMS APPROVAL QUEUE (admin only) ----
 app.get('/api/sms-requests', requireTeacherOrAdmin, (req, res) => {
-    db.all('SELECT * FROM sms_requests ORDER BY createdAt DESC LIMIT 200', (err, rows) => {
+    db.all(`
+        SELECT sr.*,
+            (SELECT COUNT(*) FROM email_replies er WHERE er.sms_request_id = sr.id) AS replyCount
+        FROM sms_requests sr
+        ORDER BY sr.createdAt DESC LIMIT 200
+    `, (err, rows) => {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
         }
         res.json(rows);
     });
+});
+
+// ---- PARENT EMAIL REPLIES FOR A REQUEST (admin/teacher) ----
+app.get('/api/sms-requests/:id/replies', requireTeacherOrAdmin, (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid request id' });
+    db.all(
+        'SELECT id, fromAddress, subject, body, receivedAt FROM email_replies WHERE sms_request_id = ? ORDER BY receivedAt ASC',
+        [id],
+        (err, rows) => {
+            if (err) {
+                console.error(err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            res.json(rows);
+        }
+    );
+});
+
+// ---- MANUALLY TRIGGER A REPLY CHECK (admin only, for debugging/on-demand refresh) ----
+app.post('/api/sms-requests/poll-replies', requireAdmin, async (req, res) => {
+    const result = await pollEmailReplies(db);
+    res.json(result);
 });
 
 app.post('/api/sms-requests/:id/approve-sms', requireAdmin, smsQueueLimiter, async (req, res) => {
@@ -1022,8 +1218,8 @@ app.post('/api/sms-requests/:id/approve-email', requireAdmin, smsQueueLimiter, a
 
         const newStatus = emailResult.ok ? 'approved' : 'failed';
         db.run(
-            'UPDATE sms_requests SET email_status = ?, resolvedBy = ?, resolvedAt = CURRENT_TIMESTAMP WHERE id = ?',
-            [newStatus, req.session.username || 'admin', id],
+            'UPDATE sms_requests SET email_status = ?, resolvedBy = ?, resolvedAt = CURRENT_TIMESTAMP, email_message_id = ? WHERE id = ?',
+            [newStatus, req.session.username || 'admin', emailResult.messageId || null, id],
             (updateErr) => {
                 if (updateErr) console.error('Failed to update email_status:', updateErr);
             }

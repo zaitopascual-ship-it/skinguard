@@ -570,6 +570,116 @@
 
     .actions { display: flex; gap: 5px; flex-wrap: wrap; }
 
+    .reply-badge {
+      display: inline-block;
+      margin-top: 4px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .03em;
+      color: #4ADE80;
+      background: rgba(74,222,128,.1);
+      border: 1px solid rgba(74,222,128,.25);
+      border-radius: 20px;
+      padding: 3px 9px;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .reply-badge:hover { background: rgba(74,222,128,.2); }
+
+    /* ── MESSAGE / REPLIES MODAL ── */
+    .msg-modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(16,8,10,.7);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 10000;
+      opacity: 0; pointer-events: none;
+      transition: opacity .15s;
+      padding: 30px;
+    }
+    .msg-modal-overlay.open { opacity: 1; pointer-events: auto; }
+    .msg-modal-box {
+      width: 100%; max-width: 560px;
+      max-height: 85vh;
+      overflow-y: auto;
+      background: var(--obsidian, #12080a);
+      border: 1px solid var(--gold-line, rgba(196,18,48,.3));
+      border-radius: 10px;
+      box-shadow: 0 30px 80px rgba(0,0,0,.5);
+      padding: 26px 24px;
+      position: relative;
+    }
+    .msg-modal-close {
+      position: absolute; top: 16px; right: 16px;
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.2);
+      color: #fff;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+    }
+    .msg-modal-close:hover { background: rgba(255,255,255,.14); }
+    .msg-modal-box h3 {
+      font-family: 'Bebas Neue', sans-serif;
+      letter-spacing: .05em;
+      font-size: 20px;
+      color: var(--gold, #C41230);
+      margin-bottom: 4px;
+    }
+    .msg-modal-sub {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--text-faint, #A78589);
+      margin-bottom: 18px;
+    }
+    .msg-block {
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 14px;
+    }
+    .msg-block-title {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--gold, #C41230);
+      margin-bottom: 8px;
+    }
+    .msg-block pre {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #E8DADA;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .reply-block {
+      background: rgba(74,222,128,.06);
+      border: 1px solid rgba(74,222,128,.18);
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+    }
+    .reply-block-meta {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: #4ADE80;
+      margin-bottom: 6px;
+    }
+    .reply-block pre {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #E8DADA;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
     .btn-edit, .btn-delete, .btn-save, .btn-cancel {
       font-family: 'Bebas Neue', sans-serif;
       border: 1px solid;
@@ -779,10 +889,17 @@
     <div class="filter-panel">
       <span class="filter-label">◆ PARENT NOTIFICATION REQUESTS</span>
       <span class="contact-count">Pending: <span id="sms-pending-count">0</span></span>
-      <button class="btn-print" id="refresh-sms-btn" style="margin-left:auto;">
+      <button class="btn-print" id="poll-replies-btn" style="margin-left:auto;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v6h6"/><path d="M20 20v-6h-6"/><path d="M4 10a8 8 0 0 1 14.7-4.7M20 14a8 8 0 0 1-14.7 4.7"/></svg>
+        CHECK FOR REPLIES
+      </button>
+      <button class="btn-print" id="refresh-sms-btn">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.1 21 6l-4 3.9"/><path d="M3 12.5a9 9 0 0 1 15-6.7l3 .2"/><path d="M7 21.9 3 18l4-3.9"/><path d="M21 11.5a9 9 0 0 1-15 6.7l-3-.2"/></svg>
         REFRESH
       </button>
+    </div>
+    <div class="filter-panel" id="poll-status-panel" style="display:none;">
+      <span class="filter-label" id="poll-status-text"></span>
     </div>
     <div class="table-panel">
       <div class="table-wrap">
@@ -1117,8 +1234,12 @@
           <td>${sourceBadge(r.requestedByRole)}</td>
           <td class="timestamp">${parseTimestamp(r.createdAt).toLocaleString()}</td>
           <td style="text-align:center;">${smsButtons}</td>
-          <td style="text-align:center;">${emailButtons}</td>
+          <td style="text-align:center;">
+            ${emailButtons}
+            ${r.replyCount > 0 ? `<br><span class="reply-badge" onclick="openMessageModal(${r.id})">💬 ${r.replyCount} repl${r.replyCount === 1 ? 'y' : 'ies'}</span>` : ''}
+          </td>
           <td class="actions" style="text-align:center;">
+            <button class="btn-save" onclick="openMessageModal(${r.id})">VIEW</button>
             <button class="btn-delete" onclick="deleteRequest('${r.id}')">DELETE</button>
           </td>
         </tr>
@@ -1186,6 +1307,104 @@
   };
 
   document.getElementById('refresh-sms-btn').addEventListener('click', loadSmsRequests);
+
+  document.getElementById('poll-replies-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('poll-replies-btn');
+    const statusPanel = document.getElementById('poll-status-panel');
+    const statusText = document.getElementById('poll-status-text');
+    btn.disabled = true;
+    statusPanel.style.display = '';
+    statusText.textContent = '◆ Checking inbox for parent replies…';
+    try {
+      const r = await csrfFetch('/api/sms-requests/poll-replies', { method: 'POST' });
+      const data = await r.json();
+      if (!r.ok || !data.ok) {
+        statusText.textContent = `◆ Check failed: ${data.error || 'Unknown error'}. See server console for details.`;
+      } else {
+        const s = data.stats;
+        statusText.textContent = `◆ Scanned ${s.scanned} message(s) · ${s.withReplyHeaders} were replies · ${s.matched} matched a SkinGuard notification · ${s.saved} new repl${s.saved === 1 ? 'y' : 'ies'} saved`;
+        loadSmsRequests();
+      }
+    } catch (e) {
+      statusText.textContent = '◆ Network error while checking for replies.';
+      console.error(e);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // ---------- SENT MESSAGE / REPLIES MODAL ----------
+  // These mirror the exact templates server.js uses in sendSmsViaProvider / sendEmailViaProvider.
+  function buildSmsText(r) {
+    return `AMA SKINGUARD ALERT\nPARENT NOTIFICATION\nDear parent/guardian of ${r.studentName}, your child was assessed with ${r.condition}. ${r.advice || ''}. Please take appropriate action.`;
+  }
+  function buildEmailText(r) {
+    return `Subject: SkinGuard Alert for ${r.studentName}\n\nDear parent/guardian of ${r.studentName},\n\nYour child was assessed with: ${r.condition}.\n${r.advice || ''}\n\nPlease take appropriate action.\n\n— AMA Santiago Campus Clinic`;
+  }
+
+  window.openMessageModal = async (id) => {
+    const r = smsRequests.find(x => String(x.id) === String(id));
+    if (!r) return;
+
+    document.getElementById('msg-modal-title').textContent = `${r.studentName} — Request #${r.id}`;
+    document.getElementById('msg-modal-sub').textContent = `${r.condition}${r.severity ? ' · ' + r.severity : ''} · ${parseTimestamp(r.createdAt).toLocaleString()}`;
+
+    const bodyEl = document.getElementById('msg-modal-body');
+    let html = '';
+
+    if (r.channels && r.channels.includes('sms')) {
+      html += `
+        <div class="msg-block">
+          <div class="msg-block-title">◆ SMS ${r.sms_status ? '(' + esc(r.sms_status).toUpperCase() + ')' : ''} · To ${esc(r.phone || '—')}</div>
+          <pre>${esc(buildSmsText(r))}</pre>
+        </div>`;
+    }
+    if (r.channels && r.channels.includes('email')) {
+      html += `
+        <div class="msg-block">
+          <div class="msg-block-title">◆ EMAIL ${r.email_status ? '(' + esc(r.email_status).toUpperCase() + ')' : ''} · To ${esc(r.email || '—')}</div>
+          <pre>${esc(buildEmailText(r))}</pre>
+        </div>`;
+    }
+
+    html += `<div class="msg-block-title" style="margin-top:6px;">◆ PARENT REPLIES</div>`;
+    html += `<div id="msg-modal-replies"><div class="empty-state" style="padding:10px 0;">loading replies…</div></div>`;
+    bodyEl.innerHTML = html;
+
+    const overlay = document.getElementById('msg-modal-overlay');
+    overlay.classList.add('open');
+
+    // Fetch replies (email replies only — SMS has no reply channel)
+    try {
+      const resp = await fetch(`/api/sms-requests/${r.id}/replies`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const replies = await resp.json();
+      const repliesEl = document.getElementById('msg-modal-replies');
+      if (!repliesEl) return; // modal was closed before this resolved
+      if (!replies.length) {
+        repliesEl.innerHTML = `<div class="empty-state" style="padding:10px 0;">No reply from the parent yet.</div>`;
+        return;
+      }
+      repliesEl.innerHTML = replies.map(rep => `
+        <div class="reply-block">
+          <div class="reply-block-meta">${esc(rep.fromAddress)} · ${parseTimestamp(rep.receivedAt).toLocaleString()}</div>
+          <pre>${esc(rep.body)}</pre>
+        </div>
+      `).join('');
+    } catch (e) {
+      console.error('Failed to load replies:', e);
+      const repliesEl = document.getElementById('msg-modal-replies');
+      if (repliesEl) repliesEl.innerHTML = `<div class="empty-state" style="padding:10px 0;">Failed to load replies.</div>`;
+    }
+  };
+
+  window.closeMessageModal = () => {
+    document.getElementById('msg-modal-overlay').classList.remove('open');
+  };
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeMessageModal();
+  });
 
   // ---------- CONTACTS (MERGE STUDENTS + SCANS) ----------
   function buildContacts() {
@@ -1760,6 +1979,16 @@
   <button type="button" class="lightbox-close" onclick="closeLightbox()" aria-label="Close">✕</button>
   <img id="lightbox-img" src="" alt="Scan image">
   <div class="lightbox-meta" id="lightbox-meta"></div>
+</div>
+
+<!-- ── SENT MESSAGE / PARENT REPLIES MODAL ── -->
+<div id="msg-modal-overlay" class="msg-modal-overlay" onclick="if(event.target===this) closeMessageModal()">
+  <div class="msg-modal-box">
+    <button type="button" class="msg-modal-close" onclick="closeMessageModal()">✕</button>
+    <h3 id="msg-modal-title">Request #—</h3>
+    <div class="msg-modal-sub" id="msg-modal-sub"></div>
+    <div id="msg-modal-body"></div>
+  </div>
 </div>
 
 </body>
