@@ -155,100 +155,6 @@
       color: var(--gold, #C41230);
       background: rgba(196,18,48,.06);
     }
-
-    /* ── IN-APP NOTICE MODAL (replaces native alert()) ── */
-    #app-notice-overlay {
-      position: fixed;
-      inset: 0;
-      z-index: 10500;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-      background: rgba(32,16,19,.45);
-      backdrop-filter: blur(4px);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity .2s ease;
-    }
-    #app-notice-overlay.open { opacity: 1; pointer-events: auto; }
-    #app-notice-overlay .notice-box {
-      position: relative;
-      width: 100%;
-      max-width: 400px;
-      background: var(--obsidian, #FFFFFF);
-      border: 1px solid var(--gold-line, rgba(196,18,48,.30));
-      border-radius: var(--radius-lg, 8px);
-      box-shadow: 0 30px 80px rgba(0,0,0,.18);
-      padding: 28px 26px 24px;
-      text-align: left;
-      transform: translateY(14px) scale(.98);
-      transition: transform .2s ease;
-    }
-    #app-notice-overlay.open .notice-box { transform: translateY(0) scale(1); }
-    #app-notice-overlay .notice-icon {
-      width: 44px;
-      height: 44px;
-      margin-bottom: 14px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 50%;
-      background: var(--iron, #F7ECEC);
-      font-size: 20px;
-    }
-    #app-notice-overlay h3 {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 20px;
-      letter-spacing: .05em;
-      color: var(--text, #201013);
-      margin-bottom: 10px;
-    }
-    #app-notice-overlay p {
-      font-family: 'Rajdhani', sans-serif;
-      font-size: 15px;
-      line-height: 1.55;
-      color: var(--text-dim, #6B4F52);
-      margin-bottom: 8px;
-    }
-    #app-notice-overlay ul {
-      margin: 10px 0 4px;
-      padding-left: 0;
-      list-style: none;
-    }
-    #app-notice-overlay ul li {
-      font-family: 'Rajdhani', sans-serif;
-      font-size: 14.5px;
-      line-height: 1.5;
-      color: var(--text-dim, #6B4F52);
-      padding-left: 18px;
-      position: relative;
-      margin-bottom: 6px;
-    }
-    #app-notice-overlay ul li::before {
-      content: '◆';
-      position: absolute;
-      left: 0;
-      top: 1px;
-      font-size: 9px;
-      color: var(--gold, #C41230);
-    }
-    #app-notice-overlay .notice-ok {
-      margin-top: 20px;
-      width: 100%;
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 18px;
-      letter-spacing: .1em;
-      border-radius: var(--radius, 4px);
-      padding: 12px;
-      cursor: pointer;
-      background: var(--gold, #C41230);
-      color: #fff;
-      border: 1px solid rgba(196,18,48,.5);
-      box-shadow: 0 2px 20px rgba(196,18,48,.2);
-      transition: background .15s;
-    }
-    #app-notice-overlay .notice-ok:hover { background: #D91535; }
   </style>
 </head>
 <body>
@@ -261,7 +167,6 @@
     </div>
     <h3 id="idx-consent-title">IMAGE STORAGE CONSENT</h3>
     <p>To generate an assessment, SkinGuard will <strong>capture and store</strong> the photo you take or upload here, together with the AI's findings, in the school's records system for the subject's care and follow‑up.</p>
-    <p><strong>The scanned image will also be saved to our database</strong> and may be used to help train and improve the AI model over time.</p>
     <p class="consent-sub">Do you agree to proceed?</p>
     <div class="consent-actions">
       <button type="button" id="idx-consent-agree">AGREE &amp; CONTINUE</button>
@@ -290,58 +195,6 @@
     disagreeBtn.addEventListener('click', function () {
       window.location.href = 'landing.html';
     });
-  })();
-</script>
-
-<!-- ── IN-APP NOTICE MODAL (replaces native alert()) ── -->
-<div id="app-notice-overlay" aria-hidden="true" role="alertdialog" aria-modal="true" aria-labelledby="app-notice-title">
-  <div class="notice-box">
-    <div class="notice-icon" id="app-notice-icon">📨</div>
-    <h3 id="app-notice-title">Notice</h3>
-    <div id="app-notice-body"></div>
-    <button type="button" class="notice-ok" id="app-notice-ok">OK</button>
-  </div>
-</div>
-<script>
-  (function () {
-    var overlay = document.getElementById('app-notice-overlay');
-    var okBtn = document.getElementById('app-notice-ok');
-    var currentCallback = null;
-
-    function close() {
-      overlay.classList.remove('open');
-      overlay.setAttribute('aria-hidden', 'true');
-      var cb = currentCallback;
-      currentCallback = null;
-      if (typeof cb === 'function') cb();
-    }
-
-    okBtn.addEventListener('click', close);
-    overlay.addEventListener('click', function (e) {
-      if (e.target === overlay) close();
-    });
-    document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && overlay.classList.contains('open')) close();
-    });
-
-    // opts: { icon, title, message, bullets: [], onClose }
-    window.showAppNotice = function (opts) {
-      opts = opts || {};
-      document.getElementById('app-notice-icon').textContent = opts.icon || 'ℹ️';
-      document.getElementById('app-notice-title').textContent = opts.title || 'Notice';
-
-      var bodyEl = document.getElementById('app-notice-body');
-      var html = '';
-      if (opts.message) html += '<p>' + opts.message + '</p>';
-      if (opts.bullets && opts.bullets.length) {
-        html += '<ul>' + opts.bullets.map(function (b) { return '<li>' + b + '</li>'; }).join('') + '</ul>';
-      }
-      bodyEl.innerHTML = html;
-
-      currentCallback = opts.onClose || null;
-      overlay.classList.add('open');
-      overlay.setAttribute('aria-hidden', 'false');
-    };
   })();
 </script>
 

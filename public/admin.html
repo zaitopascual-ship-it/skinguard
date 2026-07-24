@@ -518,6 +518,54 @@
       border-radius: 6px;
       background: var(--iron);
       object-fit: cover;
+      cursor: zoom-in;
+      transition: transform .15s, box-shadow .15s;
+    }
+    .img-preview:hover {
+      transform: scale(1.06);
+      box-shadow: 0 0 0 2px var(--gold-line);
+    }
+
+    /* ── IMAGE LIGHTBOX ── */
+    .lightbox-overlay {
+      position: fixed; inset: 0;
+      background: rgba(16,8,10,.86);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 10000;
+      opacity: 0; pointer-events: none;
+      transition: opacity .15s;
+      padding: 40px;
+    }
+    .lightbox-overlay.open { opacity: 1; pointer-events: auto; }
+    .lightbox-overlay img {
+      max-width: min(90vw, 720px);
+      max-height: 85vh;
+      border-radius: 8px;
+      box-shadow: 0 30px 80px rgba(0,0,0,.5);
+      border: 1px solid var(--gold-line);
+    }
+    .lightbox-close {
+      position: absolute;
+      top: 22px; right: 28px;
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.25);
+      color: #fff;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .15s;
+    }
+    .lightbox-close:hover { background: rgba(255,255,255,.18); }
+    .lightbox-meta {
+      position: absolute;
+      bottom: 24px; left: 50%; transform: translateX(-50%);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+      color: rgba(255,255,255,.7);
+      text-align: center;
     }
 
     .actions { display: flex; gap: 5px; flex-wrap: wrap; }
@@ -654,7 +702,7 @@
   <div class="view-tabs">
     <button class="view-tab active" id="tab-records" onclick="switchView('records')">◆ &nbsp; Scan Records</button>
     <button class="view-tab" id="tab-contacts" onclick="switchView('contacts')">◆ &nbsp; Contacts</button>
-    <button class="view-tab" id="tab-sms" onclick="switchView('sms')">◆ &nbsp; SMS Approvals <span id="sms-badge" style="display:none;background:#C41230;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;margin-left:6px;font-family:'Share Tech Mono',monospace;"></span></button>
+    <button class="view-tab" id="tab-sms" onclick="switchView('sms')">◆ &nbsp; SMS & E-mail Approvals <span id="sms-badge" style="display:none;background:#C41230;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;margin-left:6px;font-family:'Share Tech Mono',monospace;"></span></button>
   </div>
 
   <!-- ============ RECORDS VIEW ============ -->
@@ -703,6 +751,15 @@
 
   <!-- ============ CONTACTS VIEW ============ -->
   <div id="contacts-view" style="display:none;">
+    <div class="panel" id="add-contact-panel">
+      <div class="panel-title">◆ &nbsp; New Contact</div>
+      <div class="form-grid">
+        <input type="text" id="new-contact-name" placeholder="Full name *">
+        <input type="text" id="new-contact-phone" placeholder="Phone number">
+        <input type="email" id="new-contact-email" placeholder="Email (optional)">
+        <button id="add-contact-btn" class="btn-add span-all">◆ &nbsp; ADD CONTACT</button>
+      </div>
+    </div>
     <div class="filter-panel">
       <span class="filter-label">◆ CONTACT DIRECTORY</span>
       <span class="contact-count">Total: <span id="contacts-count">0</span> contacts</span>
@@ -848,6 +905,33 @@
 
   function sc(s) { return (s||'').toLowerCase(); }
 
+  // ---------- IMAGE LIGHTBOX ----------
+  window.openLightbox = id => {
+    const scan = scansData.find(s => s.id === id);
+    if (!scan) return;
+    const rawImage = scan.image || '';
+    const imageSrc = /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(rawImage) ? rawImage : '';
+    if (!imageSrc) return;
+
+    document.getElementById('lightbox-img').src = imageSrc;
+    document.getElementById('lightbox-meta').textContent =
+      `${scan.name || 'Unknown'} · ${scan.condition || '—'} · ${parseTimestamp(scan.timestamp).toLocaleString()}`;
+    const overlay = document.getElementById('lightbox-overlay');
+    overlay.classList.add('open');
+    overlay.setAttribute('aria-hidden', 'false');
+  };
+
+  window.closeLightbox = () => {
+    const overlay = document.getElementById('lightbox-overlay');
+    overlay.classList.remove('open');
+    overlay.setAttribute('aria-hidden', 'true');
+    document.getElementById('lightbox-img').src = '';
+  };
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeLightbox();
+  });
+
   function esc(u) {
     if (!u) return '';
     return u.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
@@ -892,7 +976,7 @@
           <td style="max-width:160px;font-style:italic;">${esc(s.advice||'—')}</td>
           <td style="max-width:140px;font-style:italic;">${esc(s.firstAid||'—')}</td>
           <td class="timestamp">${parseTimestamp(s.timestamp).toLocaleString()}</td>
-          <td>${imageSrc ? `<img src="${imageSrc}" class="img-preview" onerror="this.style.display='none'" alt="scan image">` : '—'}</td>
+          <td>${imageSrc ? `<img src="${imageSrc}" class="img-preview" onerror="this.style.display='none'" onclick="openLightbox(${s.id})" alt="scan image">` : '—'}</td>
           <td>${sourceBadge(s.submittedRole)}</td>
           <td class="actions">
             ${isAdmin ? `
@@ -1294,6 +1378,47 @@
 
   document.getElementById('filter-condition').addEventListener('change', () => renderTable());
 
+  // ---------- ADD CONTACT (DIRECT, NO SCAN REQUIRED) ----------
+  document.getElementById('add-contact-btn').addEventListener('click', async () => {
+    if (userRole !== 'admin') { alert('Only administrators can add contacts.'); return; }
+    const name = document.getElementById('new-contact-name').value.trim();
+    const phone = document.getElementById('new-contact-phone').value.trim();
+    const email = document.getElementById('new-contact-email').value.trim();
+
+    if (!name) return alert('Name is required.');
+    if (phone && !isValidPhone(phone)) { alert('Phone number can only contain digits and the plus sign (+).'); return; }
+    if (!phone) return alert('A phone number is required so this contact can be found in the directory.');
+
+    if (contactsCache[phone]) {
+      alert('A contact with this phone number already exists.');
+      return;
+    }
+
+    const btn = document.getElementById('add-contact-btn');
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'ADDING…';
+
+    try {
+      const r = await csrfFetch('/api/students', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, phone, email: email || null })
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to add contact');
+      }
+      ['new-contact-name', 'new-contact-phone', 'new-contact-email'].forEach(i => document.getElementById(i).value = '');
+      loadScans();
+    } catch (e) {
+      alert('Error adding contact: ' + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  });
+
   // ---------- PRINT BY DAY (UPDATED: removed advice and firstAid) ----------
   function toLocalDateKey(date) {
     return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
@@ -1630,5 +1755,12 @@
     setInterval(loadSmsRequests, 15000);
   })();
 </script>
+<!-- ── IMAGE LIGHTBOX ── -->
+<div id="lightbox-overlay" class="lightbox-overlay" aria-hidden="true" role="dialog" aria-modal="true" onclick="if(event.target===this) closeLightbox()">
+  <button type="button" class="lightbox-close" onclick="closeLightbox()" aria-label="Close">✕</button>
+  <img id="lightbox-img" src="" alt="Scan image">
+  <div class="lightbox-meta" id="lightbox-meta"></div>
+</div>
+
 </body>
 </html>

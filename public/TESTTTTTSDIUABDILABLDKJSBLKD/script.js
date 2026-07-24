@@ -462,16 +462,11 @@ async function performNotifyWithChannels(channels) {
 
         if (response.ok && data.pending) {
     // Only guests get this
-    showAppNotice({
-        icon: '📨',
-        title: 'Notification Sent',
-        message: 'Your notification request has been sent to the admin for approval.',
-        bullets: [
-            `${escapeHtml(selectedStudent.name)}'s parent will be notified via ${escapeHtml(channels.join(' and '))}.`,
-            'The admin must approve this request in the admin panel.',
-            'You will be notified once approved.'
-        ]
-    });
+    alert(`📨 Your notification request has been sent to the admin for approval.
+    
+🔹 ${selectedStudent.name}'s parent will be notified via ${channels.join(' and ')}.
+🔹 The admin must approve this request in the admin panel.
+🔹 You will be notified once approved.`);
     pollSmsRequestStatus(data.requestId, selectedStudent.name);
 }
     } catch (error) {
@@ -498,27 +493,15 @@ function pollSmsRequestStatus(requestId, studentName) {
             if (res.ok) {
                 const data = await res.json();
                 if (data.status === 'approved') {
-                    showAppNotice({
-                        icon: '✅',
-                        title: 'Approved',
-                        message: `Admin approved it — notification sent to ${escapeHtml(studentName)}'s parent.`
-                    });
+                    alert(`✅ Admin approved it — notification sent to ${studentName}'s parent.`);
                     return;
                 }
                 if (data.status === 'rejected') {
-                    showAppNotice({
-                        icon: '❌',
-                        title: 'Request Rejected',
-                        message: `An admin rejected the request for ${escapeHtml(studentName)}.`
-                    });
+                    alert(`❌ An admin rejected the request for ${studentName}.`);
                     return;
                 }
                 if (data.status === 'failed') {
-                    showAppNotice({
-                        icon: '⚠️',
-                        title: 'Sending Failed',
-                        message: `Admin approved, but sending failed for ${escapeHtml(studentName)}.`
-                    });
+                    alert(`⚠️ Admin approved, but sending failed for ${studentName}.`);
                     return;
                 }
             }
