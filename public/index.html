@@ -267,24 +267,50 @@
       <button type="button" id="idx-consent-agree">AGREE &amp; CONTINUE</button>
       <button type="button" id="idx-consent-disagree">DISAGREE</button>
     </div>
+    <p id="idx-consent-error" style="display:none; color:#FF6B6B; font-size:12px; margin-top:10px; text-align:center;"></p>
   </div>
 </div>
 <script>
   (function () {
+    function getCookie(name) {
+      var match = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+      return match ? decodeURIComponent(match[2]) : null;
+    }
+
     var CONSENT_KEY = 'skinguard_img_consent';
     var overlay = document.getElementById('consent-overlay');
     var agreeBtn = document.getElementById('idx-consent-agree');
     var disagreeBtn = document.getElementById('idx-consent-disagree');
+    var errorEl = document.getElementById('idx-consent-error');
 
     if (sessionStorage.getItem(CONSENT_KEY) !== 'yes') {
       overlay.classList.add('open');
       overlay.setAttribute('aria-hidden', 'false');
     }
 
-    agreeBtn.addEventListener('click', function () {
-      sessionStorage.setItem(CONSENT_KEY, 'yes');
-      overlay.classList.remove('open');
-      overlay.setAttribute('aria-hidden', 'true');
+    agreeBtn.addEventListener('click', async function () {
+      agreeBtn.disabled = true;
+      agreeBtn.textContent = 'PLEASE WAIT…';
+      errorEl.style.display = 'none';
+      try {
+        // This is the actual consent record — the server won't allow a scan without it,
+        // regardless of what the client's own sessionStorage flag says.
+        const res = await fetch('/api/consent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCookie('XSRF-TOKEN') || '' }
+        });
+        if (!res.ok) throw new Error('Consent request failed');
+
+        sessionStorage.setItem(CONSENT_KEY, 'yes');
+        overlay.classList.remove('open');
+        overlay.setAttribute('aria-hidden', 'true');
+      } catch (e) {
+        console.error('Consent registration failed:', e);
+        errorEl.textContent = 'Could not confirm consent — please check your connection and try again.';
+        errorEl.style.display = 'block';
+        agreeBtn.disabled = false;
+        agreeBtn.textContent = 'AGREE & CONTINUE';
+      }
     });
 
     disagreeBtn.addEventListener('click', function () {

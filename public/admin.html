@@ -812,7 +812,8 @@
   <div class="view-tabs">
     <button class="view-tab active" id="tab-records" onclick="switchView('records')">◆ &nbsp; Scan Records</button>
     <button class="view-tab" id="tab-contacts" onclick="switchView('contacts')">◆ &nbsp; Contacts</button>
-    <button class="view-tab" id="tab-sms" onclick="switchView('sms')">◆ &nbsp; SMS & E-mail Approvals <span id="sms-badge" style="display:none;background:#C41230;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;margin-left:6px;font-family:'Share Tech Mono',monospace;"></span></button>
+    <button class="view-tab" id="tab-sms" onclick="switchView('sms')">◆ &nbsp; SMS Approvals <span id="sms-badge" style="display:none;background:#C41230;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;margin-left:6px;font-family:'Share Tech Mono',monospace;"></span></button>
+    <button class="view-tab" id="tab-audit" onclick="switchView('audit')">◆ &nbsp; Audit Log</button>
   </div>
 
   <!-- ============ RECORDS VIEW ============ -->
@@ -919,6 +920,30 @@
     </div>
   </div>
 
+  <!-- ============ AUDIT LOG VIEW ============ -->
+  <div id="audit-view" style="display:none;">
+    <div class="filter-panel">
+      <span class="filter-label">◆ ADMIN ACTION HISTORY</span>
+      <span class="contact-count">Showing last <span id="audit-count">0</span> entries</span>
+      <button class="btn-print" id="refresh-audit-btn" style="margin-left:auto;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.1 21 6l-4 3.9"/><path d="M3 12.5a9 9 0 0 1 15-6.7l3 .2"/><path d="M7 21.9 3 18l4-3.9"/><path d="M21 11.5a9 9 0 0 1-15 6.7l-3-.2"/></svg>
+        REFRESH
+      </button>
+    </div>
+    <div class="table-panel">
+      <div class="table-wrap">
+        <table id="audit-log-table">
+          <thead>
+            <tr>
+              <th>When</th><th>Actor</th><th>Role</th><th>Action</th><th>Target</th><th>Details</th>
+            </tr>
+          </thead>
+          <tbody id="audit-log-body"><tr><td colspan="6" class="empty-state">loading audit log…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -973,6 +998,10 @@
         const data = await res.json();
         userRole = data.role || 'admin';
         console.log('👤 User role:', userRole);
+        if (userRole !== 'admin') {
+          const auditTab = document.getElementById('tab-audit');
+          if (auditTab) auditTab.style.display = 'none';
+        }
       } else {
         window.location.href = '/login';
       }
@@ -1169,11 +1198,54 @@
     document.getElementById('records-view').style.display = view === 'records' ? '' : 'none';
     document.getElementById('contacts-view').style.display = view === 'contacts' ? '' : 'none';
     document.getElementById('sms-view').style.display = view === 'sms' ? '' : 'none';
+    document.getElementById('audit-view').style.display = view === 'audit' ? '' : 'none';
     document.getElementById('tab-records').classList.toggle('active', view === 'records');
     document.getElementById('tab-contacts').classList.toggle('active', view === 'contacts');
     document.getElementById('tab-sms').classList.toggle('active', view === 'sms');
+    document.getElementById('tab-audit').classList.toggle('active', view === 'audit');
     if (view === 'sms') loadSmsRequests();
+    if (view === 'audit') loadAuditLog();
   };
+
+  // ---------- AUDIT LOG ----------
+  async function loadAuditLog() {
+    const tbody = document.getElementById('audit-log-body');
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">loading audit log…</td></tr>';
+    try {
+      const r = await fetch('/api/audit-log');
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const rows = await r.json();
+      document.getElementById('audit-count').textContent = rows.length;
+      if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No audit log entries yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = rows.map(row => {
+        let details = '—';
+        if (row.details) {
+          try {
+            const parsed = JSON.parse(row.details);
+            details = Object.entries(parsed).map(([k, v]) => `${esc(k)}: ${esc(String(v))}`).join(', ');
+          } catch (e) { details = esc(row.details); }
+        }
+        const target = row.targetType ? `${esc(row.targetType)} #${esc(row.targetId ?? '—')}` : '—';
+        return `
+          <tr>
+            <td>${parseTimestamp(row.createdAt).toLocaleString()}</td>
+            <td>${esc(row.actor)}</td>
+            <td>${sourceBadge(row.actorRole)}</td>
+            <td>${esc(row.action)}</td>
+            <td>${target}</td>
+            <td style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);">${details}</td>
+          </tr>`;
+      }).join('');
+    } catch (e) {
+      console.error('Failed to load audit log:', e);
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Failed to load audit log.</td></tr>';
+    }
+  }
+
+  document.getElementById('refresh-audit-btn').addEventListener('click', loadAuditLog);
 
   // ---------- SMS APPROVAL QUEUE ----------
   async function loadSmsRequests() {
