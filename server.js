@@ -368,6 +368,7 @@ function verifyCsrf(req, res, next) {
 
 app.use(ensureCsrfCookie);
 app.use((req, res, next) => {
+    if (req.path === '/api/logout-beacon') return next(); // sendBeacon can't set X-CSRF-Token
     if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method) && req.path.startsWith('/api/')) {
         return verifyCsrf(req, res, next);
     }
@@ -375,8 +376,12 @@ app.use((req, res, next) => {
 });
 
 // ---------- AUTH MIDDLEWARES ----------
+// NOTE: these check BOTH the boolean flag (isAdmin/isTeacher) AND the role string.
+// A session must agree on both to be trusted. This is defense-in-depth against the
+// two fields ever drifting out of sync (e.g. a stale isAdmin=true surviving a later
+// guest-login on the same session, which only overwrote `role`).
 function requireAdmin(req, res, next) {
-    if (req.session && req.session.isAdmin) {
+    if (req.session && req.session.isAdmin && req.session.role === 'admin') {
         return next();
     }
     if (req.path.startsWith('/api/')) {
@@ -386,7 +391,10 @@ function requireAdmin(req, res, next) {
 }
 
 function requireTeacherOrAdmin(req, res, next) {
-    if (req.session && (req.session.isAdmin || req.session.isTeacher)) {
+    if (req.session && (
+        (req.session.isAdmin && req.session.role === 'admin') ||
+        (req.session.isTeacher && req.session.role === 'teacher')
+    )) {
         return next();
     }
     if (req.path.startsWith('/api/')) {
@@ -658,16 +666,25 @@ app.post('/api/faq-chat', faqChatLimiter, async (req, res) => {
 
 // ---------- GUEST LOGIN ----------
 app.post('/api/guest-login', guestLoginLimiter, (req, res) => {
-    req.session.role = 'guest';
-    req.session.isGuest = true;
-    req.session.cookie.maxAge = 2 * 60 * 60 * 1000;
-    console.log('👤 Guest session created');
-    res.json({ success: true, role: 'guest' });
+    // Regenerate the session first so any leftover fields from a previous auth
+    // state on this cookie (isAdmin, isTeacher, username, etc.) can't survive
+    // into the new guest session.
+    req.session.regenerate((err) => {
+        if (err) {
+            console.error('❌ Guest session regenerate failed:', err.message);
+            return res.status(500).json({ error: 'Could not start guest session' });
+        }
+        req.session.role = 'guest';
+        req.session.isGuest = true;
+        req.session.cookie.maxAge = 2 * 60 * 60 * 1000;
+        console.log('👤 Guest session created');
+        res.json({ success: true, role: 'guest' });
+    });
 });
 
 // ---------- LOGIN PAGE ----------
 app.get('/login', (req, res) => {
-    if (req.session && req.session.isAdmin) {
+    if (req.session && req.session.isAdmin && req.session.role === 'admin') {
         return res.redirect('/admin');
     }
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
@@ -688,24 +705,42 @@ app.post('/api/login', loginLimiter, (req, res) => {
     const isAdminMatch = username === adminUser && adminHash && bcrypt.compareSync(password, adminHash);
     const isTeacherMatch = username === teacherUser && teacherHash && bcrypt.compareSync(password, teacherHash);
 
-    if (isAdminMatch) {
-        req.session.isAdmin = true;
-        req.session.role = 'admin';
-        req.session.username = username;
-        console.log(`✅ Admin logged in:`, username);
-        return res.json({ success: true, role: 'admin' });
+    if (!isAdminMatch && !isTeacherMatch) {
+        console.log('❌ Failed login attempt:', username);
+        return res.status(401).json({ error: 'Invalid username or password' });
     }
 
-    if (isTeacherMatch) {
+    // Regenerate the session first so any leftover fields from a previous auth
+    // state on this cookie (e.g. an earlier guest session's role/isGuest, or a
+    // different user's isAdmin/isTeacher/username) can't survive into this one.
+    req.session.regenerate((err) => {
+        if (err) {
+            console.error('❌ Login session regenerate failed:', err.message);
+            return res.status(500).json({ error: 'Could not start session' });
+        }
+
+        // No maxAge set here on purpose: this makes it a real "session cookie"
+        // with no Expires/Max-Age attribute, so the browser drops it when the
+        // browser itself closes, rather than persisting for the default 24h.
+        // (Closing just this one tab, with the app still open elsewhere, is
+        // additionally handled client-side — see the pagehide/beacon logout
+        // in admin.html.)
+        req.session.cookie.expires = false;
+
+        if (isAdminMatch) {
+            req.session.isAdmin = true;
+            req.session.role = 'admin';
+            req.session.username = username;
+            console.log(`✅ Admin logged in:`, username);
+            return res.json({ success: true, role: 'admin' });
+        }
+
         req.session.isTeacher = true;
         req.session.role = 'teacher';
         req.session.username = username;
         console.log(`✅ Teacher logged in:`, username);
         return res.json({ success: true, role: 'teacher' });
-    }
-
-    console.log('❌ Failed login attempt:', username);
-    res.status(401).json({ error: 'Invalid username or password' });
+    });
 });
 
 // ---------- GET CURRENT USER ----------
@@ -727,6 +762,22 @@ app.get('/logout', (req, res) => {
     req.session.destroy(() => {
         res.redirect('/login');
     });
+});
+
+// Fired via navigator.sendBeacon() from admin.html when that tab is closing,
+// so the admin/teacher session ends immediately even if other tabs are open
+// (a plain session cookie only clears when the whole browser closes).
+// No response body/status matters here since sendBeacon doesn't read the reply.
+app.post('/api/logout-beacon', (req, res) => {
+    if (req.session) {
+        const who = req.session.username || req.session.role || 'unknown';
+        req.session.destroy(() => {
+            console.log('🚪 Tab-close logout:', who);
+            res.status(204).end();
+        });
+    } else {
+        res.status(204).end();
+    }
 });
 
 // ---------- LANDING & ADMIN ----------

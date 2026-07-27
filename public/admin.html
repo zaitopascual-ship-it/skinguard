@@ -636,7 +636,7 @@
       margin-bottom: 18px;
     }
     .msg-block {
-      background: rgba(255,255,255,.03);
+      background: #EDEDED;
       border: 1px solid rgba(255,255,255,.08);
       border-radius: 8px;
       padding: 14px 16px;
@@ -652,30 +652,34 @@
     }
     .msg-block pre {
       font-family: 'Rajdhani', sans-serif;
-      font-size: 14px;
-      line-height: 1.6;
-      color: #E8DADA;
+      font-weight: 500;
+      font-size: 15px;
+      line-height: 1.65;
+      color: #111111;
       white-space: pre-wrap;
       word-break: break-word;
     }
     .reply-block {
-      background: rgba(74,222,128,.06);
-      border: 1px solid rgba(74,222,128,.18);
+      background: #E4F7EC;
+      border: 1px solid rgba(74,222,128,.4);
       border-radius: 8px;
       padding: 14px 16px;
       margin-bottom: 10px;
     }
     .reply-block-meta {
       font-family: 'Share Tech Mono', monospace;
-      font-size: 10px;
-      color: #4ADE80;
-      margin-bottom: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      color: #0F7A3D;
+      margin-bottom: 8px;
     }
     .reply-block pre {
       font-family: 'Rajdhani', sans-serif;
-      font-size: 14px;
-      line-height: 1.6;
-      color: #E8DADA;
+      font-weight: 500;
+      font-size: 15px;
+      line-height: 1.65;
+      color: #111111;
       white-space: pre-wrap;
       word-break: break-word;
     }
@@ -2045,6 +2049,16 @@
     await loadSmsRequests();
     setInterval(loadSmsRequests, 15000);
   })();
+
+  // ---------- LOGOUT ON TAB CLOSE ----------
+  // The session cookie itself has no expiry (it's cleared when the whole browser
+  // closes), so closing just this one tab wouldn't otherwise end the admin
+  // session. 'pagehide' fires reliably on tab close, navigation away, and
+  // browser quit — sendBeacon fires the request even as the page is unloading,
+  // which fetch() can't guarantee.
+  window.addEventListener('pagehide', () => {
+    navigator.sendBeacon('/api/logout-beacon');
+  });
 </script>
 <!-- ── IMAGE LIGHTBOX ── -->
 <div id="lightbox-overlay" class="lightbox-overlay" aria-hidden="true" role="dialog" aria-modal="true" onclick="if(event.target===this) closeLightbox()">
