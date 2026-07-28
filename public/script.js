@@ -12,6 +12,7 @@ function csrfFetch(url, options = {}) {
     if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
         options.headers = { ...(options.headers || {}), 'X-CSRF-Token': getCookie('XSRF-TOKEN') || '' };
     }
+    console.log('CSRF cookie:', getCookie('XSRF-TOKEN'), 'Headers:', options.headers);
     return fetch(url, options);
 }
 
@@ -851,16 +852,6 @@ async function analyzeImage() {
             body: JSON.stringify({ image: resizedImage })
         });
 
-        if (response.status === 403) {
-            // Server-side session lost its consent flag (e.g. expired cookie) even though this
-            // tab's sessionStorage still says "yes" — clear it and force the consent modal to
-            // reappear on reload, instead of silently falling back to a fake result.
-            hideLoading();
-            sessionStorage.removeItem('skinguard_img_consent');
-            alert('Your consent confirmation has expired. The page will reload so you can confirm again before scanning.');
-            window.location.reload();
-            return;
-        }
         if (!response.ok) throw new Error('Backend error');
         const data = await response.json();
         const aiText = data.choices[0].message.content;

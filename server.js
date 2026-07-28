@@ -418,7 +418,13 @@ function requireSession(req, res, next) {
 app.post('/api/consent', requireSession, (req, res) => {
     req.session.consentGiven = true;
     req.session.consentAt = new Date().toISOString();
-    res.json({ ok: true });
+    req.session.save(err => {
+        if (err) {
+            console.error('Session save error (consent):', err);
+            return res.status(500).json({ error: 'Failed to record consent. Please try again.' });
+        }
+        res.json({ ok: true });
+    });
 });
 
 function requireConsent(req, res, next) {
@@ -676,6 +682,8 @@ app.post('/api/guest-login', guestLoginLimiter, (req, res) => {
         }
         req.session.role = 'guest';
         req.session.isGuest = true;
+        req.session.consentGiven = true;
+        req.session.consentAt = new Date().toISOString();
         req.session.cookie.maxAge = 2 * 60 * 60 * 1000;
         console.log('👤 Guest session created');
         res.json({ success: true, role: 'guest' });
@@ -738,6 +746,8 @@ app.post('/api/login', loginLimiter, (req, res) => {
         req.session.isTeacher = true;
         req.session.role = 'teacher';
         req.session.username = username;
+        req.session.consentGiven = true;
+        req.session.consentAt = new Date().toISOString();
         console.log(`✅ Teacher logged in:`, username);
         return res.json({ success: true, role: 'teacher' });
     });
