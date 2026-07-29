@@ -299,6 +299,11 @@ const studentPostLimiter = rateLimit({
     max: 20,
     message: { error: 'Too many student registration attempts, please try again later.' },
 });
+const teacherAccountLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 15,
+    message: { error: 'Too many teacher-account requests, please try again later.' },
+});
 const guestLoginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 10,
@@ -711,13 +716,31 @@ app.post('/api/login', loginLimiter, (req, res) => {
     const teacherHash = process.env.TEACHER_PASSWORD_HASH;
 
     const isAdminMatch = username === adminUser && adminHash && bcrypt.compareSync(password, adminHash);
-    const isTeacherMatch = username === teacherUser && teacherHash && bcrypt.compareSync(password, teacherHash);
+    const isLegacyTeacherMatch = username === teacherUser && teacherHash && bcrypt.compareSync(password, teacherHash);
 
-    if (!isAdminMatch && !isTeacherMatch) {
-        console.log('❌ Failed login attempt:', username);
-        return res.status(401).json({ error: 'Invalid username or password' });
+    if (isAdminMatch || isLegacyTeacherMatch) {
+        return finishLogin(req, res, username, isAdminMatch ? 'admin' : 'teacher');
     }
 
+    // Fall back to admin-created teacher accounts stored in the DB.
+    db.get('SELECT * FROM teachers WHERE username = ?', [username], (err, row) => {
+        if (err) {
+            console.error('❌ Login DB lookup failed:', err.message);
+            return res.status(500).json({ error: 'Login failed, please try again' });
+        }
+
+        if (!row || row.disabled || !bcrypt.compareSync(password, row.passwordHash)) {
+            console.log('❌ Failed login attempt:', username);
+            return res.status(401).json({ error: 'Invalid username or password' });
+        }
+
+        return finishLogin(req, res, username, 'teacher');
+    });
+});
+
+// Shared session-setup logic used by both env-based accounts and DB-backed
+// teacher accounts once credentials have already been verified.
+function finishLogin(req, res, username, role) {
     // Regenerate the session first so any leftover fields from a previous auth
     // state on this cookie (e.g. an earlier guest session's role/isGuest, or a
     // different user's isAdmin/isTeacher/username) can't survive into this one.
@@ -735,7 +758,7 @@ app.post('/api/login', loginLimiter, (req, res) => {
         // in admin.html.)
         req.session.cookie.expires = false;
 
-        if (isAdminMatch) {
+        if (role === 'admin') {
             req.session.isAdmin = true;
             req.session.role = 'admin';
             req.session.username = username;
@@ -751,7 +774,7 @@ app.post('/api/login', loginLimiter, (req, res) => {
         console.log(`✅ Teacher logged in:`, username);
         return res.json({ success: true, role: 'teacher' });
     });
-});
+}
 
 // ---------- GET CURRENT USER ----------
 app.get('/api/me', (req, res) => {
@@ -940,6 +963,21 @@ db.serialize(() => {
             targetId TEXT,
             details TEXT,
             createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    // Teacher accounts created by an admin from the admin panel. This is in
+    // addition to the single legacy TEACHER_USER/TEACHER_PASSWORD_HASH env
+    // account, which keeps working for backward compatibility.
+    db.run(`
+        CREATE TABLE IF NOT EXISTS teachers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
+            passwordHash TEXT NOT NULL,
+            fullName TEXT,
+            createdBy TEXT,
+            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+            disabled INTEGER NOT NULL DEFAULT 0
         )
     `);
 });
@@ -1553,6 +1591,137 @@ app.get('/api/audit-log', requireAdmin, (req, res) => {
             return res.status(500).json({ error: 'Database error' });
         }
         res.json(rows);
+    });
+});
+
+// ---------- TEACHER ACCOUNT MANAGEMENT (admin only) ----------
+const TEACHER_USERNAME_RE = /^[a-zA-Z0-9._-]{3,32}$/;
+
+app.get('/api/teachers', requireAdmin, teacherAccountLimiter, (req, res) => {
+    db.all(
+        'SELECT id, username, fullName, createdBy, createdAt, disabled FROM teachers ORDER BY createdAt DESC',
+        (err, rows) => {
+            if (err) {
+                console.error('❌ Failed to load teacher accounts:', err.message);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            res.json(rows);
+        }
+    );
+});
+
+app.post('/api/teachers', requireAdmin, teacherAccountLimiter, (req, res) => {
+    let { username, password, fullName } = req.body;
+    username = (username || '').trim();
+    fullName = (fullName || '').trim();
+
+    if (!username || !password) {
+        return res.status(400).json({ error: 'Username and password are required' });
+    }
+    if (!TEACHER_USERNAME_RE.test(username)) {
+        return res.status(400).json({ error: 'Username must be 3-32 characters: letters, numbers, dots, dashes, underscores only' });
+    }
+    if (password.length < 8) {
+        return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+    // Guard against colliding with the built-in admin/legacy-teacher env accounts.
+    const reservedUsernames = [process.env.ADMIN_USER || 'admin', process.env.TEACHER_USER || 'teacher'];
+    if (reservedUsernames.includes(username)) {
+        return res.status(400).json({ error: 'That username is reserved' });
+    }
+
+    const passwordHash = bcrypt.hashSync(password, 10);
+    const createdBy = (req.session && req.session.username) || 'admin';
+
+    db.run(
+        'INSERT INTO teachers (username, passwordHash, fullName, createdBy) VALUES (?, ?, ?, ?)',
+        [username, passwordHash, fullName || null, createdBy],
+        function (err) {
+            if (err) {
+                if (err.message && err.message.includes('UNIQUE')) {
+                    return res.status(409).json({ error: 'That username already exists' });
+                }
+                console.error('❌ Failed to create teacher account:', err.message);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            logAudit(req, 'create_teacher_account', 'teacher', this.lastID, { username });
+            res.status(201).json({ id: this.lastID, username, fullName: fullName || null, createdBy, disabled: 0 });
+        }
+    );
+});
+
+app.put('/api/teachers/:id', requireAdmin, teacherAccountLimiter, (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) {
+        return res.status(400).json({ error: 'Invalid teacher id' });
+    }
+
+    db.get('SELECT * FROM teachers WHERE id = ?', [id], (err, row) => {
+        if (err) {
+            console.error('❌ Teacher lookup failed:', err.message);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        if (!row) return res.status(404).json({ error: 'Teacher account not found' });
+
+        const updates = [];
+        const params = [];
+
+        if (typeof req.body.fullName === 'string') {
+            updates.push('fullName = ?');
+            params.push(req.body.fullName.trim() || null);
+        }
+        if (typeof req.body.disabled === 'boolean') {
+            updates.push('disabled = ?');
+            params.push(req.body.disabled ? 1 : 0);
+        }
+        if (typeof req.body.password === 'string' && req.body.password) {
+            if (req.body.password.length < 8) {
+                return res.status(400).json({ error: 'Password must be at least 8 characters' });
+            }
+            updates.push('passwordHash = ?');
+            params.push(bcrypt.hashSync(req.body.password, 10));
+        }
+
+        if (updates.length === 0) {
+            return res.status(400).json({ error: 'Nothing to update' });
+        }
+
+        params.push(id);
+        db.run(`UPDATE teachers SET ${updates.join(', ')} WHERE id = ?`, params, (updateErr) => {
+            if (updateErr) {
+                console.error('❌ Failed to update teacher account:', updateErr.message);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            logAudit(req, 'update_teacher_account', 'teacher', id, {
+                username: row.username,
+                fieldsChanged: Object.keys(req.body || {})
+            });
+            res.json({ success: true });
+        });
+    });
+});
+
+app.delete('/api/teachers/:id', requireAdmin, teacherAccountLimiter, (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) {
+        return res.status(400).json({ error: 'Invalid teacher id' });
+    }
+
+    db.get('SELECT * FROM teachers WHERE id = ?', [id], (err, row) => {
+        if (err) {
+            console.error('❌ Teacher lookup failed:', err.message);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        if (!row) return res.status(404).json({ error: 'Teacher account not found' });
+
+        db.run('DELETE FROM teachers WHERE id = ?', [id], (deleteErr) => {
+            if (deleteErr) {
+                console.error('❌ Failed to delete teacher account:', deleteErr.message);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            logAudit(req, 'delete_teacher_account', 'teacher', id, { username: row.username });
+            res.json({ success: true });
+        });
     });
 });
 

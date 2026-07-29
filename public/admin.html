@@ -818,6 +818,7 @@
     <button class="view-tab" id="tab-contacts" onclick="switchView('contacts')">◆ &nbsp; Contacts</button>
     <button class="view-tab" id="tab-sms" onclick="switchView('sms')">◆ &nbsp; SMS & E-mail Approvals <span id="sms-badge" style="display:none;background:#C41230;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;margin-left:6px;font-family:'Share Tech Mono',monospace;"></span></button>
     <button class="view-tab" id="tab-audit" onclick="switchView('audit')">◆ &nbsp; Audit Log</button>
+    <button class="view-tab" id="tab-teachers" onclick="switchView('teachers')">◆ &nbsp; Teacher Accounts</button>
   </div>
 
   <!-- ============ RECORDS VIEW ============ -->
@@ -948,6 +949,35 @@
     </div>
   </div>
 
+  <!-- ============ TEACHER ACCOUNTS VIEW ============ -->
+  <div id="teachers-view" style="display:none;">
+    <div class="panel" id="add-teacher-panel">
+      <div class="panel-title">◆ &nbsp; New Teacher Account</div>
+      <div class="form-grid">
+        <input type="text" id="new-teacher-username" placeholder="Username *" autocomplete="off">
+        <input type="text" id="new-teacher-fullname" placeholder="Full name (optional)">
+        <input type="password" id="new-teacher-password" placeholder="Temporary password * (min 8 chars)" autocomplete="new-password">
+        <button id="add-teacher-btn" class="btn-add span-all">◆ &nbsp; CREATE TEACHER ACCOUNT</button>
+      </div>
+    </div>
+    <div class="filter-panel">
+      <span class="filter-label">◆ TEACHER ACCOUNT DIRECTORY</span>
+      <span class="contact-count">Total: <span id="teachers-count">0</span> accounts</span>
+      <button class="btn-print" id="refresh-teachers-btn" style="margin-left:auto;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.1 21 6l-4 3.9"/><path d="M3 12.5a9 9 0 0 1 15-6.7l3 .2"/><path d="M7 21.9 3 18l4-3.9"/><path d="M21 11.5a9 9 0 0 1-15 6.7l-3-.2"/></svg>
+        REFRESH
+      </button>
+    </div>
+    <div class="table-panel">
+      <div class="table-wrap">
+        <table id="teachers-table">
+          <thead><tr><th>Username</th><th>Full Name</th><th>Status</th><th>Created By</th><th>Created</th><th>Actions</th></tr></thead>
+          <tbody id="teachers-body"><tr><td colspan="6" class="empty-state">loading teacher accounts…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -1005,6 +1035,8 @@
         if (userRole !== 'admin') {
           const auditTab = document.getElementById('tab-audit');
           if (auditTab) auditTab.style.display = 'none';
+          const teachersTab = document.getElementById('tab-teachers');
+          if (teachersTab) teachersTab.style.display = 'none';
         }
       } else {
         window.location.href = '/login';
@@ -1203,12 +1235,15 @@
     document.getElementById('contacts-view').style.display = view === 'contacts' ? '' : 'none';
     document.getElementById('sms-view').style.display = view === 'sms' ? '' : 'none';
     document.getElementById('audit-view').style.display = view === 'audit' ? '' : 'none';
+    document.getElementById('teachers-view').style.display = view === 'teachers' ? '' : 'none';
     document.getElementById('tab-records').classList.toggle('active', view === 'records');
     document.getElementById('tab-contacts').classList.toggle('active', view === 'contacts');
     document.getElementById('tab-sms').classList.toggle('active', view === 'sms');
     document.getElementById('tab-audit').classList.toggle('active', view === 'audit');
+    document.getElementById('tab-teachers').classList.toggle('active', view === 'teachers');
     if (view === 'sms') loadSmsRequests();
     if (view === 'audit') loadAuditLog();
+    if (view === 'teachers') loadTeachers();
   };
 
   // ---------- AUDIT LOG ----------
@@ -1250,6 +1285,131 @@
   }
 
   document.getElementById('refresh-audit-btn').addEventListener('click', loadAuditLog);
+
+  // ---------- TEACHER ACCOUNTS ----------
+  let teachersData = [];
+
+  async function loadTeachers() {
+    if (userRole !== 'admin') return;
+    const tbody = document.getElementById('teachers-body');
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">loading teacher accounts…</td></tr>';
+    try {
+      const r = await fetch('/api/teachers');
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      teachersData = await r.json();
+      renderTeachers();
+    } catch (e) {
+      console.error('Failed to load teacher accounts:', e);
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Failed to load teacher accounts.</td></tr>';
+    }
+  }
+
+  function renderTeachers() {
+    const tbody = document.getElementById('teachers-body');
+    document.getElementById('teachers-count').textContent = teachersData.length;
+
+    if (teachersData.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No teacher accounts yet.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = teachersData.map(t => `
+      <tr>
+        <td>${esc(t.username)}</td>
+        <td>${esc(t.fullName || '—')}</td>
+        <td>${t.disabled ? '<span style="color:#B00020;">Disabled</span>' : '<span style="color:#2E7D32;">Active</span>'}</td>
+        <td>${esc(t.createdBy || '—')}</td>
+        <td>${parseTimestamp(t.createdAt).toLocaleString()}</td>
+        <td>
+          <button class="btn-save" title="${t.disabled ? 'Enable' : 'Disable'}" onclick="toggleTeacher(${t.id}, ${!t.disabled})">${t.disabled ? 'ENABLE' : 'DISABLE'}</button>
+          <button class="btn-edit" title="Reset password" onclick="resetTeacherPassword(${t.id}, '${esc(t.username)}')">RESET PW</button>
+          <button class="btn-delete" title="Delete" onclick="deleteTeacher(${t.id}, '${esc(t.username)}')">DELETE</button>
+        </td>
+      </tr>`).join('');
+  }
+
+  document.getElementById('add-teacher-btn').addEventListener('click', async () => {
+    if (userRole !== 'admin') { alert('Only administrators can create teacher accounts.'); return; }
+
+    const username = document.getElementById('new-teacher-username').value.trim();
+    const fullName = document.getElementById('new-teacher-fullname').value.trim();
+    const password = document.getElementById('new-teacher-password').value;
+
+    if (!username || !password) {
+      alert('Username and password are required.');
+      return;
+    }
+    if (password.length < 8) {
+      alert('Password must be at least 8 characters.');
+      return;
+    }
+
+    try {
+      const r = await csrfFetch('/api/teachers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, fullName })
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || 'Failed to create teacher account');
+
+      document.getElementById('new-teacher-username').value = '';
+      document.getElementById('new-teacher-fullname').value = '';
+      document.getElementById('new-teacher-password').value = '';
+      loadTeachers();
+    } catch (e) {
+      alert(e.message || 'Failed to create teacher account.');
+    }
+  });
+
+  window.toggleTeacher = async (id, disabled) => {
+    if (userRole !== 'admin') return;
+    try {
+      const r = await csrfFetch(`/api/teachers/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ disabled })
+      });
+      if (!r.ok) throw new Error();
+      loadTeachers();
+    } catch {
+      alert('Failed to update teacher account.');
+    }
+  };
+
+  window.resetTeacherPassword = async (id, username) => {
+    if (userRole !== 'admin') return;
+    const newPassword = prompt(`New temporary password for "${username}" (min 8 characters):`);
+    if (!newPassword) return;
+    if (newPassword.length < 8) {
+      alert('Password must be at least 8 characters.');
+      return;
+    }
+    try {
+      const r = await csrfFetch(`/api/teachers/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: newPassword })
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || 'Failed to reset password');
+      alert('Password reset successfully.');
+    } catch (e) {
+      alert(e.message || 'Failed to reset password.');
+    }
+  };
+
+  window.deleteTeacher = async (id, username) => {
+    if (userRole !== 'admin') return;
+    if (!confirm(`Delete teacher account "${username}"? This cannot be undone.`)) return;
+    try {
+      const r = await csrfFetch(`/api/teachers/${id}`, { method: 'DELETE' });
+      if (!r.ok) throw new Error();
+      loadTeachers();
+    } catch {
+      alert('Failed to delete teacher account.');
+    }
+  };
 
   // ---------- SMS APPROVAL QUEUE ----------
   async function loadSmsRequests() {
