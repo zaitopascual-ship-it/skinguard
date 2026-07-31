@@ -819,6 +819,7 @@
     <button class="view-tab" id="tab-sms" onclick="switchView('sms')">◆ &nbsp; SMS & E-mail Approvals <span id="sms-badge" style="display:none;background:#C41230;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;margin-left:6px;font-family:'Share Tech Mono',monospace;"></span></button>
     <button class="view-tab" id="tab-audit" onclick="switchView('audit')">◆ &nbsp; Audit Log</button>
     <button class="view-tab" id="tab-teachers" onclick="switchView('teachers')">◆ &nbsp; Teacher Accounts</button>
+    <button class="view-tab" id="tab-signups" onclick="switchView('signups')">◆ &nbsp; Sign-up Requests <span id="signups-badge" style="display:none;background:#C41230;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;margin-left:6px;font-family:'Share Tech Mono',monospace;"></span></button>
   </div>
 
   <!-- ============ RECORDS VIEW ============ -->
@@ -974,6 +975,60 @@
           <thead><tr><th>Username</th><th>Full Name</th><th>Status</th><th>Created By</th><th>Created</th><th>Actions</th></tr></thead>
           <tbody id="teachers-body"><tr><td colspan="6" class="empty-state">loading teacher accounts…</td></tr></tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="signups-view" style="display:none;">
+    <div class="filter-panel">
+      <span class="filter-label">◆ STUDENT SIGN-UP REQUESTS</span>
+      <button class="btn-print" id="refresh-signups-btn" onclick="loadSignups()" style="margin-left:auto;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.1 21 6l-4 3.9"/><path d="M3 12.5a9 9 0 0 1 15-6.7l3 .2"/><path d="M7 21.9 3 18l4-3.9"/><path d="M21 11.5a9 9 0 0 1-15 6.7l-3-.2"/></svg>
+        REFRESH
+      </button>
+    </div>
+    <div id="signups-list">
+      <p style="color:var(--text-faint);font-family:'Share Tech Mono',monospace;font-size:12px;padding:20px 0;">
+        Loading…
+      </p>
+    </div>
+
+    <!-- Detail modal -->
+    <div id="signup-modal" style="
+      display:none; position:fixed; inset:0; z-index:1000;
+      background:rgba(0,0,0,.55); backdrop-filter:blur(3px);
+      align-items:center; justify-content:center; padding:20px;
+    ">
+      <div style="
+        background:#fff; border-radius:8px; max-width:640px; width:100%;
+        max-height:90vh; overflow-y:auto; border:1px solid rgba(196,18,48,.25);
+        box-shadow:0 40px 100px rgba(0,0,0,.3);
+      ">
+        <!-- Modal header -->
+        <div style="
+          display:flex; align-items:center; justify-content:space-between;
+          padding:18px 24px; border-bottom:1px solid #F0E4E4;
+          position:sticky; top:0; background:#fff; z-index:1;
+        ">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:.06em;color:#C41230;">
+            SIGN-UP REVIEW
+          </div>
+          <button onclick="closeSignupModal()" style="
+            background:none;border:none;font-size:20px;cursor:pointer;color:#A78589;
+            padding:4px 8px; border-radius:4px;
+          ">✕</button>
+        </div>
+
+        <div id="modal-body" style="padding:24px;">Loading…</div>
+
+        <!-- Modal actions -->
+        <div id="modal-actions" style="
+          padding:16px 24px 20px; border-top:1px solid #F0E4E4;
+          display:flex; gap:10px; flex-wrap:wrap;
+          position:sticky; bottom:0; background:#fff;
+        ">
+          <!-- Filled by JS -->
+        </div>
       </div>
     </div>
   </div>
@@ -1229,6 +1284,286 @@
     } catch { alert('Delete failed.'); }
   };
 
+  // ---------- SIGNUP QUEUE ----------
+  async function loadSignups() {
+    document.getElementById('signups-list').innerHTML =
+      '<p style="color:var(--text-faint);font-family:\'Share Tech Mono\',monospace;font-size:12px;padding:20px 0;">Loading…</p>';
+
+    try {
+      const resp = await fetch('/api/student-signups', { credentials: 'include' });
+      if (!resp.ok) throw new Error('Failed to load');
+      const rows = await resp.json();
+
+      const pending = rows.filter(r => r.status === 'pending').length;
+      const badge = document.getElementById('signups-badge');
+      if (pending > 0) {
+        badge.textContent = pending;
+        badge.style.display = 'inline-block';
+      } else {
+        badge.style.display = 'none';
+      }
+
+      if (rows.length === 0) {
+        document.getElementById('signups-list').innerHTML =
+          '<p style="color:var(--text-faint);font-family:\'Share Tech Mono\',monospace;font-size:12px;padding:20px 0;">No sign-up requests yet.</p>';
+        return;
+      }
+
+      const table = `
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:.15em;color:var(--text-faint);text-transform:uppercase;">
+              <th style="padding:8px 12px;text-align:left;border-bottom:1px solid #F0E4E4;">#</th>
+              <th style="padding:8px 12px;text-align:left;border-bottom:1px solid #F0E4E4;">Name</th>
+              <th style="padding:8px 12px;text-align:left;border-bottom:1px solid #F0E4E4;">Username</th>
+              <th style="padding:8px 12px;text-align:left;border-bottom:1px solid #F0E4E4;">Student ID</th>
+              <th style="padding:8px 12px;text-align:left;border-bottom:1px solid #F0E4E4;">Submitted</th>
+              <th style="padding:8px 12px;text-align:left;border-bottom:1px solid #F0E4E4;">Status</th>
+              <th style="padding:8px 12px;text-align:left;border-bottom:1px solid #F0E4E4;"></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr style="border-bottom:1px solid #FAF0F0;cursor:pointer;" onmouseenter="this.style.background='#FFF5F6'" onmouseleave="this.style.background=''">
+                <td style="padding:10px 12px;color:var(--text-faint);">${r.id}</td>
+                <td style="padding:10px 12px;font-weight:600;">${esc(r.firstName)} ${esc(r.lastName)}</td>
+                <td style="padding:10px 12px;font-family:'Share Tech Mono',monospace;font-size:11px;">${esc(r.username)}</td>
+                <td style="padding:10px 12px;">${esc(r.studentId)}</td>
+                <td style="padding:10px 12px;color:var(--text-faint);font-size:12px;">${new Date(r.createdAt).toLocaleDateString('en-PH', {month:'short',day:'numeric',year:'numeric'})}</td>
+                <td style="padding:10px 12px;">
+                  <span style="
+                    display:inline-block; padding:3px 10px; border-radius:20px;
+                    font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.1em; text-transform:uppercase;
+                    background:${r.status==='pending'?'#FFF5F6':r.status==='approved'?'#F0FFF4':'#FFF0F0'};
+                    color:${r.status==='pending'?'#C41230':r.status==='approved'?'#166534':'#9B1C1C'};
+                    border:1px solid ${r.status==='pending'?'#F0D5D5':r.status==='approved'?'#BBF7D0':'#FECACA'};
+                  ">${r.status}</span>
+                </td>
+                <td style="padding:10px 12px;">
+                  <button
+                    onclick="openSignupModal(${r.id})"
+                    style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:.1em;
+                      padding:5px 12px;border-radius:4px;border:1px solid #E7D5D5;
+                      background:transparent;cursor:pointer;color:#6B4F52;text-transform:uppercase;"
+                    onmouseenter="this.style.borderColor='#C41230';this.style.color='#C41230'"
+                    onmouseleave="this.style.borderColor='#E7D5D5';this.style.color='#6B4F52'"
+                  >Review</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>`;
+
+      document.getElementById('signups-list').innerHTML = table;
+    } catch (err) {
+      document.getElementById('signups-list').innerHTML =
+        `<p style="color:#FF6B6B;font-family:'Share Tech Mono',monospace;font-size:12px;padding:20px 0;">Error loading requests: ${err.message}</p>`;
+    }
+  }
+
+  async function openSignupModal(id) {
+    document.getElementById('signup-modal').style.display = 'flex';
+    document.getElementById('modal-body').innerHTML = '<p style="text-align:center;padding:30px 0;color:#A78589;">Loading…</p>';
+    document.getElementById('modal-actions').innerHTML = '';
+
+    try {
+      const resp = await fetch(`/api/student-signups/${id}`, { credentials: 'include' });
+      if (!resp.ok) throw new Error('Not found');
+      const r = await resp.json();
+
+      document.getElementById('modal-body').innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+          <div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#A78589;margin-bottom:4px;">Full Name</div>
+            <div style="font-size:16px;font-weight:600;">${esc(r.firstName)} ${esc(r.lastName)}</div>
+          </div>
+          <div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#A78589;margin-bottom:4px;">Username</div>
+            <div style="font-size:16px;font-family:'Share Tech Mono',monospace;">${esc(r.username)}</div>
+          </div>
+          <div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#A78589;margin-bottom:4px;">Student ID</div>
+            <div style="font-size:15px;">${esc(r.studentId)}</div>
+          </div>
+          <div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#A78589;margin-bottom:4px;">Course</div>
+            <div style="font-size:15px;">${esc(r.course) || '—'}</div>
+          </div>
+          <div style="grid-column:1/-1;">
+            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#A78589;margin-bottom:4px;">Email</div>
+            <div style="font-size:15px;">${esc(r.email)}</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+          ${imgThumb(r.selfieImage, 'Selfie')}
+          ${imgThumb(r.idFrontImage, 'ID Front')}
+          ${imgThumb(r.idBackImage, 'ID Back')}
+        </div>
+
+        ${r.status !== 'pending' ? `
+          <div style="margin-top:16px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-faint);">
+            ${r.status === 'approved' ? '✅ Approved' : '❌ Rejected'}
+            by <strong>${esc(r.reviewedBy || '—')}</strong>
+            on ${new Date(r.reviewedAt).toLocaleString('en-PH')}
+            ${r.rejectReason ? `<br>Reason: ${esc(r.rejectReason)}` : ''}
+          </div>
+        ` : ''}
+
+        ${r.status === 'pending' ? `
+          <div id="reject-reason-wrap" style="display:none;margin-top:10px;">
+            <label style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:#6B4F52;display:block;margin-bottom:5px;">
+              Rejection Reason (optional)
+            </label>
+            <textarea id="reject-reason" rows="2" placeholder="e.g. ID photo is unclear — please resubmit" style="
+              width:100%;padding:9px 12px;font-family:'Rajdhani',sans-serif;font-size:14px;
+              border:1px solid #E7D5D5;border-radius:4px;resize:vertical;color:#201013;
+              background:#FCF8F6;outline:none;
+            "></textarea>
+          </div>
+        ` : ''}
+
+        <div id="modal-msg" style="font-family:'Share Tech Mono',monospace;font-size:11px;margin-top:10px;min-height:18px;"></div>
+      `;
+
+      // Action buttons
+      const actions = document.getElementById('modal-actions');
+      if (r.status === 'pending') {
+        actions.innerHTML = `
+          <button onclick="approveSignup(${r.id})" style="
+            font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:.1em;
+            padding:11px 24px;background:#166534;color:#fff;border:none;border-radius:4px;cursor:pointer;
+          " onmouseenter="this.style.background='#14532D'" onmouseleave="this.style.background='#166534'">
+            ✅ APPROVE
+          </button>
+          <button onclick="toggleRejectReason()" style="
+            font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:.1em;
+            padding:11px 24px;background:#C41230;color:#fff;border:none;border-radius:4px;cursor:pointer;
+          " onmouseenter="this.style.background='#D91535'" onmouseleave="this.style.background='#C41230'" id="btn-reject-open">
+            ❌ REJECT
+          </button>
+          <button onclick="confirmReject(${r.id})" id="btn-reject-confirm" style="display:none;
+            font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:.1em;
+            padding:11px 24px;background:#7F1D1D;color:#fff;border:none;border-radius:4px;cursor:pointer;
+          ">CONFIRM REJECT</button>
+          <button onclick="closeSignupModal()" style="
+            font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:.1em;
+            padding:11px 20px;background:transparent;color:#6B4F52;border:1px solid #E7D5D5;border-radius:4px;cursor:pointer;
+          ">CLOSE</button>
+        `;
+      } else {
+        actions.innerHTML = `
+          <button onclick="deleteSignup(${r.id})" style="
+            font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:.1em;
+            padding:10px 20px;background:transparent;color:#9B1C1C;border:1px solid #FECACA;border-radius:4px;cursor:pointer;
+          ">🗑 DELETE REQUEST</button>
+          <button onclick="closeSignupModal()" style="
+            font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:.1em;
+            padding:10px 20px;background:transparent;color:#6B4F52;border:1px solid #E7D5D5;border-radius:4px;cursor:pointer;
+          ">CLOSE</button>
+        `;
+      }
+
+    } catch (err) {
+      document.getElementById('modal-body').innerHTML =
+        `<p style="color:#FF6B6B;">Error: ${err.message}</p>`;
+    }
+  }
+
+  function imgThumb(b64, label) {
+    if (!b64) return `<div style="background:#FAF0F0;border-radius:6px;height:100px;display:flex;align-items:center;justify-content:center;font-family:'Share Tech Mono',monospace;font-size:10px;color:#A78589;">${label}<br>Not provided</div>`;
+    return `
+      <div>
+        <img src="${b64}" alt="${label}" style="width:100%;height:100px;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid #E7D5D5;"
+          onclick="window.open(this.src,'_blank')" title="Click to open full size">
+        <div style="font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#A78589;text-align:center;margin-top:4px;">${label}</div>
+      </div>`;
+  }
+
+  function closeSignupModal() {
+    document.getElementById('signup-modal').style.display = 'none';
+  }
+
+  function toggleRejectReason() {
+    const wrap = document.getElementById('reject-reason-wrap');
+    const confirmBtn = document.getElementById('btn-reject-confirm');
+    const openBtn = document.getElementById('btn-reject-open');
+    wrap.style.display = wrap.style.display === 'none' ? 'block' : 'none';
+    confirmBtn.style.display = confirmBtn.style.display === 'none' ? 'inline-block' : 'none';
+    openBtn.style.display = openBtn.style.display === 'none' ? 'inline-block' : 'none';
+  }
+
+  async function approveSignup(id) {
+    const msgEl = document.getElementById('modal-msg');
+    msgEl.style.color = '#A78589';
+    msgEl.textContent = 'Approving…';
+
+    const resp = await csrfFetch(`/api/student-signups/${id}/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    const data = await resp.json();
+
+    if (resp.ok && data.success) {
+      msgEl.style.color = '#166534';
+      msgEl.textContent = '✅ Account approved. Student can now log in.';
+      document.getElementById('modal-actions').innerHTML = `
+        <button onclick="closeSignupModal()" style="
+          font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:.1em;
+          padding:10px 20px;background:transparent;color:#6B4F52;border:1px solid #E7D5D5;border-radius:4px;cursor:pointer;">
+          CLOSE
+        </button>`;
+      loadSignups();
+    } else {
+      msgEl.style.color = '#FF6B6B';
+      msgEl.textContent = data.error || 'Failed to approve.';
+    }
+  }
+
+  async function confirmReject(id) {
+    const reason = (document.getElementById('reject-reason')?.value || '').trim();
+    const msgEl = document.getElementById('modal-msg');
+    msgEl.style.color = '#A78589';
+    msgEl.textContent = 'Rejecting…';
+
+    const resp = await csrfFetch(`/api/student-signups/${id}/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason })
+    });
+    const data = await resp.json();
+
+    if (resp.ok && data.success) {
+      msgEl.style.color = '#9B1C1C';
+      msgEl.textContent = '❌ Request rejected.';
+      document.getElementById('modal-actions').innerHTML = `
+        <button onclick="closeSignupModal()" style="
+          font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:.1em;
+          padding:10px 20px;background:transparent;color:#6B4F52;border:1px solid #E7D5D5;border-radius:4px;cursor:pointer;">
+          CLOSE
+        </button>`;
+      loadSignups();
+    } else {
+      msgEl.style.color = '#FF6B6B';
+      msgEl.textContent = data.error || 'Failed to reject.';
+    }
+  }
+
+  async function deleteSignup(id) {
+    if (!confirm('Permanently delete this signup request?')) return;
+    const resp = await csrfFetch(`/api/student-signups/${id}`, { method: 'DELETE' });
+    if (resp.ok) {
+      closeSignupModal();
+      loadSignups();
+    } else {
+      alert('Delete failed.');
+    }
+  }
+
+  const signupModalEl = document.getElementById('signup-modal');
+  if (signupModalEl) signupModalEl.addEventListener('click', function(e) { if (e.target === this) closeSignupModal(); });
+
   // ---------- VIEW SWITCHING ----------
   window.switchView = view => {
     document.getElementById('records-view').style.display = view === 'records' ? '' : 'none';
@@ -1236,14 +1571,17 @@
     document.getElementById('sms-view').style.display = view === 'sms' ? '' : 'none';
     document.getElementById('audit-view').style.display = view === 'audit' ? '' : 'none';
     document.getElementById('teachers-view').style.display = view === 'teachers' ? '' : 'none';
+    document.getElementById('signups-view').style.display = view === 'signups' ? '' : 'none';
     document.getElementById('tab-records').classList.toggle('active', view === 'records');
     document.getElementById('tab-contacts').classList.toggle('active', view === 'contacts');
     document.getElementById('tab-sms').classList.toggle('active', view === 'sms');
     document.getElementById('tab-audit').classList.toggle('active', view === 'audit');
     document.getElementById('tab-teachers').classList.toggle('active', view === 'teachers');
+    document.getElementById('tab-signups').classList.toggle('active', view === 'signups');
     if (view === 'sms') loadSmsRequests();
     if (view === 'audit') loadAuditLog();
     if (view === 'teachers') loadTeachers();
+    if (view === 'signups') loadSignups();
   };
 
   // ---------- AUDIT LOG ----------

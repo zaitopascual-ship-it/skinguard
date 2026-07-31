@@ -299,6 +299,11 @@ const studentPostLimiter = rateLimit({
     max: 20,
     message: { error: 'Too many student registration attempts, please try again later.' },
 });
+const signupLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,  // 1 hour
+    max: 5,
+    message: { error: 'Too many sign-up attempts. Please try again later.' },
+});
 const teacherAccountLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 15,
@@ -409,7 +414,12 @@ function requireTeacherOrAdmin(req, res, next) {
 }
 
 function requireSession(req, res, next) {
-    if (req.session && (req.session.role === 'teacher' || req.session.role === 'admin' || req.session.role === 'guest')) {
+    if (req.session && (
+        req.session.role === 'teacher' ||
+        req.session.role === 'admin'   ||
+        req.session.role === 'guest'   ||
+        req.session.role === 'student'
+    )) {
         return next();
     }
     res.status(401).json({ error: 'Unauthorized' });
@@ -703,6 +713,11 @@ app.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
+// ---------- STUDENT SIGNUP PAGE ----------
+app.get('/signup', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'signup.html'));
+});
+
 // ---------- LOGIN API ----------
 app.post('/api/login', loginLimiter, (req, res) => {
     const { username, password } = req.body;
@@ -722,19 +737,48 @@ app.post('/api/login', loginLimiter, (req, res) => {
         return finishLogin(req, res, username, isAdminMatch ? 'admin' : 'teacher');
     }
 
-    // Fall back to admin-created teacher accounts stored in the DB.
+    // Fall back to DB-backed teacher accounts first, then approved student accounts.
     db.get('SELECT * FROM teachers WHERE username = ?', [username], (err, row) => {
         if (err) {
             console.error('❌ Login DB lookup failed:', err.message);
             return res.status(500).json({ error: 'Login failed, please try again' });
         }
 
-        if (!row || row.disabled || !bcrypt.compareSync(password, row.passwordHash)) {
-            console.log('❌ Failed login attempt:', username);
-            return res.status(401).json({ error: 'Invalid username or password' });
+        if (row && !row.disabled && bcrypt.compareSync(password, row.passwordHash)) {
+            return finishLogin(req, res, username, 'teacher');
         }
 
-        return finishLogin(req, res, username, 'teacher');
+        // Check approved student accounts
+        db.get(
+            "SELECT * FROM student_signups WHERE username = ? AND status = 'approved'",
+            [username],
+            (err2, studentRow) => {
+                if (err2) {
+                    console.error('❌ Student login DB lookup failed:', err2.message);
+                    return res.status(500).json({ error: 'Login failed, please try again' });
+                }
+
+                if (studentRow && bcrypt.compareSync(password, studentRow.passwordHash)) {
+                    return finishStudentLogin(req, res, studentRow);
+                }
+
+                // Check if username exists but is still pending (give a helpful message)
+                db.get(
+                    "SELECT status FROM student_signups WHERE username = ?",
+                    [username],
+                    (_err3, pendingRow) => {
+                        if (pendingRow && pendingRow.status === 'pending') {
+                            return res.status(401).json({ error: 'Your account is pending admin approval. Please check back later.' });
+                        }
+                        if (pendingRow && pendingRow.status === 'rejected') {
+                            return res.status(401).json({ error: 'Your sign-up request was not approved. Please contact the clinic.' });
+                        }
+                        console.log('❌ Failed login attempt:', username);
+                        return res.status(401).json({ error: 'Invalid username or password' });
+                    }
+                );
+            }
+        );
     });
 });
 
@@ -776,6 +820,219 @@ function finishLogin(req, res, username, role) {
     });
 }
 
+// Session-setup logic for approved student accounts (student_signups table).
+function finishStudentLogin(req, res, studentRow) {
+    req.session.regenerate((err) => {
+        if (err) {
+            console.error('❌ Student login session regenerate failed:', err.message);
+            return res.status(500).json({ error: 'Could not start session' });
+        }
+        req.session.cookie.expires = false;
+        req.session.isStudent = true;
+        req.session.role = 'student';
+        req.session.username = studentRow.username;
+        req.session.studentSignupId = studentRow.id;
+        req.session.consentGiven = true;
+        req.session.consentAt = new Date().toISOString();
+        console.log(`✅ Student logged in:`, studentRow.username);
+        return res.json({ success: true, role: 'student' });
+    });
+}
+
+// ---------- STUDENT SIGNUP API (public, no auth required) ----------
+app.post('/api/signup', signupLimiter, async (req, res) => {
+    const {
+        firstName, lastName, studentId, course, email,
+        username, password,
+        selfieImage, idFrontImage, idBackImage
+    } = req.body;
+
+    // ─ Basic validation ─
+    if (!firstName || !lastName || !studentId || !email || !username || !password) {
+        return res.status(400).json({ error: 'All required fields must be filled in.' });
+    }
+
+    const USERNAME_RE = /^[a-zA-Z0-9._-]{3,32}$/;
+    if (!USERNAME_RE.test(username)) {
+        return res.status(400).json({ error: 'Username must be 3–32 characters: letters, numbers, dots, dashes, underscores.' });
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ error: 'Invalid email address.' });
+    }
+
+    if (password.length < 8) {
+        return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    }
+
+    // ─ Require all three verification images ─
+    if (!selfieImage || !idFrontImage || !idBackImage) {
+        return res.status(400).json({ error: 'Selfie and both sides of your school ID are required.' });
+    }
+
+    // ─ Image size guard (base64 ~1.33× raw; 5 MB raw ≈ 6.7 MB base64) ─
+    const MAX_IMG_B64 = 7 * 1024 * 1024;
+    if (selfieImage.length > MAX_IMG_B64 || idFrontImage.length > MAX_IMG_B64 || idBackImage.length > MAX_IMG_B64) {
+        return res.status(400).json({ error: 'One or more images are too large (max 5 MB each).' });
+    }
+
+    // ─ Guard against reserved admin/teacher usernames ─
+    const reservedUsernames = [process.env.ADMIN_USER || 'admin', process.env.TEACHER_USER || 'teacher'];
+    if (reservedUsernames.includes(username.toLowerCase())) {
+        return res.status(400).json({ error: 'That username is not available.' });
+    }
+
+    // ─ Check username not already taken in teachers or pending signups ─
+    const existingTeacher = await new Promise(resolve =>
+        db.get('SELECT id FROM teachers WHERE username = ?', [username], (err, row) => resolve(row))
+    );
+    if (existingTeacher) {
+        return res.status(409).json({ error: 'That username is already taken.' });
+    }
+
+    const existingSignup = await new Promise(resolve =>
+        db.get('SELECT id, status FROM student_signups WHERE username = ?', [username], (err, row) => resolve(row))
+    );
+    if (existingSignup) {
+        if (existingSignup.status === 'pending') {
+            return res.status(409).json({ error: 'A sign-up request with that username is already pending review.' });
+        }
+        if (existingSignup.status === 'approved') {
+            return res.status(409).json({ error: 'That username is already registered. Please log in.' });
+        }
+        // Rejected — allow re-submission (will fail on UNIQUE; handled below)
+    }
+
+    const passwordHash = bcrypt.hashSync(password, 10);
+
+    db.run(
+        `INSERT INTO student_signups
+            (firstName, lastName, studentId, course, email, username, passwordHash, selfieImage, idFrontImage, idBackImage)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+            firstName.trim(), lastName.trim(), studentId.trim(),
+            (course || '').trim(), email.trim(),
+            username.trim(), passwordHash,
+            selfieImage, idFrontImage, idBackImage
+        ],
+        function (err) {
+            if (err) {
+                if (err.message && err.message.includes('UNIQUE')) {
+                    return res.status(409).json({ error: 'That username is already registered or pending.' });
+                }
+                console.error('❌ Signup insert failed:', err.message);
+                return res.status(500).json({ error: 'Server error. Please try again.' });
+            }
+            console.log(`📝 New student signup request #${this.lastID} from ${username} (${email})`);
+            logAudit(req, 'student_signup_request', 'student_signup', this.lastID, { username, email, studentId });
+            res.json({ success: true, requestId: this.lastID });
+        }
+    );
+});
+
+// ---------- ADMIN: list all signup requests ----------
+app.get('/api/student-signups', requireAdmin, (req, res) => {
+    // Never return password hashes or images in the list view — images only on detail
+    db.all(
+        `SELECT id, firstName, lastName, studentId, course, email, username,
+                status, reviewedBy, reviewedAt, rejectReason, createdAt
+         FROM student_signups ORDER BY createdAt DESC LIMIT 200`,
+        (err, rows) => {
+            if (err) {
+                console.error(err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            res.json(rows);
+        }
+    );
+});
+
+// ---------- ADMIN: get detail of one request (includes images for review) ----------
+app.get('/api/student-signups/:id', requireAdmin, (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' });
+
+    db.get(
+        `SELECT id, firstName, lastName, studentId, course, email, username,
+                selfieImage, idFrontImage, idBackImage,
+                status, reviewedBy, reviewedAt, rejectReason, createdAt
+         FROM student_signups WHERE id = ?`,
+        [id],
+        (err, row) => {
+            if (err) { console.error(err); return res.status(500).json({ error: 'Database error' }); }
+            if (!row) return res.status(404).json({ error: 'Request not found' });
+            res.json(row);
+        }
+    );
+});
+
+// ---------- ADMIN: approve a signup request ----------
+app.post('/api/student-signups/:id/approve', requireAdmin, (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' });
+
+    db.get('SELECT * FROM student_signups WHERE id = ?', [id], (err, row) => {
+        if (err) { console.error(err); return res.status(500).json({ error: 'Database error' }); }
+        if (!row) return res.status(404).json({ error: 'Request not found' });
+        if (row.status !== 'pending') {
+            return res.status(409).json({ error: `Request is already ${row.status}.` });
+        }
+
+        const reviewer = (req.session && req.session.username) || 'admin';
+        db.run(
+            `UPDATE student_signups SET status = 'approved', reviewedBy = ?, reviewedAt = CURRENT_TIMESTAMP WHERE id = ?`,
+            [reviewer, id],
+            (updateErr) => {
+                if (updateErr) { console.error(updateErr); return res.status(500).json({ error: 'Database error' }); }
+                console.log(`✅ Student signup #${id} (${row.username}) approved by ${reviewer}`);
+                logAudit(req, 'approve_student_signup', 'student_signup', id, { username: row.username, email: row.email });
+                res.json({ success: true, status: 'approved' });
+            }
+        );
+    });
+});
+
+// ---------- ADMIN: reject a signup request ----------
+app.post('/api/student-signups/:id/reject', requireAdmin, (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' });
+
+    const reason = typeof req.body.reason === 'string' ? req.body.reason.trim().slice(0, 300) : '';
+
+    db.get('SELECT * FROM student_signups WHERE id = ?', [id], (err, row) => {
+        if (err) { console.error(err); return res.status(500).json({ error: 'Database error' }); }
+        if (!row) return res.status(404).json({ error: 'Request not found' });
+        if (row.status !== 'pending') {
+            return res.status(409).json({ error: `Request is already ${row.status}.` });
+        }
+
+        const reviewer = (req.session && req.session.username) || 'admin';
+        db.run(
+            `UPDATE student_signups SET status = 'rejected', reviewedBy = ?, reviewedAt = CURRENT_TIMESTAMP, rejectReason = ? WHERE id = ?`,
+            [reviewer, reason || null, id],
+            (updateErr) => {
+                if (updateErr) { console.error(updateErr); return res.status(500).json({ error: 'Database error' }); }
+                console.log(`🚫 Student signup #${id} (${row.username}) rejected by ${reviewer}`);
+                logAudit(req, 'reject_student_signup', 'student_signup', id, { username: row.username, reason });
+                res.json({ success: true, status: 'rejected' });
+            }
+        );
+    });
+});
+
+// ---------- ADMIN: delete a signup request ----------
+app.delete('/api/student-signups/:id', requireAdmin, (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' });
+
+    db.run('DELETE FROM student_signups WHERE id = ?', [id], function (err) {
+        if (err) { console.error(err); return res.status(500).json({ error: 'Database error' }); }
+        if (this.changes === 0) return res.status(404).json({ error: 'Request not found' });
+        logAudit(req, 'delete_student_signup', 'student_signup', id, null);
+        res.json({ success: true });
+    });
+});
+
 // ---------- GET CURRENT USER ----------
 app.get('/api/me', (req, res) => {
     if (req.session && req.session.isAdmin) {
@@ -786,6 +1043,9 @@ app.get('/api/me', (req, res) => {
     }
     if (req.session && req.session.role === 'guest') {
         return res.json({ role: 'guest' });
+    }
+    if (req.session && req.session.isStudent) {
+        return res.json({ role: 'student', username: req.session.username });
     }
     res.status(401).json({ error: 'Not logged in' });
 });
@@ -978,6 +1238,28 @@ db.serialize(() => {
             createdBy TEXT,
             createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
             disabled INTEGER NOT NULL DEFAULT 0
+        )
+    `);
+
+    // Student self-signup requests, pending admin approval.
+    db.run(`
+        CREATE TABLE IF NOT EXISTS student_signups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            firstName TEXT NOT NULL,
+            lastName TEXT NOT NULL,
+            studentId TEXT NOT NULL,
+            course TEXT,
+            email TEXT NOT NULL,
+            username TEXT NOT NULL UNIQUE,
+            passwordHash TEXT NOT NULL,
+            selfieImage TEXT,
+            idFrontImage TEXT,
+            idBackImage TEXT,
+            status TEXT NOT NULL DEFAULT 'pending',
+            reviewedBy TEXT,
+            reviewedAt DATETIME,
+            rejectReason TEXT,
+            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);
 });

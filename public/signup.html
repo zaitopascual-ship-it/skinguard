@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SkinGuard · Student Sign Up</title>
+  <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --void: #FAF6F3;
+      --obsidian: #FFFFFF;
+      --gold: #C41230;
+      --gold-glow: rgba(196,18,48,.15);
+      --gold-line: rgba(196,18,48,.30);
+      --accent: #B8860B;
+      --text: #201013;
+      --text-dim: #6B4F52;
+      --text-faint: #A78589;
+      --radius: 4px;
+      --radius-lg: 8px;
+      --blue: #0E2060;
+    }
+
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Rajdhani', sans-serif;
+      background: var(--void);
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 32px 16px 60px;
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -10%, #F6DCE0 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 50% 110%, #DEE4F5 0%, transparent 60%);
+    }
+
+    body::after {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+      opacity: .6;
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    .card {
+      max-width: 520px;
+      width: 100%;
+      background: var(--obsidian);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--gold-line);
+      box-shadow: 0 30px 80px rgba(0,0,0,.12), inset 0 1px 0 rgba(196,18,48,.1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #0E2060, var(--gold), var(--accent), var(--gold), #0E2060);
+    }
+
+    /* ---- Header ---- */
+    .card-header {
+      padding: 36px 36px 24px;
+      text-align: center;
+      border-bottom: 1px solid #F0E4E4;
+    }
+
+    .card-header img {
+      width: 50px;
+      height: 63px;
+      margin: 0 auto 12px;
+      filter: drop-shadow(0 4px 20px rgba(196,18,48,.35));
+    }
+
+    .card-header h1 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 28px;
+      letter-spacing: .08em;
+      color: var(--gold);
+      text-shadow: 0 0 40px rgba(196,18,48,.3);
+    }
+
+    .card-header p {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .3em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      margin-top: 4px;
+    }
+
+    /* ---- Steps indicator ---- */
+    .steps {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      padding: 20px 36px 0;
+    }
+
+    .step-dot {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      flex: 1;
+      position: relative;
+    }
+
+    .step-dot:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      top: 13px;
+      left: calc(50% + 14px);
+      right: calc(-50% + 14px);
+      height: 1px;
+      background: #E7D5D5;
+    }
+
+    .step-dot.active:not(:last-child)::after,
+    .step-dot.done:not(:last-child)::after {
+      background: var(--gold);
+    }
+
+    .step-num {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      border: 1.5px solid #E7D5D5;
+      background: #FAF6F3;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      color: var(--text-faint);
+      transition: all .2s;
+    }
+
+    .step-dot.active .step-num {
+      border-color: var(--gold);
+      background: var(--gold);
+      color: #fff;
+    }
+
+    .step-dot.done .step-num {
+      border-color: var(--gold);
+      background: var(--gold);
+      color: #fff;
+    }
+
+    .step-label {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 8px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      white-space: nowrap;
+    }
+
+    .step-dot.active .step-label { color: var(--gold); }
+
+    /* ---- Form body ---- */
+    .card-body {
+      padding: 24px 36px 32px;
+    }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    .section-title {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .25em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #F0E4E4;
+    }
+
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    .form-group { margin-bottom: 14px; }
+    .form-group label {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    .form-group input,
+    .form-group select {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 500;
+      font-size: 15px;
+      width: 100%;
+      padding: 10px 13px;
+      background: #FCF8F6;
+      border: 1px solid #E7D5D5;
+      border-radius: var(--radius);
+      color: var(--text);
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+      -webkit-appearance: none;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 2px var(--gold-glow);
+    }
+
+    /* ---- Upload boxes ---- */
+    .upload-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .upload-grid.single { grid-template-columns: 1fr; }
+
+    .upload-box {
+      border: 1.5px dashed #D5C5C5;
+      border-radius: var(--radius);
+      background: #FCF8F6;
+      padding: 20px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+      position: relative;
+      overflow: hidden;
+      min-height: 120px;
+    }
+
+    .upload-box:hover { border-color: var(--gold); background: #FFF5F6; }
+    .upload-box.has-file { border-color: var(--gold); border-style: solid; }
+
+    .upload-box input[type="file"] {
+      position: absolute; inset: 0;
+      opacity: 0; cursor: pointer; font-size: 0;
+    }
+
+    .upload-icon {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: #F0E4E4;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+
+    .upload-box.has-file .upload-icon { background: var(--gold-glow); }
+
+    .upload-label {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    .upload-preview {
+      width: 100%; height: 80px;
+      object-fit: cover;
+      border-radius: 3px;
+      display: none;
+    }
+
+    .upload-box.has-file .upload-preview { display: block; }
+    .upload-box.has-file .upload-icon { display: none; }
+    .upload-box.has-file .upload-label { font-size: 8px; color: #4ADE80; }
+
+    /* ---- Camera section ---- */
+    .camera-wrap {
+      border: 1.5px dashed #D5C5C5;
+      border-radius: var(--radius);
+      background: #FCF8F6;
+      overflow: hidden;
+      margin-bottom: 14px;
+      position: relative;
+    }
+
+    .camera-wrap.has-photo { border-color: var(--gold); border-style: solid; }
+
+    #selfie-video {
+      width: 100%; height: 220px;
+      object-fit: cover;
+      display: block;
+      background: #1a0a0d;
+      transform: scaleX(-1);
+    }
+
+    #selfie-canvas { display: none; }
+
+    #selfie-preview {
+      width: 100%; height: 220px;
+      object-fit: cover;
+      display: none;
+      border-radius: var(--radius);
+    }
+
+    .camera-controls {
+      display: flex; gap: 8px;
+      padding: 10px;
+      background: rgba(250,246,243,.9);
+      border-top: 1px solid #F0E4E4;
+    }
+
+    .btn-cam {
+      flex: 1;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+      padding: 9px 10px;
+      border-radius: var(--radius);
+      border: 1px solid #E7D5D5;
+      background: #FAF6F3;
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: all .15s;
+    }
+
+    .btn-cam:hover { border-color: var(--gold); color: var(--gold); }
+    .btn-cam.primary { background: var(--gold); color: #fff; border-color: var(--gold); }
+    .btn-cam.primary:hover { background: #D91535; }
+
+    /* ---- Consent ---- */
+    .consent-box {
+      background: #FFF5F6;
+      border: 1px solid #F0D5D5;
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      margin-bottom: 16px;
+    }
+
+    .consent-box p {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.55;
+    }
+
+    .consent-check {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-top: 12px;
+      cursor: pointer;
+    }
+
+    .consent-check input[type="checkbox"] {
+      width: 16px; height: 16px;
+      accent-color: var(--gold);
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .consent-check span {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .05em;
+      color: var(--text-dim);
+      line-height: 1.6;
+    }
+
+    /* ---- Success screen ---- */
+    #panel-success {
+      text-align: center;
+      padding: 16px 0;
+    }
+
+    .success-icon {
+      width: 72px; height: 72px;
+      background: linear-gradient(135deg, #0E2060 0%, var(--gold) 100%);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 30px;
+      margin: 0 auto 20px;
+      box-shadow: 0 8px 32px rgba(196,18,48,.3);
+    }
+
+    #panel-success h2 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 26px;
+      letter-spacing: .08em;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+
+    #panel-success p {
+      font-size: 14px;
+      color: var(--text-dim);
+      line-height: 1.55;
+      margin-bottom: 8px;
+    }
+
+    .notice-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #FFF5F6;
+      border: 1px solid #F0D5D5;
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .1em;
+      color: var(--gold);
+      text-transform: uppercase;
+      margin-top: 16px;
+    }
+
+    /* ---- Buttons ---- */
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .btn {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 16px;
+      letter-spacing: .12em;
+      padding: 12px 20px;
+      border-radius: var(--radius);
+      border: none;
+      cursor: pointer;
+      transition: all .15s;
+      flex: 1;
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid #E7D5D5;
+      color: var(--text-dim);
+    }
+    .btn-outline:hover { border-color: var(--gold); color: var(--gold); }
+
+    .btn-primary {
+      background: var(--gold);
+      color: #fff;
+      box-shadow: 0 2px 20px rgba(196,18,48,.25);
+    }
+    .btn-primary:hover { background: #D91535; box-shadow: 0 4px 30px rgba(196,18,48,.4); transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+    /* ---- Messages ---- */
+    .msg {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      text-align: center;
+      margin-top: 12px;
+      min-height: 18px;
+      color: #FF6B6B;
+    }
+    .msg.ok { color: #4ADE80; }
+
+    /* ---- Footer ---- */
+    .card-footer {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      text-align: center;
+      padding: 0 36px 24px;
+    }
+
+    .card-footer a {
+      color: var(--gold);
+      text-decoration: none;
+    }
+
+    /* ---- Hint text ---- */
+    .hint {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      letter-spacing: .08em;
+      color: var(--text-faint);
+      margin-top: 3px;
+    }
+
+    @media (max-width: 480px) {
+      .form-row { grid-template-columns: 1fr; }
+      .upload-grid { grid-template-columns: 1fr; }
+      .card-body { padding: 20px 20px 28px; }
+      .card-header { padding: 28px 20px 20px; }
+      .steps { padding: 16px 20px 0; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <div class="card-header">
+    <img src="assets/skinguard-logo.svg" alt="SkinGuard Logo">
+    <h1>SKINGUARD</h1>
+    <p>Student Account Request</p>
+  </div>
+
+  <!-- Step indicator -->
+  <div class="steps">
+    <div class="step-dot active" id="sd-1">
+      <div class="step-num">1</div>
+      <div class="step-label">Details</div>
+    </div>
+    <div class="step-dot" id="sd-2">
+      <div class="step-num">2</div>
+      <div class="step-label">Selfie</div>
+    </div>
+    <div class="step-dot" id="sd-3">
+      <div class="step-num">3</div>
+      <div class="step-label">School ID</div>
+    </div>
+    <div class="step-dot" id="sd-4">
+      <div class="step-num">4</div>
+      <div class="step-label">Confirm</div>
+    </div>
+  </div>
+
+  <div class="card-body">
+
+    <!-- PANEL 1: Account details -->
+    <div class="panel active" id="panel-1">
+      <div class="section-title">Account Information</div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="firstName">First Name</label>
+          <input type="text" id="firstName" placeholder="e.g. Juan" autocomplete="given-name">
+        </div>
+        <div class="form-group">
+          <label for="lastName">Last Name</label>
+          <input type="text" id="lastName" placeholder="e.g. dela Cruz" autocomplete="family-name">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="studentId">Student ID Number</label>
+        <input type="text" id="studentId" placeholder="e.g. 2024-00123">
+      </div>
+
+      <div class="form-group">
+        <label for="course">Course / Year Level</label>
+        <input type="text" id="course" placeholder="e.g. BSIT 2-A">
+      </div>
+
+      <div class="form-group">
+        <label for="email">Email Address</label>
+        <input type="email" id="email" placeholder="student@school.edu.ph" autocomplete="email">
+        <div class="hint">Use your school email if available.</div>
+      </div>
+
+      <div class="form-group">
+        <label for="username">Desired Username</label>
+        <input type="text" id="username" placeholder="Letters, numbers, dots only" autocomplete="off" spellcheck="false">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" placeholder="Min. 8 characters" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+          <label for="confirmPassword">Confirm</label>
+          <input type="password" id="confirmPassword" placeholder="Repeat password" autocomplete="new-password">
+        </div>
+      </div>
+
+      <div class="msg" id="msg-1"></div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="nextStep(1)">NEXT →</button>
+      </div>
+    </div>
+
+    <!-- PANEL 2: Selfie verification -->
+    <div class="panel" id="panel-2">
+      <div class="section-title">Selfie Verification</div>
+
+      <div class="consent-box">
+        <p>Take a clear selfie showing your face. This will be used by the admin to verify your identity before approving your account.</p>
+      </div>
+
+      <div class="camera-wrap" id="camera-wrap">
+        <video id="selfie-video" autoplay playsinline></video>
+        <canvas id="selfie-canvas"></canvas>
+        <img id="selfie-preview" alt="Your selfie">
+        <div class="camera-controls">
+          <button class="btn-cam" id="btn-retake" onclick="retakeSelfie()" style="display:none">↺ Retake</button>
+          <button class="btn-cam primary" id="btn-capture" onclick="captureSelfie()">📷 Take Photo</button>
+          <button class="btn-cam" onclick="triggerSelfieUpload()">⬆ Upload Instead</button>
+          <input type="file" id="selfie-upload" accept="image/*" capture="user" style="display:none" onchange="handleSelfieUpload(event)">
+        </div>
+      </div>
+
+      <div class="msg" id="msg-2"></div>
+
+      <div class="btn-row">
+        <button class="btn btn-outline" onclick="prevStep(2)">← BACK</button>
+        <button class="btn btn-primary" onclick="nextStep(2)">NEXT →</button>
+      </div>
+    </div>
+
+    <!-- PANEL 3: School ID upload -->
+    <div class="panel" id="panel-3">
+      <div class="section-title">School ID Upload</div>
+
+      <div class="consent-box">
+        <p>Upload a clear photo of your school ID — both front and back. Make sure the name and ID number are clearly visible.</p>
+      </div>
+
+      <div class="upload-grid">
+        <div class="upload-box" id="box-front">
+          <input type="file" id="id-front" accept="image/*" onchange="handleIdUpload('front', event)">
+          <div class="upload-icon">🪪</div>
+          <div class="upload-label">ID Front<br><span style="opacity:.7">Tap to upload</span></div>
+          <img class="upload-preview" id="prev-front" alt="ID front">
+        </div>
+        <div class="upload-box" id="box-back">
+          <input type="file" id="id-back" accept="image/*" onchange="handleIdUpload('back', event)">
+          <div class="upload-icon">🔄</div>
+          <div class="upload-label">ID Back<br><span style="opacity:.7">Tap to upload</span></div>
+          <img class="upload-preview" id="prev-back" alt="ID back">
+        </div>
+      </div>
+
+      <div class="msg" id="msg-3"></div>
+
+      <div class="btn-row">
+        <button class="btn btn-outline" onclick="prevStep(3)">← BACK</button>
+        <button class="btn btn-primary" onclick="nextStep(3)">NEXT →</button>
+      </div>
+    </div>
+
+    <!-- PANEL 4: Confirm & consent -->
+    <div class="panel" id="panel-4">
+      <div class="section-title">Review & Submit</div>
+
+      <div class="consent-box">
+        <p>Your sign-up request will be reviewed by a clinic admin before your account is activated. You will not be able to log in until approved.</p>
+        <p style="margin-top:8px;">Approved accounts can use SkinGuard to run scans and request parent notifications — but <strong>cannot add students</strong> or send notifications without admin approval.</p>
+
+        <label class="consent-check">
+          <input type="checkbox" id="consent-privacy">
+          <span>I consent to the storage of my submitted photos (selfie and school ID) for identity verification, in accordance with RA 10173 (Data Privacy Act of 2012). These will only be viewed by authorized clinic staff.</span>
+        </label>
+
+        <label class="consent-check" style="margin-top:8px;">
+          <input type="checkbox" id="consent-terms">
+          <span>I confirm that the information I provided is accurate and that I am a currently enrolled student at AMA Computer College, Santiago Campus.</span>
+        </label>
+      </div>
+
+      <!-- Summary -->
+      <div id="review-summary" style="background:#FCF8F6;border:1px solid #E7D5D5;border-radius:var(--radius);padding:14px 16px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);line-height:1.9;letter-spacing:.05em;">
+      </div>
+
+      <div class="msg" id="msg-4"></div>
+
+      <div class="btn-row">
+        <button class="btn btn-outline" onclick="prevStep(4)">← BACK</button>
+        <button class="btn btn-primary" id="btn-submit" onclick="submitSignup()">SUBMIT REQUEST</button>
+      </div>
+    </div>
+
+    <!-- PANEL 5: Success -->
+    <div class="panel" id="panel-success">
+      <div class="success-icon">✅</div>
+      <h2>Request Submitted!</h2>
+      <p>Your sign-up request has been sent to the clinic admin for review.</p>
+      <p style="margin-top:6px;">You'll be notified once your account is approved. Please check your email.</p>
+      <div class="notice-badge">⏳ Pending Admin Approval</div>
+      <div class="btn-row" style="margin-top:28px;justify-content:center;">
+        <a href="/login" class="btn btn-primary" style="text-align:center;text-decoration:none;display:block;max-width:200px;">Back to Login</a>
+      </div>
+    </div>
+
+  </div><!-- card-body -->
+
+  <div class="card-footer">
+    Already have an account? <a href="/login">Log in here</a>
+    <br style="margin-top:6px;">AMA Computer College · Santiago Campus
+  </div>
+</div>
+
+<script>
+  /* ============================================================
+     State
+  ============================================================ */
+  let currentStep = 1;
+  const TOTAL_STEPS = 4;
+
+  const formData = {
+    firstName: '', lastName: '', studentId: '', course: '',
+    email: '', username: '', password: '',
+    selfieB64: null,
+    idFrontB64: null,
+    idBackB64: null,
+  };
+
+  let cameraStream = null;
+
+  /* ============================================================
+     Step navigation
+  ============================================================ */
+  function setStep(n) {
+    for (let i = 1; i <= TOTAL_STEPS; i++) {
+      document.getElementById(`panel-${i}`).classList.remove('active');
+      const dot = document.getElementById(`sd-${i}`);
+      dot.classList.remove('active', 'done');
+      if (i < n) dot.classList.add('done');
+      dot.querySelector('.step-num').textContent = i < n ? '✓' : i;
+    }
+    const target = document.getElementById(`panel-${n}`);
+    if (target) {
+      target.classList.add('active');
+      document.getElementById(`sd-${n}`).classList.add('active');
+    }
+    currentStep = n;
+
+    if (n === 2) startCamera();
+    else stopCamera();
+
+    if (n === 4) buildSummary();
+  }
+
+  function prevStep(from) { if (from > 1) setStep(from - 1); }
+
+  function nextStep(from) {
+    if (!validateStep(from)) return;
+    if (from < TOTAL_STEPS) setStep(from + 1);
+  }
+
+  /* ============================================================
+     Validation
+  ============================================================ */
+  const USERNAME_RE = /^[a-zA-Z0-9._-]{3,32}$/;
+
+  function showMsg(panel, text, ok = false) {
+    const el = document.getElementById(`msg-${panel}`);
+    if (!el) return;
+    el.textContent = text;
+    el.className = 'msg' + (ok ? ' ok' : '');
+  }
+
+  function validateStep(step) {
+    if (step === 1) {
+      const fn = document.getElementById('firstName').value.trim();
+      const ln = document.getElementById('lastName').value.trim();
+      const sid = document.getElementById('studentId').value.trim();
+      const course = document.getElementById('course').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const un = document.getElementById('username').value.trim();
+      const pw = document.getElementById('password').value;
+      const pw2 = document.getElementById('confirmPassword').value;
+
+      if (!fn || !ln) { showMsg(1, 'Please enter your full name.'); return false; }
+      if (!sid) { showMsg(1, 'Student ID number is required.'); return false; }
+      if (!course) { showMsg(1, 'Course/year level is required.'); return false; }
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showMsg(1, 'Enter a valid email address.'); return false; }
+      if (!USERNAME_RE.test(un)) { showMsg(1, 'Username must be 3–32 chars: letters, numbers, dots, dashes, underscores.'); return false; }
+      if (pw.length < 8) { showMsg(1, 'Password must be at least 8 characters.'); return false; }
+      if (pw !== pw2) { showMsg(1, 'Passwords do not match.'); return false; }
+
+      formData.firstName = fn; formData.lastName = ln;
+      formData.studentId = sid; formData.course = course;
+      formData.email = email; formData.username = un;
+      formData.password = pw;
+      showMsg(1, '');
+      return true;
+    }
+
+    if (step === 2) {
+      if (!formData.selfieB64) { showMsg(2, 'Please take or upload your selfie before continuing.'); return false; }
+      showMsg(2, '');
+      return true;
+    }
+
+    if (step === 3) {
+      if (!formData.idFrontB64) { showMsg(3, 'Please upload the front of your school ID.'); return false; }
+      if (!formData.idBackB64) { showMsg(3, 'Please upload the back of your school ID.'); return false; }
+      showMsg(3, '');
+      return true;
+    }
+
+    if (step === 4) {
+      if (!document.getElementById('consent-privacy').checked) {
+        showMsg(4, 'Please accept the data privacy consent.'); return false;
+      }
+      if (!document.getElementById('consent-terms').checked) {
+        showMsg(4, 'Please confirm your enrollment status.'); return false;
+      }
+      showMsg(4, '');
+      return true;
+    }
+
+    return true;
+  }
+
+  /* ============================================================
+     Camera
+  ============================================================ */
+  async function startCamera() {
+    if (cameraStream) return;
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+      document.getElementById('selfie-video').srcObject = cameraStream;
+      document.getElementById('selfie-video').style.display = 'block';
+      document.getElementById('selfie-preview').style.display = 'none';
+    } catch (err) {
+      showMsg(2, 'Camera not available — use "Upload Instead".');
+    }
+  }
+
+  function stopCamera() {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(t => t.stop());
+      cameraStream = null;
+    }
+  }
+
+  function captureSelfie() {
+    const video = document.getElementById('selfie-video');
+    const canvas = document.getElementById('selfie-canvas');
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0);
+    formData.selfieB64 = canvas.toDataURL('image/jpeg', 0.85);
+
+    document.getElementById('selfie-preview').src = formData.selfieB64;
+    document.getElementById('selfie-preview').style.display = 'block';
+    document.getElementById('selfie-video').style.display = 'none';
+    document.getElementById('camera-wrap').classList.add('has-photo');
+    document.getElementById('btn-retake').style.display = '';
+    document.getElementById('btn-capture').style.display = 'none';
+    showMsg(2, '✓ Selfie captured.', true);
+    stopCamera();
+  }
+
+  function retakeSelfie() {
+    formData.selfieB64 = null;
+    document.getElementById('selfie-preview').style.display = 'none';
+    document.getElementById('selfie-video').style.display = 'block';
+    document.getElementById('camera-wrap').classList.remove('has-photo');
+    document.getElementById('btn-retake').style.display = 'none';
+    document.getElementById('btn-capture').style.display = '';
+    showMsg(2, '');
+    startCamera();
+  }
+
+  function triggerSelfieUpload() {
+    document.getElementById('selfie-upload').click();
+  }
+
+  function handleSelfieUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { showMsg(2, 'Image too large (max 5 MB).'); return; }
+    const reader = new FileReader();
+    reader.onload = ev => {
+      formData.selfieB64 = ev.target.result;
+      document.getElementById('selfie-preview').src = formData.selfieB64;
+      document.getElementById('selfie-preview').style.display = 'block';
+      document.getElementById('selfie-video').style.display = 'none';
+      document.getElementById('camera-wrap').classList.add('has-photo');
+      document.getElementById('btn-retake').style.display = '';
+      document.getElementById('btn-capture').style.display = 'none';
+      showMsg(2, '✓ Selfie uploaded.', true);
+      stopCamera();
+    };
+    reader.readAsDataURL(file);
+  }
+
+  /* ============================================================
+     ID Upload
+  ============================================================ */
+  function handleIdUpload(side, e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { showMsg(3, `ID ${side} image too large (max 5 MB).`); return; }
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const b64 = ev.target.result;
+      if (side === 'front') {
+        formData.idFrontB64 = b64;
+        document.getElementById('prev-front').src = b64;
+        document.getElementById('box-front').classList.add('has-file');
+        document.querySelector('#box-front .upload-label').textContent = '✓ Front uploaded';
+      } else {
+        formData.idBackB64 = b64;
+        document.getElementById('prev-back').src = b64;
+        document.getElementById('box-back').classList.add('has-file');
+        document.querySelector('#box-back .upload-label').textContent = '✓ Back uploaded';
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  /* ============================================================
+     Review summary
+  ============================================================ */
+  function buildSummary() {
+    const el = document.getElementById('review-summary');
+    el.innerHTML = `
+      <div><span style="opacity:.6">Name:</span> ${esc(formData.firstName)} ${esc(formData.lastName)}</div>
+      <div><span style="opacity:.6">Student ID:</span> ${esc(formData.studentId)}</div>
+      <div><span style="opacity:.6">Course:</span> ${esc(formData.course)}</div>
+      <div><span style="opacity:.6">Email:</span> ${esc(formData.email)}</div>
+      <div><span style="opacity:.6">Username:</span> ${esc(formData.username)}</div>
+      <div><span style="opacity:.6">Photos:</span> Selfie ✓, ID Front ✓, ID Back ✓</div>
+    `;
+  }
+
+  function esc(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  /* ============================================================
+     CSRF helper
+  ============================================================ */
+  function getCookie(name) {
+    const m = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+    return m ? decodeURIComponent(m[2]) : '';
+  }
+
+  /* ============================================================
+     Submit
+  ============================================================ */
+  async function submitSignup() {
+    if (!validateStep(4)) return;
+
+    const btn = document.getElementById('btn-submit');
+    btn.disabled = true;
+    btn.textContent = 'SUBMITTING…';
+    showMsg(4, '');
+
+    const payload = {
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      studentId: formData.studentId,
+      course: formData.course,
+      email: formData.email,
+      username: formData.username,
+      password: formData.password,
+      selfieImage: formData.selfieB64,
+      idFrontImage: formData.idFrontB64,
+      idBackImage: formData.idBackB64,
+    };
+
+    try {
+      const resp = await fetch('/api/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': getCookie('XSRF-TOKEN'),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await resp.json();
+
+      if (resp.ok && data.success) {
+        // Show success panel, hide step dots
+        for (let i = 1; i <= TOTAL_STEPS; i++) {
+          document.getElementById(`panel-${i}`).classList.remove('active');
+        }
+        document.querySelector('.steps').style.display = 'none';
+        document.getElementById('panel-success').classList.add('active');
+        document.getElementById('panel-success').style.display = 'block';
+      } else {
+        showMsg(4, data.error || 'Submission failed. Please try again.');
+        btn.disabled = false;
+        btn.textContent = 'SUBMIT REQUEST';
+      }
+    } catch (err) {
+      showMsg(4, 'Network error. Please check your connection and try again.');
+      btn.disabled = false;
+      btn.textContent = 'SUBMIT REQUEST';
+    }
+  }
+</script>
+</body>
+</html>
