@@ -284,40 +284,120 @@
     .upload-box.has-file .upload-icon { display: none; }
     .upload-box.has-file .upload-label { font-size: 8px; color: #4ADE80; }
 
-    /* ---- Camera section ---- */
-    .camera-wrap {
-      border: 1.5px dashed #D5C5C5;
-      border-radius: var(--radius);
-      background: #FCF8F6;
+    .cam-btn {
+      position: absolute;
+      top: 6px; right: 6px;
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      background: rgba(32,16,19,.6);
+      color: #fff;
+      border: none;
+      font-size: 12px;
+      cursor: pointer;
+      z-index: 2;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .15s;
+    }
+    .cam-btn:hover { background: var(--gold); }
+
+    /* ---- Shared ID camera modal ---- */
+    .id-camera-overlay {
+      display: none;
+      position: fixed; inset: 0; z-index: 2000;
+      background: rgba(0,0,0,.65);
+      backdrop-filter: blur(3px);
+      align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .id-camera-box {
+      background: #fff;
+      border-radius: 8px;
+      max-width: 420px;
+      width: 100%;
+      padding: 16px;
+      border: 1px solid rgba(196,18,48,.25);
+      box-shadow: 0 40px 100px rgba(0,0,0,.35);
+    }
+    .id-camera-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .id-camera-header span {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 18px;
+      letter-spacing: .06em;
+      color: var(--gold);
+    }
+    .id-camera-header button {
+      background: none; border: none; font-size: 18px; cursor: pointer; color: #A78589;
+      padding: 2px 6px; border-radius: 4px;
+    }
+    .id-camera-frame {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      border-radius: 4px;
       overflow: hidden;
-      margin-bottom: 14px;
       position: relative;
+      background: #1a0a0d;
+      border: 1.5px solid #E7D5D5;
+    }
+    #id-camera-video, #id-camera-preview {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      position: absolute; inset: 0;
+    }
+    #id-camera-canvas { display: none; }
+    .id-camera-controls {
+      display: flex; gap: 8px;
+      margin-top: 12px;
     }
 
-    .camera-wrap.has-photo { border-color: var(--gold); border-style: solid; }
+    /* ---- Camera section ---- */
+    .camera-wrap {
+      border: none;
+      background: transparent;
+      margin-bottom: 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .camera-circle {
+      width: 220px;
+      height: 220px;
+      border-radius: 50%;
+      overflow: hidden;
+      position: relative;
+      background: #1a0a0d;
+      border: 3px dashed #D5C5C5;
+      margin: 6px auto 16px;
+      transition: border-color .15s;
+    }
+
+    .camera-wrap.has-photo .camera-circle { border-color: var(--gold); border-style: solid; }
 
     #selfie-video {
-      width: 100%; height: 220px;
+      width: 100%; height: 100%;
       object-fit: cover;
       display: block;
       background: #1a0a0d;
       transform: scaleX(-1);
+      position: absolute; inset: 0;
     }
 
     #selfie-canvas { display: none; }
 
     #selfie-preview {
-      width: 100%; height: 220px;
+      width: 100%; height: 100%;
       object-fit: cover;
       display: none;
-      border-radius: var(--radius);
+      position: absolute; inset: 0;
     }
 
     .camera-controls {
       display: flex; gap: 8px;
-      padding: 10px;
-      background: rgba(250,246,243,.9);
-      border-top: 1px solid #F0E4E4;
+      width: 100%;
+      padding: 0;
     }
 
     .btn-cam {
@@ -597,9 +677,11 @@
       </div>
 
       <div class="camera-wrap" id="camera-wrap">
-        <video id="selfie-video" autoplay playsinline></video>
-        <canvas id="selfie-canvas"></canvas>
-        <img id="selfie-preview" alt="Your selfie">
+        <div class="camera-circle">
+          <video id="selfie-video" autoplay playsinline></video>
+          <canvas id="selfie-canvas"></canvas>
+          <img id="selfie-preview" alt="Your selfie">
+        </div>
         <div class="camera-controls">
           <button class="btn-cam" id="btn-retake" onclick="retakeSelfie()" style="display:none">↺ Retake</button>
           <button class="btn-cam primary" id="btn-capture" onclick="captureSelfie()">📷 Take Photo</button>
@@ -627,14 +709,16 @@
       <div class="upload-grid">
         <div class="upload-box" id="box-front">
           <input type="file" id="id-front" accept="image/*" onchange="handleIdUpload('front', event)">
+          <button type="button" class="cam-btn" title="Use camera" onclick="event.stopPropagation(); openIdCamera('front')">📷</button>
           <div class="upload-icon">🪪</div>
-          <div class="upload-label">ID Front<br><span style="opacity:.7">Tap to upload</span></div>
+          <div class="upload-label">ID Front<br><span style="opacity:.7">Tap to upload or use camera</span></div>
           <img class="upload-preview" id="prev-front" alt="ID front">
         </div>
         <div class="upload-box" id="box-back">
           <input type="file" id="id-back" accept="image/*" onchange="handleIdUpload('back', event)">
+          <button type="button" class="cam-btn" title="Use camera" onclick="event.stopPropagation(); openIdCamera('back')">📷</button>
           <div class="upload-icon">🔄</div>
-          <div class="upload-label">ID Back<br><span style="opacity:.7">Tap to upload</span></div>
+          <div class="upload-label">ID Back<br><span style="opacity:.7">Tap to upload or use camera</span></div>
           <img class="upload-preview" id="prev-back" alt="ID back">
         </div>
       </div>
@@ -695,6 +779,27 @@
   <div class="card-footer">
     Already have an account? <a href="/login">Log in here</a>
     <br style="margin-top:6px;">AMA Computer College · Santiago Campus
+  </div>
+</div>
+
+<!-- ── SHARED ID CAMERA MODAL (used by both ID Front and ID Back) ── -->
+<div class="id-camera-overlay" id="id-camera-overlay">
+  <div class="id-camera-box">
+    <div class="id-camera-header">
+      <span id="id-camera-title">Capture ID</span>
+      <button type="button" onclick="closeIdCamera()" aria-label="Close">✕</button>
+    </div>
+    <div class="id-camera-frame">
+      <video id="id-camera-video" autoplay playsinline></video>
+      <canvas id="id-camera-canvas"></canvas>
+      <img id="id-camera-preview" alt="Captured ID photo" style="display:none">
+    </div>
+    <div class="id-camera-controls">
+      <button class="btn-cam" id="id-cam-retake" style="display:none" onclick="retakeIdPhoto()">↺ Retake</button>
+      <button class="btn-cam primary" id="id-cam-capture" onclick="captureIdPhoto()">📷 Capture</button>
+      <button class="btn-cam primary" id="id-cam-use" style="display:none" onclick="useIdPhoto()">✓ Use Photo</button>
+    </div>
+    <div class="msg" id="id-camera-msg" style="margin-top:8px;"></div>
   </div>
 </div>
 
@@ -913,6 +1018,93 @@
     };
     reader.readAsDataURL(file);
   }
+
+  /* ============================================================
+     ID Camera Capture (shared modal for both front and back)
+  ============================================================ */
+  let idCameraStream = null;
+  let idCameraTarget = null;   // 'front' | 'back'
+  let idCameraCapturedB64 = null;
+
+  async function openIdCamera(side) {
+    idCameraTarget = side;
+    document.getElementById('id-camera-title').textContent = side === 'front' ? 'Capture ID — Front' : 'Capture ID — Back';
+    document.getElementById('id-camera-msg').textContent = '';
+    resetIdCameraUI();
+    document.getElementById('id-camera-overlay').style.display = 'flex';
+
+    try {
+      idCameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false
+      });
+      document.getElementById('id-camera-video').srcObject = idCameraStream;
+    } catch (err) {
+      document.getElementById('id-camera-msg').textContent = 'Could not access camera: ' + err.message;
+    }
+  }
+
+  function resetIdCameraUI() {
+    document.getElementById('id-camera-video').style.display = 'block';
+    document.getElementById('id-camera-preview').style.display = 'none';
+    document.getElementById('id-cam-capture').style.display = '';
+    document.getElementById('id-cam-retake').style.display = 'none';
+    document.getElementById('id-cam-use').style.display = 'none';
+    idCameraCapturedB64 = null;
+  }
+
+  function stopIdCameraStream() {
+    if (idCameraStream) {
+      idCameraStream.getTracks().forEach(t => t.stop());
+      idCameraStream = null;
+    }
+  }
+
+  function closeIdCamera() {
+    stopIdCameraStream();
+    document.getElementById('id-camera-overlay').style.display = 'none';
+  }
+
+  function captureIdPhoto() {
+    const video = document.getElementById('id-camera-video');
+    if (!video.videoWidth) return;
+    const canvas = document.getElementById('id-camera-canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    idCameraCapturedB64 = canvas.toDataURL('image/jpeg', 0.85);
+
+    document.getElementById('id-camera-preview').src = idCameraCapturedB64;
+    document.getElementById('id-camera-preview').style.display = 'block';
+    document.getElementById('id-camera-video').style.display = 'none';
+    document.getElementById('id-cam-capture').style.display = 'none';
+    document.getElementById('id-cam-retake').style.display = '';
+    document.getElementById('id-cam-use').style.display = '';
+  }
+
+  function retakeIdPhoto() {
+    resetIdCameraUI();
+  }
+
+  function useIdPhoto() {
+    if (!idCameraCapturedB64) return;
+    if (idCameraTarget === 'front') {
+      formData.idFrontB64 = idCameraCapturedB64;
+      document.getElementById('prev-front').src = idCameraCapturedB64;
+      document.getElementById('box-front').classList.add('has-file');
+      document.querySelector('#box-front .upload-label').textContent = '✓ Front captured';
+    } else {
+      formData.idBackB64 = idCameraCapturedB64;
+      document.getElementById('prev-back').src = idCameraCapturedB64;
+      document.getElementById('box-back').classList.add('has-file');
+      document.querySelector('#box-back .upload-label').textContent = '✓ Back captured';
+    }
+    closeIdCamera();
+  }
+
+  document.getElementById('id-camera-overlay').addEventListener('click', function (e) {
+    if (e.target === this) closeIdCamera();
+  });
 
   /* ============================================================
      Review summary

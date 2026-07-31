@@ -24,7 +24,7 @@ let torchEnabled = false;
 let pendingAction = null;
 let selectedStudent = null;
 let isTeacher = false;
-let isGuest = true;
+let isStudent = false;
 
 // ---------- AMA SANTIAGO CAMPUS COORDINATES ----------//
 const SCHOOL_LAT = 16.688356;
@@ -182,19 +182,18 @@ function formatPhoneNumber(rawNumber) {
     return cleaned;
 }
 
-// ---------- LOGIN / GUEST ----------
+// ---------- LOGIN ----------
 async function checkLoginStatus() {
     try {
         const res = await fetch('/api/me');
         if (res.ok) {
             const data = await res.json();
-            if (data.role === 'teacher') {
-                isTeacher = true;
-                isGuest = false;
-                document.getElementById('login-status').textContent = `👤 Logged in as ${data.username} (${data.role})`;
+            if (data.role === 'teacher' || data.role === 'admin' || data.role === 'student') {
+                isTeacher = (data.role === 'teacher' || data.role === 'admin');
+                isStudent = (data.role === 'student');
+                document.getElementById('login-status').textContent = `👤 ${data.username} (${data.role})`;
                 document.getElementById('login-status').style.display = 'inline-block';
                 document.getElementById('login-form').style.display = 'none';
-                document.getElementById('guest-btn').style.display = 'none';
                 document.getElementById('login-btn').style.display = 'none';
                 document.getElementById('login-overlay').classList.add('hidden');
                 document.getElementById('app').style.display = 'block';
@@ -233,66 +232,41 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
         });
         const data = await res.json();
         if (res.ok && data.success) {
-            if (data.role === 'teacher') {
-                isTeacher = true;
-                isGuest = false;
-                document.getElementById('login-status').textContent = `👤 Logged in as ${username} (${data.role})`;
-                document.getElementById('login-status').style.display = 'inline-block';
-                document.getElementById('login-form').style.display = 'none';
-                document.getElementById('guest-btn').style.display = 'none';
-                document.getElementById('login-btn').style.display = 'none';
-                document.getElementById('login-overlay').classList.add('hidden');
-                document.getElementById('app').style.display = 'block';
-                document.getElementById('logout-btn').style.display = 'flex';
-                if (document.getElementById('student-list-container')) {
-                    loadStudents();
-                }
-            } else {
-                errorEl.textContent = 'Only teachers can log in here.';
-                btn.disabled = false;
-                btn.textContent = 'LOGIN AS TEACHER';
+            const role = data.role;
+            if (role === 'admin') {
+                // Admins go straight to the admin panel
+                window.location.href = '/admin';
+                return;
+            }
+            isTeacher = (role === 'teacher');
+            isStudent = (role === 'student');
+            document.getElementById('login-status').textContent = `👤 ${username} (${role})`;
+            document.getElementById('login-status').style.display = 'inline-block';
+            document.getElementById('login-form').style.display = 'none';
+            document.getElementById('login-btn').style.display = 'none';
+            document.getElementById('login-overlay').classList.add('hidden');
+            document.getElementById('app').style.display = 'block';
+            document.getElementById('logout-btn').style.display = 'flex';
+            if (document.getElementById('student-list-container')) {
+                loadStudents();
             }
         } else {
             errorEl.textContent = data.error || 'Invalid credentials.';
             btn.disabled = false;
-            btn.textContent = 'LOGIN AS TEACHER';
+            btn.textContent = 'LOGIN';
             document.getElementById('login-password').value = '';
         }
     } catch (err) {
         errorEl.textContent = 'Network error. Please try again.';
         btn.disabled = false;
-        btn.textContent = 'LOGIN AS TEACHER';
+        btn.textContent = 'LOGIN';
     }
 });
 
-document.getElementById('guest-btn').addEventListener('click', async function() {
-    try {
-        const response = await csrfFetch('/api/guest-login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        });
-        if (!response.ok) throw new Error('Guest login failed');
-        const data = await response.json();
-        if (data.success) {
-            isTeacher = false;
-            isGuest = true;
-            document.getElementById('login-overlay').classList.add('hidden');
-            document.getElementById('app').style.display = 'block';
-            document.getElementById('logout-btn').style.display = 'flex';
-            loadStudents();
-        }
-    } catch (error) {
-        console.error('Guest login error:', error);
-        alert('Could not start guest session. Please try again.');
-    }
-});
+
 
 document.getElementById('logout-btn').addEventListener('click', async function() {
-    if (isTeacher) {
-        try {
-            await fetch('/logout');
-        } catch (e) {}
-    }
+    try { await fetch('/logout'); } catch (e) {}
     window.location.href = '/';
 });
 
@@ -573,8 +547,7 @@ async function autoSaveScan(result) {
 
 // ---------- ADD STUDENT ----------
 document.getElementById('add-new-student-btn').addEventListener('click', () => {
-    // ─── Check if guest ───
-    if (isGuest) {
+    if (!isTeacher) {
         alert('Only teachers and administrators can add new students.');
         return;
     }
@@ -943,8 +916,8 @@ function displayResults(result) {
         audio.play().catch(e => console.log('Audio play failed:', e));
     }
 
-    // ─── AUTO‑SAVE FOR GUESTS AND TEACHERS ───
-    if (result.condition && result.condition !== 'No issue detected' && (isGuest || isTeacher)) {
+    // ─── AUTO‑SAVE FOR TEACHERS ───
+    if (result.condition && result.condition !== 'No issue detected' && isTeacher) {
         autoSaveScan(result);
     }
 
@@ -993,11 +966,10 @@ function escapeHtml(unsafe) {
 
 window.addEventListener('load', async () => {
     await checkLoginStatus();
-    if (!isGuest && !isTeacher) {
-        // login overlay is shown
-    } else {
+    if (isTeacher || isStudent) {
         startCamera('environment');
     }
+    // else: login overlay is already shown by checkLoginStatus
 });
 
 window.addEventListener('beforeunload', () => {

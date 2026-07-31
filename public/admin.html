@@ -820,6 +820,7 @@
     <button class="view-tab" id="tab-audit" onclick="switchView('audit')">◆ &nbsp; Audit Log</button>
     <button class="view-tab" id="tab-teachers" onclick="switchView('teachers')">◆ &nbsp; Teacher Accounts</button>
     <button class="view-tab" id="tab-signups" onclick="switchView('signups')">◆ &nbsp; Sign-up Requests <span id="signups-badge" style="display:none;background:#C41230;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;margin-left:6px;font-family:'Share Tech Mono',monospace;"></span></button>
+    <button class="view-tab" id="tab-students" onclick="switchView('students')">◆ &nbsp; Student Accounts</button>
   </div>
 
   <!-- ============ RECORDS VIEW ============ -->
@@ -979,6 +980,81 @@
     </div>
   </div>
 
+  <!-- ============ STUDENTS VIEW ============ -->
+  <div id="students-view" style="display:none;">
+    <div class="filter-panel">
+      <span class="filter-label">◆ STUDENT ACCOUNTS</span>
+      <span class="contact-count">Total: <span id="students-accounts-count">0</span> accounts</span>
+      <input type="text" id="students-search" placeholder="Search by name, username, email, ID…" style="background:var(--iron);border:1px solid var(--steel);border-radius:var(--radius);padding:8px 13px;font-family:'Rajdhani',sans-serif;font-size:14px;color:var(--text);min-width:240px;outline:none;" oninput="renderStudentsTable()">
+      <button class="btn-print" id="refresh-students-btn" onclick="loadStudentAccounts()" style="margin-left:auto;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.1 21 6l-4 3.9"/><path d="M3 12.5a9 9 0 0 1 15-6.7l3 .2"/><path d="M7 21.9 3 18l4-3.9"/><path d="M21 11.5a9 9 0 0 1-15 6.7l-3-.2"/></svg>
+        REFRESH
+      </button>
+    </div>
+    <div class="table-panel">
+      <div class="table-wrap">
+        <table id="students-accounts-table">
+          <thead><tr><th>#</th><th>Name</th><th>Username</th><th>Student ID</th><th>Course</th><th>Email</th><th>Status</th><th>Registered</th><th>Actions</th></tr></thead>
+          <tbody id="students-accounts-body"><tr><td colspan="9" class="empty-state">loading student accounts…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Student Edit Modal -->
+    <div id="student-edit-modal" style="
+      display:none; position:fixed; inset:0; z-index:1000;
+      background:rgba(0,0,0,.55); backdrop-filter:blur(3px);
+      align-items:center; justify-content:center; padding:20px;
+    ">
+      <div style="
+        background:#fff; border-radius:8px; max-width:520px; width:100%;
+        max-height:90vh; overflow-y:auto; border:1px solid rgba(196,18,48,.25);
+        box-shadow:0 40px 100px rgba(0,0,0,.3);
+      ">
+        <div style="
+          display:flex; align-items:center; justify-content:space-between;
+          padding:18px 24px; border-bottom:1px solid #F0E4E4;
+          position:sticky; top:0; background:#fff; z-index:1;
+        ">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:.06em;color:#C41230;">
+            EDIT STUDENT ACCOUNT
+          </div>
+          <button onclick="closeStudentEditModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#A78589;padding:4px 8px;border-radius:4px;">✕</button>
+        </div>
+        <div style="padding:24px;">
+          <input type="hidden" id="student-edit-id">
+          <div class="form-grid" style="gap:12px;">
+            <div>
+              <label style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--text-dim);display:block;margin-bottom:5px;">First Name</label>
+              <input type="text" id="student-edit-firstname" style="font-family:'Rajdhani',sans-serif;font-size:15px;padding:10px 13px;background:var(--iron);border:1px solid var(--steel);border-radius:var(--radius);color:var(--text);width:100%;outline:none;">
+            </div>
+            <div>
+              <label style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--text-dim);display:block;margin-bottom:5px;">Last Name</label>
+              <input type="text" id="student-edit-lastname" style="font-family:'Rajdhani',sans-serif;font-size:15px;padding:10px 13px;background:var(--iron);border:1px solid var(--steel);border-radius:var(--radius);color:var(--text);width:100%;outline:none;">
+            </div>
+            <div>
+              <label style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--text-dim);display:block;margin-bottom:5px;">Email</label>
+              <input type="email" id="student-edit-email" style="font-family:'Rajdhani',sans-serif;font-size:15px;padding:10px 13px;background:var(--iron);border:1px solid var(--steel);border-radius:var(--radius);color:var(--text);width:100%;outline:none;">
+            </div>
+            <div>
+              <label style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--text-dim);display:block;margin-bottom:5px;">Course</label>
+              <input type="text" id="student-edit-course" style="font-family:'Rajdhani',sans-serif;font-size:15px;padding:10px 13px;background:var(--iron);border:1px solid var(--steel);border-radius:var(--radius);color:var(--text);width:100%;outline:none;">
+            </div>
+            <div style="grid-column:1/-1;">
+              <label style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--text-dim);display:block;margin-bottom:5px;">New Password <span style="color:var(--text-faint);font-size:9px;">(leave blank to keep current)</span></label>
+              <input type="password" id="student-edit-password" placeholder="Min 8 characters" autocomplete="new-password" style="font-family:'Rajdhani',sans-serif;font-size:15px;padding:10px 13px;background:var(--iron);border:1px solid var(--steel);border-radius:var(--radius);color:var(--text);width:100%;outline:none;">
+            </div>
+          </div>
+          <div id="student-edit-msg" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:#FF6B6B;margin-top:12px;min-height:18px;"></div>
+        </div>
+        <div style="padding:14px 24px 20px;border-top:1px solid #F0E4E4;display:flex;gap:10px;flex-wrap:wrap;position:sticky;bottom:0;background:#fff;">
+          <button onclick="saveStudentEdit()" class="btn-add" style="flex:1;">◆ &nbsp; SAVE CHANGES</button>
+          <button onclick="closeStudentEditModal()" style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:.1em;background:transparent;color:var(--text-dim);border:1px solid var(--mist);padding:12px 18px;border-radius:var(--radius);cursor:pointer;">CANCEL</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="signups-view" style="display:none;">
     <div class="filter-panel">
       <span class="filter-label">◆ STUDENT SIGN-UP REQUESTS</span>
@@ -1092,6 +1168,8 @@
           if (auditTab) auditTab.style.display = 'none';
           const teachersTab = document.getElementById('tab-teachers');
           if (teachersTab) teachersTab.style.display = 'none';
+          const studentsTab = document.getElementById('tab-students');
+          if (studentsTab) studentsTab.style.display = 'none';
         }
       } else {
         window.location.href = '/login';
@@ -1163,6 +1241,17 @@
     overlay.classList.remove('open');
     overlay.setAttribute('aria-hidden', 'true');
     document.getElementById('lightbox-img').src = '';
+  };
+
+  // Generic opener for any base64 image + label (used by the signup review
+  // modal), reusing the same lightbox overlay as the scan images above.
+  window.openImageLightbox = (src, label) => {
+    if (!src) return;
+    document.getElementById('lightbox-img').src = src;
+    document.getElementById('lightbox-meta').textContent = label || '';
+    const overlay = document.getElementById('lightbox-overlay');
+    overlay.classList.add('open');
+    overlay.setAttribute('aria-hidden', 'false');
   };
 
   document.addEventListener('keydown', e => {
@@ -1334,10 +1423,10 @@
                   <span style="
                     display:inline-block; padding:3px 10px; border-radius:20px;
                     font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.1em; text-transform:uppercase;
-                    background:${r.status==='pending'?'#FFF5F6':r.status==='approved'?'#F0FFF4':'#FFF0F0'};
-                    color:${r.status==='pending'?'#C41230':r.status==='approved'?'#166534':'#9B1C1C'};
-                    border:1px solid ${r.status==='pending'?'#F0D5D5':r.status==='approved'?'#BBF7D0':'#FECACA'};
-                  ">${r.status}</span>
+                    background:${r.disabled?'#FFF0F0':r.status==='pending'?'#FFF5F6':r.status==='approved'?'#F0FFF4':'#FFF0F0'};
+                    color:${r.disabled?'#9B1C1C':r.status==='pending'?'#C41230':r.status==='approved'?'#166534':'#9B1C1C'};
+                    border:1px solid ${r.disabled?'#FECACA':r.status==='pending'?'#F0D5D5':r.status==='approved'?'#BBF7D0':'#FECACA'};
+                  ">${r.disabled ? 'disabled' : r.status}</span>
                 </td>
                 <td style="padding:10px 12px;">
                   <button
@@ -1410,6 +1499,29 @@
           </div>
         ` : ''}
 
+        ${r.status === 'approved' ? `
+          <div style="margin-top:16px;padding-top:16px;border-top:1px solid #F0E4E4;">
+            <div style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:#6B4F52;margin-bottom:8px;">
+              Account Management
+              ${r.disabled ? '<span style="color:#9B1C1C;">· DISABLED</span>' : '<span style="color:#166534;">· ACTIVE</span>'}
+            </div>
+            <label style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:#6B4F52;display:block;margin-bottom:5px;">
+              Set New Password <span style="opacity:.6;text-transform:none;letter-spacing:0;">(leave blank to keep current)</span>
+            </label>
+            <div style="display:flex;gap:8px;">
+              <input type="password" id="edit-password" placeholder="Min. 8 characters" style="
+                flex:1;padding:9px 12px;font-family:'Rajdhani',sans-serif;font-size:14px;
+                border:1px solid #E7D5D5;border-radius:4px;color:#201013;
+                background:#FCF8F6;outline:none;
+              ">
+              <button onclick="savePasswordReset(${r.id})" style="
+                font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:.1em;
+                padding:9px 16px;border-radius:4px;border:none;background:#0E2060;color:#fff;cursor:pointer;white-space:nowrap;
+              ">SAVE</button>
+            </div>
+          </div>
+        ` : ''}
+
         ${r.status === 'pending' ? `
           <div id="reject-reason-wrap" style="display:none;margin-top:10px;">
             <label style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:#6B4F52;display:block;margin-bottom:5px;">
@@ -1451,6 +1563,21 @@
             padding:11px 20px;background:transparent;color:#6B4F52;border:1px solid #E7D5D5;border-radius:4px;cursor:pointer;
           ">CLOSE</button>
         `;
+      } else if (r.status === 'approved') {
+        actions.innerHTML = `
+          <button onclick="toggleDisableAccount(${r.id}, ${r.disabled ? 'false' : 'true'})" style="
+            font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:.1em;
+            padding:10px 20px;background:${r.disabled ? '#166534' : '#7F1D1D'};color:#fff;border:none;border-radius:4px;cursor:pointer;
+          ">${r.disabled ? '✅ ENABLE ACCOUNT' : '🚫 DISABLE ACCOUNT'}</button>
+          <button onclick="deleteSignup(${r.id})" style="
+            font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:.1em;
+            padding:10px 20px;background:transparent;color:#9B1C1C;border:1px solid #FECACA;border-radius:4px;cursor:pointer;
+          ">🗑 DELETE ACCOUNT</button>
+          <button onclick="closeSignupModal()" style="
+            font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:.1em;
+            padding:10px 20px;background:transparent;color:#6B4F52;border:1px solid #E7D5D5;border-radius:4px;cursor:pointer;
+          ">CLOSE</button>
+        `;
       } else {
         actions.innerHTML = `
           <button onclick="deleteSignup(${r.id})" style="
@@ -1474,8 +1601,10 @@
     if (!b64) return `<div style="background:#FAF0F0;border-radius:6px;height:100px;display:flex;align-items:center;justify-content:center;font-family:'Share Tech Mono',monospace;font-size:10px;color:#A78589;">${label}<br>Not provided</div>`;
     return `
       <div>
-        <img src="${b64}" alt="${label}" style="width:100%;height:100px;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid #E7D5D5;"
-          onclick="window.open(this.src,'_blank')" title="Click to open full size">
+        <img src="${b64}" alt="${label}" style="width:100%;height:100px;object-fit:cover;border-radius:6px;cursor:zoom-in;border:1px solid #E7D5D5;transition:border-color .15s,transform .15s;"
+          onclick="openImageLightbox('${b64}', '${label.replace(/'/g, "\\'")}')"
+          onmouseenter="this.style.borderColor='#C41230'" onmouseleave="this.style.borderColor='#E7D5D5'"
+          title="Click to view full size">
         <div style="font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#A78589;text-align:center;margin-top:4px;">${label}</div>
       </div>`;
   }
@@ -1561,6 +1690,55 @@
     }
   }
 
+  async function savePasswordReset(id) {
+    const input = document.getElementById('edit-password');
+    const pw = (input?.value || '').trim();
+    const msgEl = document.getElementById('modal-msg');
+
+    if (!pw) { msgEl.style.color = '#FF6B6B'; msgEl.textContent = 'Enter a new password first.'; return; }
+    if (pw.length < 8) { msgEl.style.color = '#FF6B6B'; msgEl.textContent = 'Password must be at least 8 characters.'; return; }
+
+    msgEl.style.color = '#A78589';
+    msgEl.textContent = 'Updating password…';
+
+    const resp = await csrfFetch(`/api/student-signups/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw })
+    });
+    const data = await resp.json();
+
+    if (resp.ok && data.success) {
+      msgEl.style.color = '#166534';
+      msgEl.textContent = '✅ Password updated.';
+      if (input) input.value = '';
+    } else {
+      msgEl.style.color = '#FF6B6B';
+      msgEl.textContent = data.error || 'Failed to update password.';
+    }
+  }
+
+  async function toggleDisableAccount(id, disable) {
+    const msgEl = document.getElementById('modal-msg');
+    msgEl.style.color = '#A78589';
+    msgEl.textContent = disable ? 'Disabling account…' : 'Enabling account…';
+
+    const resp = await csrfFetch(`/api/student-signups/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ disabled: disable })
+    });
+    const data = await resp.json();
+
+    if (resp.ok && data.success) {
+      loadSignups();
+      openSignupModal(id); // refresh modal to reflect the new state
+    } else {
+      msgEl.style.color = '#FF6B6B';
+      msgEl.textContent = data.error || 'Failed to update account.';
+    }
+  }
+
   const signupModalEl = document.getElementById('signup-modal');
   if (signupModalEl) signupModalEl.addEventListener('click', function(e) { if (e.target === this) closeSignupModal(); });
 
@@ -1572,16 +1750,19 @@
     document.getElementById('audit-view').style.display = view === 'audit' ? '' : 'none';
     document.getElementById('teachers-view').style.display = view === 'teachers' ? '' : 'none';
     document.getElementById('signups-view').style.display = view === 'signups' ? '' : 'none';
+    document.getElementById('students-view').style.display = view === 'students' ? '' : 'none';
     document.getElementById('tab-records').classList.toggle('active', view === 'records');
     document.getElementById('tab-contacts').classList.toggle('active', view === 'contacts');
     document.getElementById('tab-sms').classList.toggle('active', view === 'sms');
     document.getElementById('tab-audit').classList.toggle('active', view === 'audit');
     document.getElementById('tab-teachers').classList.toggle('active', view === 'teachers');
     document.getElementById('tab-signups').classList.toggle('active', view === 'signups');
+    document.getElementById('tab-students').classList.toggle('active', view === 'students');
     if (view === 'sms') loadSmsRequests();
     if (view === 'audit') loadAuditLog();
     if (view === 'teachers') loadTeachers();
     if (view === 'signups') loadSignups();
+    if (view === 'students') loadStudentAccounts();
   };
 
   // ---------- AUDIT LOG ----------
@@ -2534,6 +2715,145 @@
       }
     });
   }
+
+  // ---------- STUDENT ACCOUNTS ----------
+  let studentAccountsData = [];
+
+  async function loadStudentAccounts() {
+    const tbody = document.getElementById('students-accounts-body');
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">loading student accounts…</td></tr>';
+    try {
+      const r = await fetch('/api/student-signups');
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      studentAccountsData = await r.json();
+      renderStudentsTable();
+    } catch (e) {
+      console.error('Failed to load student accounts:', e);
+      tbody.innerHTML = `<tr><td colspan="9" class="empty-state" style="color:#F87171;">⚠️ Failed to load: ${esc(e.message)}</td></tr>`;
+    }
+  }
+
+  function renderStudentsTable() {
+    const query = (document.getElementById('students-search').value || '').toLowerCase().trim();
+    const filtered = query
+      ? studentAccountsData.filter(s =>
+          [s.firstName, s.lastName, s.username, s.studentId, s.course, s.email]
+            .some(v => v && v.toLowerCase().includes(query))
+        )
+      : studentAccountsData;
+
+    document.getElementById('students-accounts-count').textContent = studentAccountsData.length;
+
+    const tbody = document.getElementById('students-accounts-body');
+    if (filtered.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="9" class="empty-state">${studentAccountsData.length === 0 ? '📭 No student accounts yet.' : '🔍 No accounts match this search.'}</td></tr>`;
+      return;
+    }
+
+    const statusColor = { approved: '#4ADE80', pending: '#B8860B', rejected: '#FF6B6B' };
+    tbody.innerHTML = filtered.map(s => {
+      const name = esc((s.firstName || '') + ' ' + (s.lastName || '')).trim();
+      const status = s.disabled ? 'disabled' : (s.status || 'pending');
+      const statusLabel = s.disabled ? 'DISABLED' : (s.status || 'pending').toUpperCase();
+      const color = s.disabled ? '#A78589' : (statusColor[s.status] || '#B8860B');
+      return `
+        <tr id="student-row-${s.id}">
+          <td class="id-cell">${s.id}</td>
+          <td style="font-weight:600;">${name || '—'}</td>
+          <td style="font-family:'Share Tech Mono',monospace;font-size:11px;">${esc(s.username)}</td>
+          <td style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);">${esc(s.studentId || '—')}</td>
+          <td>${esc(s.course || '—')}</td>
+          <td style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);">${esc(s.email || '—')}</td>
+          <td><span style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:.05em;color:${color};">${statusLabel}</span></td>
+          <td class="timestamp">${parseTimestamp(s.createdAt).toLocaleString()}</td>
+          <td class="actions">
+            <button class="btn-edit" onclick="openStudentEditModal(${s.id})">EDIT</button>
+            <button class="btn-save" style="background:transparent;border:1px solid ${s.disabled ? 'rgba(74,222,128,.4)' : 'rgba(255,107,107,.4)'};color:${s.disabled ? '#4ADE80' : '#FF6B6B'};" onclick="toggleStudentDisabled(${s.id}, ${s.disabled ? 0 : 1})">${s.disabled ? 'ENABLE' : 'DISABLE'}</button>
+            <button class="btn-delete" onclick="deleteStudentAccount(${s.id})">DELETE</button>
+          </td>
+        </tr>`;
+    }).join('');
+  }
+
+  window.openStudentEditModal = (id) => {
+    const s = studentAccountsData.find(x => x.id === id);
+    if (!s) return;
+    document.getElementById('student-edit-id').value = id;
+    document.getElementById('student-edit-firstname').value = s.firstName || '';
+    document.getElementById('student-edit-lastname').value = s.lastName || '';
+    document.getElementById('student-edit-email').value = s.email || '';
+    document.getElementById('student-edit-course').value = s.course || '';
+    document.getElementById('student-edit-password').value = '';
+    document.getElementById('student-edit-msg').textContent = '';
+    const modal = document.getElementById('student-edit-modal');
+    modal.style.display = 'flex';
+  };
+
+  window.closeStudentEditModal = () => {
+    document.getElementById('student-edit-modal').style.display = 'none';
+  };
+
+  window.saveStudentEdit = async () => {
+    const id = parseInt(document.getElementById('student-edit-id').value, 10);
+    const msgEl = document.getElementById('student-edit-msg');
+    const body = {};
+    const firstName = document.getElementById('student-edit-firstname').value.trim();
+    const lastName = document.getElementById('student-edit-lastname').value.trim();
+    const email = document.getElementById('student-edit-email').value.trim();
+    const course = document.getElementById('student-edit-course').value.trim();
+    const password = document.getElementById('student-edit-password').value;
+
+    if (firstName) body.firstName = firstName;
+    if (lastName) body.lastName = lastName;
+    if (email) body.email = email;
+    if (course !== undefined) body.course = course;
+    if (password) {
+      if (password.length < 8) { msgEl.textContent = 'Password must be at least 8 characters.'; return; }
+      body.password = password;
+    }
+
+    if (Object.keys(body).length === 0) { msgEl.textContent = 'Nothing to update.'; return; }
+    msgEl.textContent = '';
+
+    try {
+      const r = await csrfFetch(`/api/student-signups/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await r.json();
+      if (!r.ok) { msgEl.textContent = data.error || 'Update failed.'; return; }
+      closeStudentEditModal();
+      await loadStudentAccounts();
+    } catch (e) {
+      msgEl.textContent = 'Network error. Please try again.';
+    }
+  };
+
+  window.toggleStudentDisabled = async (id, disableValue) => {
+    const s = studentAccountsData.find(x => x.id === id);
+    const action = disableValue ? 'disable' : 'enable';
+    if (!confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} account for ${s ? (s.firstName + ' ' + s.lastName).trim() : '#' + id}?`)) return;
+    try {
+      const r = await csrfFetch(`/api/student-signups/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ disabled: !!disableValue })
+      });
+      if (!r.ok) { const d = await r.json(); alert(`❌ Failed: ${d.error}`); return; }
+      await loadStudentAccounts();
+    } catch (e) { alert('Network error.'); }
+  };
+
+  window.deleteStudentAccount = async (id) => {
+    const s = studentAccountsData.find(x => x.id === id);
+    if (!confirm(`Permanently delete account for ${s ? (s.firstName + ' ' + s.lastName).trim() || s.username : '#' + id}? This cannot be undone.`)) return;
+    try {
+      const r = await csrfFetch(`/api/student-signups/${id}`, { method: 'DELETE' });
+      if (!r.ok) { const d = await r.json(); alert(`❌ Failed: ${d.error}`); return; }
+      await loadStudentAccounts();
+    } catch (e) { alert('Network error.'); }
+  };
 
   // ---------- INIT ----------
   (async function init() {

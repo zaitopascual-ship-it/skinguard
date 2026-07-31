@@ -417,7 +417,6 @@ function requireSession(req, res, next) {
     if (req.session && (
         req.session.role === 'teacher' ||
         req.session.role === 'admin'   ||
-        req.session.role === 'guest'   ||
         req.session.role === 'student'
     )) {
         return next();
@@ -685,25 +684,7 @@ app.post('/api/faq-chat', faqChatLimiter, async (req, res) => {
     }
 });
 
-// ---------- GUEST LOGIN ----------
-app.post('/api/guest-login', guestLoginLimiter, (req, res) => {
-    // Regenerate the session first so any leftover fields from a previous auth
-    // state on this cookie (isAdmin, isTeacher, username, etc.) can't survive
-    // into the new guest session.
-    req.session.regenerate((err) => {
-        if (err) {
-            console.error('❌ Guest session regenerate failed:', err.message);
-            return res.status(500).json({ error: 'Could not start guest session' });
-        }
-        req.session.role = 'guest';
-        req.session.isGuest = true;
-        req.session.consentGiven = true;
-        req.session.consentAt = new Date().toISOString();
-        req.session.cookie.maxAge = 2 * 60 * 60 * 1000;
-        console.log('👤 Guest session created');
-        res.json({ success: true, role: 'guest' });
-    });
-});
+
 
 // ---------- LOGIN PAGE ----------
 app.get('/login', (req, res) => {
@@ -758,8 +739,12 @@ app.post('/api/login', loginLimiter, (req, res) => {
                     return res.status(500).json({ error: 'Login failed, please try again' });
                 }
 
-                if (studentRow && bcrypt.compareSync(password, studentRow.passwordHash)) {
+                if (studentRow && !studentRow.disabled && bcrypt.compareSync(password, studentRow.passwordHash)) {
                     return finishStudentLogin(req, res, studentRow);
+                }
+
+                if (studentRow && studentRow.disabled && bcrypt.compareSync(password, studentRow.passwordHash)) {
+                    return res.status(401).json({ error: 'This account has been disabled. Please contact the clinic.' });
                 }
 
                 // Check if username exists but is still pending (give a helpful message)
@@ -935,7 +920,7 @@ app.get('/api/student-signups', requireAdmin, (req, res) => {
     // Never return password hashes or images in the list view — images only on detail
     db.all(
         `SELECT id, firstName, lastName, studentId, course, email, username,
-                status, reviewedBy, reviewedAt, rejectReason, createdAt
+                status, reviewedBy, reviewedAt, rejectReason, disabled, createdAt
          FROM student_signups ORDER BY createdAt DESC LIMIT 200`,
         (err, rows) => {
             if (err) {
@@ -955,7 +940,7 @@ app.get('/api/student-signups/:id', requireAdmin, (req, res) => {
     db.get(
         `SELECT id, firstName, lastName, studentId, course, email, username,
                 selfieImage, idFrontImage, idBackImage,
-                status, reviewedBy, reviewedAt, rejectReason, createdAt
+                status, reviewedBy, reviewedAt, rejectReason, disabled, createdAt
          FROM student_signups WHERE id = ?`,
         [id],
         (err, row) => {
@@ -1020,6 +1005,69 @@ app.post('/api/student-signups/:id/reject', requireAdmin, (req, res) => {
     });
 });
 
+// ---------- ADMIN: edit a student account (password reset / enable-disable) ----------
+app.put('/api/student-signups/:id', requireAdmin, (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' });
+
+    db.get('SELECT * FROM student_signups WHERE id = ?', [id], (err, row) => {
+        if (err) { console.error(err); return res.status(500).json({ error: 'Database error' }); }
+        if (!row) return res.status(404).json({ error: 'Request not found' });
+
+        const updates = [];
+        const params = [];
+
+        if (typeof req.body.password === 'string' && req.body.password) {
+            if (req.body.password.length < 8) {
+                return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+            }
+            updates.push('passwordHash = ?');
+            params.push(bcrypt.hashSync(req.body.password, 10));
+        }
+        if (typeof req.body.disabled === 'boolean') {
+            updates.push('disabled = ?');
+            params.push(req.body.disabled ? 1 : 0);
+        }
+        if (typeof req.body.firstName === 'string' && req.body.firstName.trim()) {
+            updates.push('firstName = ?');
+            params.push(req.body.firstName.trim());
+        }
+        if (typeof req.body.lastName === 'string' && req.body.lastName.trim()) {
+            updates.push('lastName = ?');
+            params.push(req.body.lastName.trim());
+        }
+        if (typeof req.body.course === 'string') {
+            updates.push('course = ?');
+            params.push(req.body.course.trim() || null);
+        }
+        if (typeof req.body.email === 'string' && req.body.email.trim()) {
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(req.body.email.trim())) {
+                return res.status(400).json({ error: 'Invalid email address.' });
+            }
+            updates.push('email = ?');
+            params.push(req.body.email.trim());
+        }
+
+        if (updates.length === 0) {
+            return res.status(400).json({ error: 'Nothing to update' });
+        }
+
+        params.push(id);
+        db.run(`UPDATE student_signups SET ${updates.join(', ')} WHERE id = ?`, params, (updateErr) => {
+            if (updateErr) {
+                console.error('❌ Failed to update student account:', updateErr.message);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            console.log(`✏️ Student account #${id} (${row.username}) updated by ${(req.session && req.session.username) || 'admin'}`);
+            logAudit(req, 'update_student_account', 'student_signup', id, {
+                username: row.username,
+                fieldsChanged: Object.keys(req.body || {})
+            });
+            res.json({ success: true });
+        });
+    });
+});
+
 // ---------- ADMIN: delete a signup request ----------
 app.delete('/api/student-signups/:id', requireAdmin, (req, res) => {
     const id = parseInt(req.params.id, 10);
@@ -1040,9 +1088,6 @@ app.get('/api/me', (req, res) => {
     }
     if (req.session && req.session.isTeacher) {
         return res.json({ role: 'teacher', username: req.session.username });
-    }
-    if (req.session && req.session.role === 'guest') {
-        return res.json({ role: 'guest' });
     }
     if (req.session && req.session.isStudent) {
         return res.json({ role: 'student', username: req.session.username });
@@ -1109,6 +1154,12 @@ db.serialize(() => {
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);
+
+    db.run("ALTER TABLE student_signups ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0", (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+            console.warn('Could not add disabled column to student_signups:', err.message);
+        }
+    });
 
     db.run("ALTER TABLE scans ADD COLUMN image TEXT", (err) => {
         if (err && !err.message.includes('duplicate column')) {
@@ -1292,14 +1343,14 @@ if (process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS) 
 // ---------- ROUTES (ALL AFTER DB INIT) ----------
 
 // ---- STUDENTS ----
-// GET /api/students – any logged‑in user (guests, teachers, admins)
+// GET /api/students – any logged‑in user (students, teachers, admins)
 app.get('/api/students', requireSession, (req, res) => {
     db.all('SELECT id, name, phone, email FROM students ORDER BY name', (err, rows) => {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
         }
-        const role = req.session.role || 'guest';
+        const role = req.session.role || 'unknown';
         const maskedRows = rows.map(row => maskStudentForRole(row, role));
         res.json(maskedRows);
     });
@@ -1324,7 +1375,7 @@ app.post('/api/students', requireTeacherOrAdmin, studentPostLimiter, (req, res) 
         }
         if (row) {
             // Existing student: allow updates only if role is teacher or admin (already enforced by middleware)
-            const role = req.session.role || 'guest';
+            const role = req.session.role || 'unknown';
             if (role !== 'teacher' && role !== 'admin') {
                 return res.status(403).json({ error: 'Only teachers or admins can update existing student records.' });
             }
@@ -1359,7 +1410,7 @@ app.post('/api/students', requireTeacherOrAdmin, studentPostLimiter, (req, res) 
             });
         } else {
             // New student: only teachers/admins can add (already enforced)
-            const role = req.session.role || 'guest';
+            const role = req.session.role || 'unknown';
             if (role !== 'teacher' && role !== 'admin') {
                 return res.status(403).json({ error: 'Only teachers or admins can add new students.' });
             }
@@ -1505,7 +1556,7 @@ app.post('/api/save-scan', requireSession, saveScanLimiter, (req, res) => {
     if (sanitizedPhone === false) {
         return res.status(400).json({ error: 'Invalid phone number format. Use a PH mobile number, e.g. 09XXXXXXXXX or +639XXXXXXXXX.' });
     }
-    const submittedRole = req.session.role || 'guest';
+    const submittedRole = req.session.role || 'unknown';
     const stmt = db.prepare('INSERT INTO scans (name, phone, condition, severity, advice, firstAid, image, submittedRole) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     stmt.run(name, sanitizedPhone, condition, severity, advice, firstAid, image || null, submittedRole, function(err) {
         if (err) {
@@ -1652,8 +1703,8 @@ app.post('/api/send-sms', requireSession, smsLimiter, async (req, res) => {
 
         const role = req.session.role;
 
-        // ─── GUEST: queue for admin approval ───
-        if (role === 'guest') {
+        // ─── STUDENT: queue for admin approval ───
+        if (role === 'student') {
             const smsStatus = filteredChannels.includes('sms') ? 'pending' : 'none';
             const emailStatus = filteredChannels.includes('email') ? 'pending' : 'none';
             const stmt = db.prepare(`
@@ -1665,7 +1716,7 @@ app.post('/api/send-sms', requireSession, smsLimiter, async (req, res) => {
                     console.error(insertErr);
                     return res.status(500).json({ error: 'Database error while creating SMS request' });
                 }
-                console.log(`📝 SMS request #${this.lastID} queued for admin approval (guest, ${studentName})`);
+                console.log(`📝 SMS request #${this.lastID} queued for admin approval (student, ${studentName})`);
                 res.json({
                     success: true,
                     pending: true,
