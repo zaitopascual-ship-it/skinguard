@@ -95,7 +95,40 @@ async function sendEmailViaProvider(toEmail, studentName, condition, advice) {
     }
 }
 
-// ---------- EMAIL REPLY POLLING (IMAP, Gmail only) ----------
+async function sendSignupApprovalEmail(toEmail, firstName, lastName, username) {
+    if (!emailTransporter) {
+        console.warn('📧 Email transport not available – skipping approval email');
+        return { ok: false, error: 'Email not configured' };
+    }
+    const safeName = escapeHtmlForEmail(`${firstName} ${lastName}`);
+    const safeUsername = escapeHtmlForEmail(username);
+    const subject = 'SkinGuard – Your account has been approved';
+    const text = `Hi ${firstName},\n\nYour SkinGuard student account has been approved by the clinic.\n\nYou can now log in at https://skinguard.site using your username: ${username}\n\nIf you have any questions, please contact the AMA Santiago Campus Clinic.\n\n— SkinGuard · AMA Computer College Santiago Campus`;
+    const html = `
+    <p><strong>SkinGuard — Account Approved</strong></p>
+    <p>Hi <strong>${safeName}</strong>,</p>
+    <p>Your SkinGuard student account has been <strong style="color:#15803d;">approved</strong> by the clinic.</p>
+    <p>You can now log in using your username: <strong>${safeUsername}</strong></p>
+    <p><a href="https://skinguard.site/login" style="color:#C41230;">Log in to SkinGuard →</a></p>
+    <p style="color:#6B4F52;font-size:13px;">If you have any questions, please contact the AMA Santiago Campus Clinic.</p>
+    <p style="color:#6B4F52;font-size:13px;">— SkinGuard · AMA Computer College Santiago Campus</p>`;
+    try {
+        const info = await emailTransporter.sendMail({
+            from: process.env.EMAIL_FROM || 'SkinGuard <noreply@skinguard.site>',
+            to: toEmail,
+            subject,
+            text,
+            html,
+        });
+        console.log(`📧 Approval email sent to ${toEmail} (${info.messageId})`);
+        return { ok: true, messageId: info.messageId };
+    } catch (err) {
+        console.error('❌ Approval email failed:', err.message);
+        return { ok: false, error: err.message };
+    }
+}
+
+
 // Reuses the same Gmail app-password credentials used for sending (EMAIL_USER / EMAIL_PASS).
 // Looks at recent inbox messages that are replies (via In-Reply-To / References headers)
 // to a Message-ID we previously stored on a sms_requests row, and saves the reply text.
@@ -417,6 +450,7 @@ function requireSession(req, res, next) {
     if (req.session && (
         req.session.role === 'teacher' ||
         req.session.role === 'admin'   ||
+        req.session.role === 'guest'   ||
         req.session.role === 'student'
     )) {
         return next();
@@ -684,7 +718,25 @@ app.post('/api/faq-chat', faqChatLimiter, async (req, res) => {
     }
 });
 
-
+// ---------- GUEST LOGIN ----------
+app.post('/api/guest-login', guestLoginLimiter, (req, res) => {
+    // Regenerate the session first so any leftover fields from a previous auth
+    // state on this cookie (isAdmin, isTeacher, username, etc.) can't survive
+    // into the new guest session.
+    req.session.regenerate((err) => {
+        if (err) {
+            console.error('❌ Guest session regenerate failed:', err.message);
+            return res.status(500).json({ error: 'Could not start guest session' });
+        }
+        req.session.role = 'guest';
+        req.session.isGuest = true;
+        req.session.consentGiven = true;
+        req.session.consentAt = new Date().toISOString();
+        req.session.cookie.maxAge = 2 * 60 * 60 * 1000;
+        console.log('👤 Guest session created');
+        res.json({ success: true, role: 'guest' });
+    });
+});
 
 // ---------- LOGIN PAGE ----------
 app.get('/login', (req, res) => {
@@ -967,10 +1019,21 @@ app.post('/api/student-signups/:id/approve', requireAdmin, (req, res) => {
         db.run(
             `UPDATE student_signups SET status = 'approved', reviewedBy = ?, reviewedAt = CURRENT_TIMESTAMP WHERE id = ?`,
             [reviewer, id],
-            (updateErr) => {
+            async (updateErr) => {
                 if (updateErr) { console.error(updateErr); return res.status(500).json({ error: 'Database error' }); }
                 console.log(`✅ Student signup #${id} (${row.username}) approved by ${reviewer}`);
                 logAudit(req, 'approve_student_signup', 'student_signup', id, { username: row.username, email: row.email });
+
+                // Send approval email to the student
+                if (row.email) {
+                    const emailResult = await sendSignupApprovalEmail(row.email, row.firstName, row.lastName, row.username);
+                    if (!emailResult.ok) {
+                        console.warn(`⚠️ Approval email to ${row.email} failed: ${emailResult.error}`);
+                    }
+                } else {
+                    console.warn(`⚠️ No email on file for signup #${id} (${row.username}) — skipping approval email`);
+                }
+
                 res.json({ success: true, status: 'approved' });
             }
         );
@@ -1088,6 +1151,9 @@ app.get('/api/me', (req, res) => {
     }
     if (req.session && req.session.isTeacher) {
         return res.json({ role: 'teacher', username: req.session.username });
+    }
+    if (req.session && req.session.role === 'guest') {
+        return res.json({ role: 'guest' });
     }
     if (req.session && req.session.isStudent) {
         return res.json({ role: 'student', username: req.session.username });
@@ -1343,14 +1409,14 @@ if (process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS) 
 // ---------- ROUTES (ALL AFTER DB INIT) ----------
 
 // ---- STUDENTS ----
-// GET /api/students – any logged‑in user (students, teachers, admins)
+// GET /api/students – any logged‑in user (guests, teachers, admins)
 app.get('/api/students', requireSession, (req, res) => {
     db.all('SELECT id, name, phone, email FROM students ORDER BY name', (err, rows) => {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
         }
-        const role = req.session.role || 'unknown';
+        const role = req.session.role || 'guest';
         const maskedRows = rows.map(row => maskStudentForRole(row, role));
         res.json(maskedRows);
     });
@@ -1375,7 +1441,7 @@ app.post('/api/students', requireTeacherOrAdmin, studentPostLimiter, (req, res) 
         }
         if (row) {
             // Existing student: allow updates only if role is teacher or admin (already enforced by middleware)
-            const role = req.session.role || 'unknown';
+            const role = req.session.role || 'guest';
             if (role !== 'teacher' && role !== 'admin') {
                 return res.status(403).json({ error: 'Only teachers or admins can update existing student records.' });
             }
@@ -1410,7 +1476,7 @@ app.post('/api/students', requireTeacherOrAdmin, studentPostLimiter, (req, res) 
             });
         } else {
             // New student: only teachers/admins can add (already enforced)
-            const role = req.session.role || 'unknown';
+            const role = req.session.role || 'guest';
             if (role !== 'teacher' && role !== 'admin') {
                 return res.status(403).json({ error: 'Only teachers or admins can add new students.' });
             }
@@ -1556,7 +1622,7 @@ app.post('/api/save-scan', requireSession, saveScanLimiter, (req, res) => {
     if (sanitizedPhone === false) {
         return res.status(400).json({ error: 'Invalid phone number format. Use a PH mobile number, e.g. 09XXXXXXXXX or +639XXXXXXXXX.' });
     }
-    const submittedRole = req.session.role || 'unknown';
+    const submittedRole = req.session.role || 'guest';
     const stmt = db.prepare('INSERT INTO scans (name, phone, condition, severity, advice, firstAid, image, submittedRole) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     stmt.run(name, sanitizedPhone, condition, severity, advice, firstAid, image || null, submittedRole, function(err) {
         if (err) {
@@ -1703,8 +1769,8 @@ app.post('/api/send-sms', requireSession, smsLimiter, async (req, res) => {
 
         const role = req.session.role;
 
-        // ─── STUDENT: queue for admin approval ───
-        if (role === 'student') {
+        // ─── GUEST: queue for admin approval ───
+        if (role === 'guest') {
             const smsStatus = filteredChannels.includes('sms') ? 'pending' : 'none';
             const emailStatus = filteredChannels.includes('email') ? 'pending' : 'none';
             const stmt = db.prepare(`
@@ -1716,7 +1782,7 @@ app.post('/api/send-sms', requireSession, smsLimiter, async (req, res) => {
                     console.error(insertErr);
                     return res.status(500).json({ error: 'Database error while creating SMS request' });
                 }
-                console.log(`📝 SMS request #${this.lastID} queued for admin approval (student, ${studentName})`);
+                console.log(`📝 SMS request #${this.lastID} queued for admin approval (guest, ${studentName})`);
                 res.json({
                     success: true,
                     pending: true,
