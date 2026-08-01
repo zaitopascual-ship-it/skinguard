@@ -13,8 +13,8 @@
 // Roboflow's raw detection box tends to be taller/wider than the eye itself
 // (it often includes some brow/socket margin). Scale it down around the same
 // center point so the black bar hugs the eye instead of covering a big block.
-const EYE_BOX_WIDTH_SCALE = 1.0;
-const EYE_BOX_HEIGHT_SCALE = 0.85;
+const EYE_BOX_WIDTH_SCALE = 1.5;
+const EYE_BOX_HEIGHT_SCALE = 0.75;
 
 async function redactEyesWithRoboflow(imageDataUrl) {
     try {
@@ -59,16 +59,23 @@ async function redactEyesWithRoboflow(imageDataUrl) {
         const scaleX = imageSize && imageSize.width ? canvas.width / imageSize.width : 1;
         const scaleY = imageSize && imageSize.height ? canvas.height / imageSize.height : 1;
 
-        // Draw a thin black bar over each detected eye, sized to the eye
-        // itself rather than the full (larger) detection box
+        // Compute each detected eye's (shrunk) box, then merge them into one
+        // bounding box so the redaction is a single continuous bar across
+        // both eyes rather than two separate patches.
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         for (const pred of predictions) {
             const boxWidth = pred.width * EYE_BOX_WIDTH_SCALE * scaleX;
             const boxHeight = pred.height * EYE_BOX_HEIGHT_SCALE * scaleY;
             const x = (pred.x * scaleX) - boxWidth / 2;
             const y = (pred.y * scaleY) - boxHeight / 2;
-            ctx.fillStyle = 'black';
-            ctx.fillRect(x, y, boxWidth, boxHeight);
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x + boxWidth);
+            maxY = Math.max(maxY, y + boxHeight);
         }
+
+        ctx.fillStyle = 'black';
+        ctx.fillRect(minX, minY, maxX - minX, maxY - minY);
 
         const redacted = canvas.toDataURL('image/jpeg', 0.9);
         console.log('✅ Eye redaction complete.');
