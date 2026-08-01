@@ -1,7 +1,4 @@
 // ---------- CSRF HELPER ----------
-// The server sets a random 'XSRF-TOKEN' cookie on every response. We must
-// echo it back in the X-CSRF-Token header on any state-changing request
-// (POST/PUT/DELETE/PATCH) or the server will reject it with 403.
 function getCookie(name) {
     const match = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
     return match ? decodeURIComponent(match[2]) : null;
@@ -12,7 +9,6 @@ function csrfFetch(url, options = {}) {
     if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
         options.headers = { ...(options.headers || {}), 'X-CSRF-Token': getCookie('XSRF-TOKEN') || '' };
     }
-    console.log('CSRF cookie:', getCookie('XSRF-TOKEN'), 'Headers:', options.headers);
     return fetch(url, options);
 }
 
@@ -26,7 +22,7 @@ let selectedStudent = null;
 let isTeacher = false;
 let isStudent = false;
 
-// ---------- AMA SANTIAGO CAMPUS COORDINATES ----------//
+// ---------- AMA SANTIAGO CAMPUS COORDINATES ----------
 const SCHOOL_LAT = 16.688356;
 const SCHOOL_LNG = 121.550856;
 
@@ -36,21 +32,16 @@ function ensureMapboxLoaded(callback) {
         callback();
         return;
     }
-    console.log('🔄 Loading Mapbox GL JS...');
     const script = document.createElement('script');
     script.src = 'https://api.mapbox.com/mapbox-gl-js/v3.10.0/mapbox-gl.js';
-    script.onload = () => {
-        console.log('✅ Mapbox GL JS loaded');
-        callback();
-    };
+    script.onload = () => callback();
     script.onerror = () => {
-        console.error('❌ Failed to load Mapbox GL JS');
+        console.error('Failed to load Mapbox GL JS');
         alert('Could not load the map. Please check your internet connection and try again.');
     };
     document.head.appendChild(script);
 }
 
-// ---------- MAPBOX TOKEN ----------
 const MAPBOX_TOKEN = 'pk.eyJ1IjoiYWFyb25wb2dpMDYiLCJhIjoiY21xcThtcmN3MGczODJ3c2J3Y2Viem1pNSJ9.Sscnjo8gxhVt2C2Gbitxgg';
 
 // ---------- STATIC HOSPITAL LIST ----------
@@ -118,30 +109,21 @@ function maskName(name) {
 }
 
 function maskPhone(phone) {
-  if (!phone) return 'No phone';
-
-  // If already masked, return as-is
-  if (phone.includes('*')) return phone;
-
-  // Clean: keep only digits and '+'
-  let cleaned = phone.replace(/[^\d+]/g, '');
-  let prefix = '';
-  let number = cleaned;
-
-  if (cleaned.startsWith('+')) {
-    prefix = '+';
-    number = cleaned.substring(1);
-  }
-
-  // If the number is 4 digits or less, mask entirely
-  if (number.length <= 4) {
-    return prefix + '****';
-  }
-
-  // For longer numbers: show prefix + last 4 digits
-  const last4 = number.slice(-4);
-  const masked = '*'.repeat(number.length - 4) + last4;
-  return prefix + masked;
+    if (!phone) return 'No phone';
+    if (phone.includes('*')) return phone;
+    let cleaned = phone.replace(/[^\d+]/g, '');
+    let prefix = '';
+    let number = cleaned;
+    if (cleaned.startsWith('+')) {
+        prefix = '+';
+        number = cleaned.substring(1);
+    }
+    if (number.length <= 4) {
+        return prefix + '****';
+    }
+    const last4 = number.slice(-4);
+    const masked = '*'.repeat(number.length - 4) + last4;
+    return prefix + masked;
 }
 
 function maskEmail(email) {
@@ -180,6 +162,60 @@ function formatPhoneNumber(rawNumber) {
     if (/^\d{10}$/.test(cleaned)) return '+63' + cleaned;
     if (/^\d{12}$/.test(cleaned) && cleaned.startsWith('63')) return '+' + cleaned;
     return cleaned;
+}
+
+// ---------- EYE REDACTION WITH ROBOFLOW (via server proxy) ----------
+async function redactEyesWithRoboflow(imageDataUrl) {
+    try {
+        // Call our server endpoint (which uses the API key securely)
+        const response = await csrfFetch('/api/detect-eyes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: imageDataUrl })
+        });
+
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || `HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        const predictions = data.predictions || [];
+
+        if (predictions.length === 0) {
+            console.log('👀 No eyes detected – no redaction needed.');
+            return imageDataUrl;
+        }
+
+        console.log(`👀 Detected ${predictions.length} eye(s), redacting...`);
+
+        // Load image onto canvas
+        const img = new Image();
+        img.src = imageDataUrl;
+        await img.decode();
+
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+
+        // Draw black rectangles over each detected eye
+        for (const pred of predictions) {
+            const x = pred.x - pred.width / 2;
+            const y = pred.y - pred.height / 2;
+            ctx.fillStyle = 'black';
+            ctx.fillRect(x, y, pred.width, pred.height);
+        }
+
+        const redacted = canvas.toDataURL('image/jpeg', 0.9);
+        console.log('✅ Eye redaction complete.');
+        return redacted;
+
+    } catch (err) {
+        console.warn('⚠️ Eye redaction failed, using original image:', err.message);
+        return imageDataUrl;
+    }
 }
 
 // ---------- LOGIN ----------
@@ -234,7 +270,6 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
         if (res.ok && data.success) {
             const role = data.role;
             if (role === 'admin') {
-                // Admins go straight to the admin panel
                 window.location.href = '/admin';
                 return;
             }
@@ -262,8 +297,6 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
         btn.textContent = 'LOGIN';
     }
 });
-
-
 
 document.getElementById('logout-btn').addEventListener('click', async function() {
     try { await fetch('/logout'); } catch (e) {}
@@ -323,28 +356,20 @@ function selectStudent(student) {
 
 function showNotifyOptions(student) {
     document.getElementById('notify-student-name').textContent = student.name;
-
     const phone = student.phone && student.phone.trim() !== '' ? student.phone : null;
     const email = student.email && student.email.trim() !== '' ? student.email : null;
-
     let phoneDisplay = phone ? maskPhone(phone) : '—';
     let emailDisplay = email ? maskEmail(email) : '—';
-
     document.getElementById('notify-phone-preview').textContent = phoneDisplay;
     document.getElementById('notify-email-preview').textContent = emailDisplay;
-
     const smsCheck = document.getElementById('notify-channel-sms');
     const emailCheck = document.getElementById('notify-channel-email');
-
     smsCheck.checked = !!phone;
     emailCheck.checked = !!email;
-
     smsCheck.disabled = !smsCheck.checked;
     emailCheck.disabled = !emailCheck.checked;
-
     smsCheck.parentElement.style.opacity = smsCheck.disabled ? '0.4' : '1';
     emailCheck.parentElement.style.opacity = emailCheck.disabled ? '0.4' : '1';
-
     showScreen('notify-options-screen');
 }
 
@@ -358,7 +383,6 @@ async function performSave() {
         alert('No valid scan result to save. Please scan again.');
         return;
     }
-
     try {
         const payload = {
             name: selectedStudent.name,
@@ -366,29 +390,21 @@ async function performSave() {
             scanToken: lastResult.scanToken,
             image: capturedImage
         };
-        console.log('📤 Sending save request with payload:', { name: payload.name, phone: payload.phone, scanToken: payload.scanToken ? payload.scanToken.substring(0, 10) + '…' : null, imageSize: payload.image ? payload.image.length : 0 });
-
         const response = await csrfFetch('/api/save-scan', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-
-        console.log('📥 Response status:', response.status, response.statusText);
         const responseText = await response.text();
-        console.log('📥 Response body:', responseText);
-
         let data;
         try {
             data = JSON.parse(responseText);
         } catch (e) {
             throw new Error(`Server returned invalid JSON: ${responseText.substring(0, 100)}`);
         }
-
         if (!response.ok) {
             throw new Error(data.error || `Server error (${response.status})`);
         }
-
         alert(`✅ Scan saved for ${selectedStudent.name}!`);
         selectedStudent = null;
         pendingAction = null;
@@ -415,12 +431,10 @@ async function performNotifyWithChannels(channels) {
         alert('Email requested but student has no email address.');
         return;
     }
-
     const btn = document.getElementById('send-notification-btn');
     const originalText = btn.textContent;
     btn.textContent = 'Sending...';
     btn.disabled = true;
-
     try {
         const response = await csrfFetch('/api/send-sms', {
             method: 'POST',
@@ -434,21 +448,19 @@ async function performNotifyWithChannels(channels) {
             })
         });
         const data = await response.json();
-
         if (response.ok && data.pending) {
-    // Only guests get this
-    showAppNotice({
-        icon: '📨',
-        title: 'Notification Sent',
-        message: 'Your notification request has been sent to the admin for approval.',
-        bullets: [
-            `${escapeHtml(selectedStudent.name)}'s parent will be notified via ${escapeHtml(channels.join(' and '))}.`,
-            'The admin must approve this request in the admin panel.',
-            'You will be notified once approved.'
-        ]
-    });
-    pollSmsRequestStatus(data.requestId, selectedStudent.name);
-}
+            showAppNotice({
+                icon: '📨',
+                title: 'Notification Sent',
+                message: 'Your notification request has been sent to the admin for approval.',
+                bullets: [
+                    `${escapeHtml(selectedStudent.name)}'s parent will be notified via ${escapeHtml(channels.join(' and '))}.`,
+                    'The admin must approve this request in the admin panel.',
+                    'You will be notified once approved.'
+                ]
+            });
+            pollSmsRequestStatus(data.requestId, selectedStudent.name);
+        }
     } catch (error) {
         console.error('Notification error:', error);
         alert('Error sending notification.');
@@ -465,7 +477,6 @@ async function performNotifyWithChannels(channels) {
 function pollSmsRequestStatus(requestId, studentName) {
     const maxAttempts = 40;
     let attempts = 0;
-
     async function check() {
         attempts++;
         try {
@@ -500,14 +511,12 @@ function pollSmsRequestStatus(requestId, studentName) {
         } catch (e) {
             console.warn('Status check failed:', e);
         }
-
         if (attempts >= maxAttempts) {
             console.warn(`Gave up polling request #${requestId} after ${attempts} attempts.`);
             return;
         }
         setTimeout(check, 7500);
     }
-
     check();
 }
 
@@ -551,7 +560,6 @@ document.getElementById('add-new-student-btn').addEventListener('click', () => {
         alert('Only teachers and administrators can add new students.');
         return;
     }
-    // Clear and show add student screen
     document.getElementById('new-student-firstname').value = '';
     document.getElementById('new-student-lastname').value = '';
     document.getElementById('new-student-phone').value = '';
@@ -564,34 +572,27 @@ document.getElementById('confirm-add-student-btn').addEventListener('click', asy
     const lastName = document.getElementById('new-student-lastname').value.trim();
     const phone = document.getElementById('new-student-phone').value.trim();
     const email = document.getElementById('new-student-email').value.trim();
-
     if (!firstName || !lastName) {
         alert('Please enter both first name and last name.');
         return;
     }
-
     if (!isValidNamePart(firstName)) {
         alert('First name can only contain letters, spaces, hyphens, apostrophes, and dots. Must be at least 2 characters and contain a vowel. No numbers or gibberish.');
         return;
     }
-
     if (!isValidNamePart(lastName)) {
         alert('Last name can only contain letters, spaces, hyphens, apostrophes, and dots. Must be at least 2 characters and contain a vowel. No numbers or gibberish.');
         return;
     }
-
     if (phone && !isValidPhone(phone)) {
         alert('Phone number can only contain digits and the plus sign (+). No letters or special characters allowed.');
         return;
     }
-
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         alert('Please enter a valid email address.');
         return;
     }
-
     const fullName = firstName + ' ' + lastName;
-
     try {
         const response = await csrfFetch('/api/students', {
             method: 'POST',
@@ -750,9 +751,7 @@ document.getElementById('upload-btn').addEventListener('click', () => {
 function drawBoundingBoxes(img, bboxes, imgSize) {
     let canvas = document.getElementById('bbox-canvas');
     if (canvas) canvas.remove();
-
     if (!bboxes || bboxes.length === 0) return;
-
     canvas = document.createElement('canvas');
     canvas.id = 'bbox-canvas';
     canvas.style.position = 'absolute';
@@ -762,7 +761,6 @@ function drawBoundingBoxes(img, bboxes, imgSize) {
     const container = img.parentElement;
     container.style.position = 'relative';
     container.appendChild(canvas);
-
     canvas.width = img.width;
     canvas.height = img.height;
     canvas.style.width = `${img.width}px`;
@@ -771,10 +769,8 @@ function drawBoundingBoxes(img, bboxes, imgSize) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.strokeStyle = 'red';
     ctx.lineWidth = 3;
-
     const scaleX = img.width / imgSize.width;
     const scaleY = img.height / imgSize.height;
-
     for (const box of bboxes) {
         const topLeftX = box.x - (box.width / 2);
         const topLeftY = box.y - (box.height / 2);
@@ -786,7 +782,7 @@ function drawBoundingBoxes(img, bboxes, imgSize) {
     }
 }
 
-// ---------- RESIZE IMAGE (improved compression) ----------
+// ---------- RESIZE IMAGE ----------
 function resizeImage(dataUrl, maxWidth = 600, maxHeight = 600, quality = 0.7) {
     return new Promise((resolve) => {
         const img = new Image();
@@ -818,7 +814,14 @@ async function analyzeImage() {
     if (!capturedImage) return;
     showLoading();
     try {
-        const resizedImage = await resizeImage(capturedImage, 600, 600, 0.7); // Better compression
+        // --- REDACT EYES using Roboflow eye-detection model (via server proxy) ---
+        const redactedImage = await redactEyesWithRoboflow(capturedImage);
+        capturedImage = redactedImage;  // store redacted version for display/save
+
+        // Resize the (now redacted) image
+        const resizedImage = await resizeImage(capturedImage, 600, 600, 0.7);
+
+        // Send to skin analysis
         const response = await csrfFetch('/api/analyze', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -869,7 +872,7 @@ function useFallback() {
     displayResults(conditions[randomIndex]);
 }
 
-// ---------- DISPLAY RESULTS (with auto-save for guests and teachers) ----------
+// ---------- DISPLAY RESULTS ----------
 function displayResults(result) {
     lastResult = result;
     const img = document.getElementById('result-image');
@@ -916,7 +919,7 @@ function displayResults(result) {
         audio.play().catch(e => console.log('Audio play failed:', e));
     }
 
-    // ─── AUTO‑SAVE FOR TEACHERS ───
+    // Auto‑save for teachers
     if (result.condition && result.condition !== 'No issue detected' && isTeacher) {
         autoSaveScan(result);
     }
@@ -969,7 +972,6 @@ window.addEventListener('load', async () => {
     if (isTeacher || isStudent) {
         startCamera('environment');
     }
-    // else: login overlay is already shown by checkLoginStatus
 });
 
 window.addEventListener('beforeunload', () => {
@@ -995,8 +997,6 @@ function initHospitalMap() {
 
 function displayHospitalsOnMap(hospitals, userLat, userLng) {
     const listContainer = document.getElementById('hospital-list');
-    console.log(`📋 Displaying ${hospitals.length} hospitals on map`);
-
     hospitalMarkers.forEach(marker => marker.remove());
     hospitalMarkers = [];
 
@@ -1019,7 +1019,6 @@ function displayHospitalsOnMap(hospitals, userLat, userLng) {
     hospitals.forEach((h) => {
         const hospitalName = h.name || 'Medical Facility';
         const hospitalAddress = h.address || 'Address not available';
-
         const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${h.lat},${h.lon}`;
 
         try {
@@ -1046,7 +1045,6 @@ function displayHospitalsOnMap(hospitals, userLat, userLng) {
 
     listContainer.innerHTML = listHtml;
     listContainer.style.display = 'block';
-    console.log(`✅ List updated with ${hospitals.length} hospitals`);
 
     try {
         const bounds = new mapboxgl.LngLatBounds();
