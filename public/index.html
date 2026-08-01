@@ -284,6 +284,7 @@
 
     agreeBtn.addEventListener('click', function () {
       overlay.classList.remove('open');
+      agreeBtn.blur();
       overlay.setAttribute('aria-hidden', 'true');
     });
 
@@ -310,6 +311,9 @@
 
     function close() {
       overlay.classList.remove('open');
+      if (overlay.contains(document.activeElement)) {
+        document.activeElement.blur();
+      }
       overlay.setAttribute('aria-hidden', 'true');
       var cb = currentCallback;
       currentCallback = null;
@@ -605,5 +609,6 @@
 
 </div>
 <script src="script.js"></script>
+<script src="eye-redaction.js"></script>
 </body>
 </html>

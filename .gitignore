@@ -5,3 +5,4 @@ scans.db
 .DS_Store
 *.mp3
 *.wav
+ngrok.exe 

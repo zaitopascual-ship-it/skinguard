@@ -164,60 +164,6 @@ function formatPhoneNumber(rawNumber) {
     return cleaned;
 }
 
-// ---------- EYE REDACTION WITH ROBOFLOW (via server proxy) ----------
-async function redactEyesWithRoboflow(imageDataUrl) {
-    try {
-        // Call our server endpoint (which uses the API key securely)
-        const response = await csrfFetch('/api/detect-eyes', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ image: imageDataUrl })
-        });
-
-        if (!response.ok) {
-            const errData = await response.json().catch(() => ({}));
-            throw new Error(errData.error || `HTTP ${response.status}`);
-        }
-
-        const data = await response.json();
-        const predictions = data.predictions || [];
-
-        if (predictions.length === 0) {
-            console.log('👀 No eyes detected – no redaction needed.');
-            return imageDataUrl;
-        }
-
-        console.log(`👀 Detected ${predictions.length} eye(s), redacting...`);
-
-        // Load image onto canvas
-        const img = new Image();
-        img.src = imageDataUrl;
-        await img.decode();
-
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
-
-        // Draw black rectangles over each detected eye
-        for (const pred of predictions) {
-            const x = pred.x - pred.width / 2;
-            const y = pred.y - pred.height / 2;
-            ctx.fillStyle = 'black';
-            ctx.fillRect(x, y, pred.width, pred.height);
-        }
-
-        const redacted = canvas.toDataURL('image/jpeg', 0.9);
-        console.log('✅ Eye redaction complete.');
-        return redacted;
-
-    } catch (err) {
-        console.warn('⚠️ Eye redaction failed, using original image:', err.message);
-        return imageDataUrl;
-    }
-}
-
 // ---------- LOGIN ----------
 async function checkLoginStatus() {
     try {
@@ -737,8 +683,18 @@ document.getElementById('upload-btn').addEventListener('click', () => {
         const file = e.target.files[0];
         if (file) {
             const reader = new FileReader();
-            reader.onload = (event) => {
-                capturedImage = event.target.result;
+            reader.onload = async (event) => {
+                // Phone photos often carry an EXIF rotation tag. The browser
+                // auto-rotates it for display, but the raw file bytes we'd
+                // otherwise send to Roboflow do NOT reflect that rotation —
+                // so eye/lesion coordinates come back for the wrong
+                // orientation and boxes land in the wrong place. Redrawing
+                // through a canvas here bakes in the corrected orientation
+                // and strips the EXIF tag, so every downstream consumer
+                // (Roboflow, the redaction box, the display) agrees on the
+                // same coordinate space.
+                const normalizedImage = await normalizeImageOrientation(event.target.result);
+                capturedImage = normalizedImage;
                 analyzeImage();
             };
             reader.readAsDataURL(file);
@@ -746,6 +702,24 @@ document.getElementById('upload-btn').addEventListener('click', () => {
     };
     input.click();
 });
+
+// ---------- NORMALIZE IMAGE ORIENTATION ----------
+// Draws an image through a canvas so the browser's EXIF-aware decode is
+// "baked in" to the pixels, and the output carries no EXIF tag of its own.
+function normalizeImageOrientation(dataUrl) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            canvas.getContext('2d').drawImage(img, 0, 0);
+            resolve(canvas.toDataURL('image/jpeg', 0.92));
+        };
+        img.onerror = reject;
+        img.src = dataUrl;
+    });
+}
 
 // ---------- DRAW BOUNDING BOXES ----------
 function drawBoundingBoxes(img, bboxes, imgSize) {
@@ -814,22 +788,27 @@ async function analyzeImage() {
     if (!capturedImage) return;
     showLoading();
     try {
-        // --- REDACT EYES using Roboflow eye-detection model (via server proxy) ---
-        const redactedImage = await redactEyesWithRoboflow(capturedImage);
+        const originalImage = capturedImage;
+
+        // Eye redaction (eye-redaction.js) and skin-lesion analysis are independent
+        // Roboflow calls that don't depend on each other's output — run them
+        // concurrently instead of making one wait on the other.
+        const [redactedImage, analyzeResponse] = await Promise.all([
+            redactEyesWithRoboflow(originalImage),
+            (async () => {
+                const resizedImage = await resizeImage(originalImage, 600, 600, 0.7);
+                return csrfFetch('/api/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: resizedImage })
+                });
+            })()
+        ]);
+
         capturedImage = redactedImage;  // store redacted version for display/save
 
-        // Resize the (now redacted) image
-        const resizedImage = await resizeImage(capturedImage, 600, 600, 0.7);
-
-        // Send to skin analysis
-        const response = await csrfFetch('/api/analyze', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ image: resizedImage })
-        });
-
-        if (!response.ok) throw new Error('Backend error');
-        const data = await response.json();
+        if (!analyzeResponse.ok) throw new Error('Backend error');
+        const data = await analyzeResponse.json();
         const aiText = data.choices[0].message.content;
         console.log('Raw AI response:', aiText);
 
