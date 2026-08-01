@@ -13,8 +13,8 @@
 // Roboflow's raw detection box tends to be taller/wider than the eye itself
 // (it often includes some brow/socket margin). Scale it down around the same
 // center point so the black bar hugs the eye instead of covering a big block.
-const EYE_BOX_WIDTH_SCALE = 0.7;
-const EYE_BOX_HEIGHT_SCALE = 0.35;
+const EYE_BOX_WIDTH_SCALE = 1.5;
+const EYE_BOX_HEIGHT_SCALE = 0.75;
 
 async function redactEyesWithRoboflow(imageDataUrl) {
     try {
