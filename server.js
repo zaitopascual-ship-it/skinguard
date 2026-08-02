@@ -2322,7 +2322,7 @@ app.post('/api/analyze', requireSession, requireConsent, analyzeLimiter, async (
         const roboStart = Date.now();
         const response = await axios({
             method: 'POST',
-            url: `http://193.181.216.93:4000/detect/aaron-doronio-s-workspace/skinguard_datasetsv1-2-5-rfdetr-large-t1?api_key=${process.env.ROBOFLOW_API_KEY}`,
+            url: `http://193.181.216.93:4000/detect/aaron-doronio-s-workspace/skinguard_datasetsv1-2-5-yolov8n-t3?api_key=${process.env.ROBOFLOW_API_KEY}`,
             data: base64Image,
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
         });
