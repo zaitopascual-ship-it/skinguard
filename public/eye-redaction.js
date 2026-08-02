@@ -17,7 +17,7 @@ const EYE_BOX_WIDTH_SCALE = 1.5;
 const EYE_BOX_HEIGHT_SCALE = 0.75;
 
 // How strong the blur looks, in pixels. Higher = more obscured.
-const EYE_BLUR_RADIUS = 15;
+const EYE_BLUR_RADIUS = 30;
 // Extra buffer around the merged eye box so the blur doesn't have a
 // hard/visible edge right at the boundary of the detected region.
 const EYE_BLUR_PADDING = 6;
