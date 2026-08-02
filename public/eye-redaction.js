@@ -3,7 +3,7 @@
 //  ------------------------------------------------------------
 //  This is intentionally separate from the skin-lesion detector
 //  in script.js. It only knows how to find eyes in a photo and
-//  black them out — it has no knowledge of skin conditions,
+//  blur them out — it has no knowledge of skin conditions,
 //  severity, or the /api/analyze pipeline.
 //
 //  Depends on csrfFetch() (defined in script.js), so load this
@@ -12,9 +12,15 @@
 
 // Roboflow's raw detection box tends to be taller/wider than the eye itself
 // (it often includes some brow/socket margin). Scale it down around the same
-// center point so the black bar hugs the eye instead of covering a big block.
+// center point so the blur hugs the eye instead of covering a big block.
 const EYE_BOX_WIDTH_SCALE = 1.5;
 const EYE_BOX_HEIGHT_SCALE = 0.75;
+
+// How strong the blur looks, in pixels. Higher = more obscured.
+const EYE_BLUR_RADIUS = 15;
+// Extra buffer around the merged eye box so the blur doesn't have a
+// hard/visible edge right at the boundary of the detected region.
+const EYE_BLUR_PADDING = 6;
 
 async function redactEyesWithRoboflow(imageDataUrl) {
     try {
@@ -107,8 +113,22 @@ async function redactEyesWithRoboflow(imageDataUrl) {
             maxY = Math.max(maxY, eye.y2);
         }
 
-        ctx.fillStyle = 'black';
-        ctx.fillRect(minX, minY, maxX - minX, maxY - minY);
+        // Blur the eye region instead of blacking it out. Canvas has no
+        // built-in "blur this rectangle" op, so we clip to the (padded)
+        // region, apply a CSS-style blur filter, then redraw the same image
+        // on top of itself — only the clipped area ends up blurred.
+        const bx = Math.max(0, minX - EYE_BLUR_PADDING);
+        const by = Math.max(0, minY - EYE_BLUR_PADDING);
+        const bw = Math.min(canvas.width - bx, (maxX - minX) + EYE_BLUR_PADDING * 2);
+        const bh = Math.min(canvas.height - by, (maxY - minY) + EYE_BLUR_PADDING * 2);
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(bx, by, bw, bh);
+        ctx.clip();
+        ctx.filter = `blur(${EYE_BLUR_RADIUS}px)`;
+        ctx.drawImage(img, 0, 0);
+        ctx.restore();
 
         const redacted = canvas.toDataURL('image/jpeg', 0.9);
         console.log('✅ Eye redaction complete.');
