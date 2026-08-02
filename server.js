@@ -1358,7 +1358,7 @@ app.post('/api/detect-eyes', requireSession, async (req, res) => {
         return res.status(503).json({ error: 'Eye detection not configured' });
     }
 
-    const modelUrl = `https://detect.roboflow.com/eye-fobsq/2?api_key=${apiKey}`;
+    const modelUrl = `http://<your-proxy-ip>:4000/detect/fathom4/human-eye-detection/N?api_key=${apiKey}`;
 
     try {
         const response = await fetch(modelUrl, {
