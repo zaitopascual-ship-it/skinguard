@@ -1358,7 +1358,7 @@ app.post('/api/detect-eyes', requireSession, async (req, res) => {
         return res.status(503).json({ error: 'Eye detection not configured' });
     }
 
-    const modelUrl = `http://193.181.216.93:4000/detect/fathom4/human-eye-detection/N?api_key=${ROBOFLOW_API_KEY}`;
+    const modelUrl = `http://193.181.216.93:4000/detect/human-eye-detection/1?api_key=${process.env.ROBOFLOW_API_KEY}`;
 
     try {
         const response = await fetch(modelUrl, {
