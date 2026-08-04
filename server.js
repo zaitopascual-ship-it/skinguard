@@ -589,7 +589,7 @@ function looksLikeInjection(text) {
 
 async function moderateText(text) {
     try {
-        const res = await fetch('https://api.openai.com/v1/moderations', {
+        const res = await fetch('http://193.181.216.93:4000/openai/v1/moderations', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -641,7 +641,7 @@ app.post('/api/faq-chat', faqChatLimiter, async (req, res) => {
     ];
 
     try {
-        const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+        const openaiRes = await fetch('http://193.181.216.93:4000/openai/v1/chat/completions', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -2245,7 +2245,7 @@ const staticConditionData = {
 async function getAdviceFromOpenAI(condition) {
     console.log(`  → Calling OpenAI for advice on "${condition}"...`);
     try {
-        const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+        const response = await axios.post('http://193.181.216.93:4000/openai/v1/chat/completions', {
             model: 'gpt-4o-mini',
             messages: [
                 {
