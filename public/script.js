@@ -60,24 +60,6 @@ const SANTIAGO_HOSPITALS = [
     { name: 'Intellicare - Maharlika Highway', address: 'Santiago City', lat: 16.687584, lon: 121.542402 }
 ];
 
-// ---------- FALLBACK CONDITIONS ----------
-const conditions = [
-    { name: 'Bug bite', severity: 'Green', advice: 'Minor – can go back to class. Monitor for swelling.', firstAid: 'Wash with soap and water. Apply cold compress. Use anti-itch cream if needed.' },
-    { name: 'Rash', severity: 'Yellow', advice: 'Observe. Notify parents after school. If spreads, see doctor.', firstAid: 'Avoid scratching. Apply calamine lotion. Keep area dry.' },
-    { name: 'Chickenpox', severity: 'Red', advice: 'Serious – call parents immediately. Isolate child.', firstAid: 'Keep clean, avoid scratching, use calamine lotion, consult doctor immediately.' },
-    { name: 'Sunburn', severity: 'Green', advice: 'Apply aloe vera. Return to class, avoid sun.', firstAid: 'Cool compresses, aloe vera, drink water.' },
-    { name: 'Lice', severity: 'Yellow', advice: 'Notify parents. Child should be picked up.', firstAid: 'Use over-the-counter lice treatment, wash bedding.' },
-    { name: 'Eczema', severity: 'Yellow', advice: 'Moisturize, avoid scratching. Avoid known triggers. See doctor if severe.', firstAid: 'Apply gentle moisturizer. Use cool compress. Avoid harsh soaps.' },
-    { name: 'Ringworm', severity: 'Yellow', advice: 'Antifungal cream needed. Keep area clean and dry. See doctor if persists.', firstAid: 'Apply over-the-counter antifungal cream. Wash hands thoroughly.' },
-    { name: 'Hives', severity: 'Yellow', advice: 'Possible allergic reaction. Monitor for swelling. Give antihistamine if available. See doctor if breathing difficulty.', firstAid: 'Apply cool compress. Avoid scratching. Seek medical help if swelling occurs.' },
-    { name: 'Impetigo', severity: 'Red', advice: 'Highly contagious. Isolate child, see doctor immediately for antibiotics.', firstAid: 'Cover area loosely. Wash hands frequently. Do not touch sores.' },
-    { name: 'Cold sore', severity: 'Yellow', advice: 'Avoid touching, sharing utensils. Use cold sore cream. See doctor if recurrent.', firstAid: 'Apply ice. Use lip balm. Avoid picking.' },
-    { name: 'Scabies', severity: 'Red', advice: 'Intense itching, highly contagious. See doctor for prescription cream. Notify school.', firstAid: 'Avoid scratching. Wash clothing and bedding in hot water. Isolate until treated.' },
-    { name: 'Molluscum', severity: 'Green', advice: 'Harmless, usually clears on its own. Avoid sharing towels.', firstAid: 'Keep area clean. Do not pick. Consult doctor if spreads.' },
-    { name: 'Warts', severity: 'Green', advice: 'Over‑the‑counter treatments available. Avoid picking.', firstAid: 'Cover with bandage. Use wart remover as directed. Wash hands after touching.' },
-    { name: 'Heat rash', severity: 'Green', advice: 'Cool down, keep skin dry. Wear loose clothing.', firstAid: 'Move to cool area. Apply cool cloth. Avoid creams that block pores.' }
-];
-
 const allowedConditions = [
     'Bug bite', 'Bugbites', 'Bugbite',
     'Rash', 'Chickenpox', 'Sunburn', 'Lice',
@@ -807,7 +789,10 @@ async function analyzeImage() {
 
         capturedImage = redactedImage;  // store redacted version for display/save
 
-        if (!analyzeResponse.ok) throw new Error('Backend error');
+        if (!analyzeResponse.ok) {
+            const errBody = await analyzeResponse.json().catch(() => ({}));
+            throw new Error(errBody.error || 'AI is not responding. Please monitor the lesion.');
+        }
         const data = await analyzeResponse.json();
         const aiText = data.choices[0].message.content;
         console.log('Raw AI response:', aiText);
@@ -825,15 +810,15 @@ async function analyzeImage() {
         try {
             aiResult = JSON.parse(cleanedText);
         } catch (e) {
-            console.warn('Invalid JSON, fallback');
+            console.warn('Invalid JSON from AI response');
             hideLoading();
-            useFallback();
+            showAnalysisError('AI is not responding. Please monitor the lesion.');
             return;
         }
         if (!allowedConditions.some(c => c.toLowerCase() === aiResult.condition.toLowerCase())) {
-            console.warn('Invalid condition, fallback');
+            console.warn('Invalid condition returned by AI');
             hideLoading();
-            useFallback();
+            showAnalysisError('AI is not responding. Please monitor the lesion.');
             return;
         }
         hideLoading();
@@ -841,14 +826,13 @@ async function analyzeImage() {
     } catch (error) {
         console.error('AI failed:', error);
         hideLoading();
-        alert('AI service unavailable. Using fallback.');
-        useFallback();
+        showAnalysisError(error.message || 'AI is not responding. Please monitor the lesion.');
     }
 }
 
-function useFallback() {
-    const randomIndex = Math.floor(Math.random() * conditions.length);
-    displayResults(conditions[randomIndex]);
+function showAnalysisError(message) {
+    alert(message);
+    showScreen('camera-screen');
 }
 
 // ---------- DISPLAY RESULTS ----------

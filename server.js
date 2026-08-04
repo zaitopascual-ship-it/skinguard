@@ -2363,40 +2363,23 @@ app.post('/api/analyze', requireSession, requireConsent, analyzeLimiter, async (
 
         const staticInfo = staticConditionData[rawClass];
         if (!staticInfo) {
-            console.log(`⚠️ Unknown class "${rawClass}", using fallback`);
-            const fallbackResult = {
-                condition: displayCondition,
-                confidence,
-                severity: 'Yellow',
-                advice: 'Consult a healthcare professional.',
-                firstAid: 'Monitor the area and keep it clean.',
-                bboxes: valid.map(p => ({ class: p.class, confidence: p.confidence, x: p.x, y: p.y, width: p.width, height: p.height })),
-                imageSize: imageSize
-            };
-            fallbackResult.scanToken = createScanToken({
-                condition: fallbackResult.condition,
-                severity: fallbackResult.severity,
-                advice: fallbackResult.advice,
-                firstAid: fallbackResult.firstAid
-            });
+            console.log(`❌ Unknown class "${rawClass}", aborting scan (no fallback)`);
             console.log(`⏱️ Total time: ${Date.now() - startTime}ms\n`);
-            return res.json({ choices: [{ message: { content: JSON.stringify(fallbackResult) } }] });
+            return res.status(502).json({ error: 'AI is not responding. Please monitor the lesion.' });
         }
         const severity = staticInfo.severity;
         console.log(`  🎨 Severity: ${severity}`);
 
-        let advice, firstAid;
         const openAiResult = await getAdviceFromOpenAI(displayCondition);
-        if (openAiResult) {
-            advice = openAiResult.advice;
-            firstAid = openAiResult.firstAid;
-            console.log(`  💬 Advice: "${advice}"`);
-            console.log(`  🩹 First aid: "${firstAid}"`);
-        } else {
-            console.log('  ⚠️ Falling back to static advice');
-            advice = staticInfo.advice;
-            firstAid = staticInfo.firstAid;
+        if (!openAiResult) {
+            console.log('  ❌ OpenAI advice generation failed, aborting scan (no fallback)');
+            console.log(`⏱️ Total time: ${Date.now() - startTime}ms\n`);
+            return res.status(502).json({ error: 'AI is not responding. Please monitor the lesion.' });
         }
+        const advice = openAiResult.advice;
+        const firstAid = openAiResult.firstAid;
+        console.log(`  💬 Advice: "${advice}"`);
+        console.log(`  🩹 First aid: "${firstAid}"`);
 
         const allBoxes = valid.map(p => ({
             class: p.class,
