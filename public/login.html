@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SkinGuard · Admin Login</title>
+  <title>SkinGuard · Login</title>
   <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <style>
@@ -182,7 +182,7 @@
   <div class="login-header">
     <img src="assets/skinguard-logo.svg" alt="SkinGuard Logo">
     <h1>SKINGUARD</h1>
-    <p>Admin Access</p>
+    <p>Sign In</p>
   </div>
 
   <form id="login-form" autocomplete="off">
@@ -243,7 +243,11 @@
         errorEl.textContent = '✅ Login successful! Redirecting...';
         errorEl.className = 'error-msg success';
         setTimeout(() => {
-          window.location.href = '/admin';
+          if (data.role === 'student') {
+            window.location.href = '/';
+          } else {
+            window.location.href = '/admin';
+          }
         }, 800);
       } else {
         errorEl.textContent = data.error || 'Invalid username or password.';
