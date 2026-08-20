@@ -1740,7 +1740,7 @@ app.post('/api/send-sms', requireSession, smsLimiter, async (req, res) => {
         const role = req.session.role;
 
         // ─── GUEST: queue for admin approval ───
-        if (role === 'guest') {
+        if (role === 'guest' || role === 'student') {
             const smsStatus = filteredChannels.includes('sms') ? 'pending' : 'none';
             const emailStatus = filteredChannels.includes('email') ? 'pending' : 'none';
             const stmt = db.prepare(`
